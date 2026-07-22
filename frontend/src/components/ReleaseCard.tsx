@@ -1,4 +1,4 @@
-import { Star, CalendarDays, Play, Ticket, MessageCircle } from 'lucide-react'
+import { Star, Play, Ticket, MessageCircle } from 'lucide-react'
 import { Release } from '../types'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
@@ -115,7 +115,16 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
       <div className="release-info">
         <h4>{release.title}</h4>
         <p>
-          <CalendarDays size={12} /> {formatDate(release.releaseDate)}
+          <span className="date-cal" title={formatDate(release.releaseDate)}>
+            <span className="date-cal-month">
+              {new Date(release.releaseDate + 'T00:00:00').toLocaleDateString('en-IN', {
+                month: 'short',
+              })}
+            </span>
+            <span className="date-cal-day">
+              {new Date(release.releaseDate + 'T00:00:00').getDate()}
+            </span>
+          </span>
           <span className="release-lang">{release.languageLabel}</span>
           <button
             className="card-share"

@@ -41,6 +41,10 @@ function matchDateTime(iso: string) {
   })
 }
 
+function matchDay(iso: string) {
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
+
 function weekTitle(index: number) {
   if (index === 0) return 'This Week'
   if (index === 1) return 'Last Week'
@@ -259,7 +263,7 @@ export default function Cricket() {
             <span className="india-result">
               {indiaMatch.state === 'pre'
                 ? `Upcoming · ${matchDateTime(indiaMatch.date)}`
-                : resultLine(indiaMatch)}
+                : `${resultLine(indiaMatch)} · ${matchDay(indiaMatch.date)}`}
               {indiaMatch.venue && ` · ${indiaMatch.venue}`}
             </span>
           </div>
@@ -385,11 +389,21 @@ export default function Cricket() {
                           </span>
                         )}
                       </span>
-                      {m.venue && (
-                        <span className="match-venue">
-                          <MapPin size={11} /> {m.venue}
-                        </span>
-                      )}
+                      <span className="match-venue">
+                        {m.state === 'post' && (
+                          <span className="date-cal sm" title={matchDay(m.date)}>
+                            <span className="date-cal-month">
+                              {new Date(m.date).toLocaleDateString('en-IN', { month: 'short' })}
+                            </span>
+                            <span className="date-cal-day">{new Date(m.date).getDate()}</span>
+                          </span>
+                        )}
+                        {m.venue && (
+                          <>
+                            <MapPin size={11} /> {m.venue}
+                          </>
+                        )}
+                      </span>
                       <button
                         className="card-share"
                         title="Share on WhatsApp"

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Search,
   Bot,
@@ -131,6 +131,41 @@ export default function Releases() {
       .slice(0, 4)
   }, [releases, isWeekView, showRows])
 
+  // On phones the spotlight is a snap carousel — auto-advance it every 4s,
+  // pausing for a while whenever the visitor touches it themselves
+  const heroRef = useRef<HTMLElement | null>(null)
+  const heroTouchedAt = useRef(0)
+
+  useEffect(() => {
+    const el = heroRef.current
+    if (!el || heroPicks.length < 2) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const markTouch = () => {
+      heroTouchedAt.current = Date.now()
+    }
+    el.addEventListener('touchstart', markTouch, { passive: true })
+    el.addEventListener('pointerdown', markTouch)
+
+    const timer = setInterval(() => {
+      if (!window.matchMedia('(max-width: 640px)').matches) return
+      if (Date.now() - heroTouchedAt.current < 6000) return
+      const first = el.children[0] as HTMLElement | undefined
+      const second = el.children[1] as HTMLElement | undefined
+      if (!first || !second) return
+      const step = second.offsetLeft - first.offsetLeft
+      const index = Math.round(el.scrollLeft / step)
+      const next = index >= el.children.length - 1 ? 0 : index + 1
+      el.scrollTo({ left: next * step, behavior: 'smooth' })
+    }, 4000)
+
+    return () => {
+      clearInterval(timer)
+      el.removeEventListener('touchstart', markTouch)
+      el.removeEventListener('pointerdown', markTouch)
+    }
+  }, [heroPicks, loading])
+
   return (
     <main>
       <section className="opp-header">
@@ -248,7 +283,7 @@ export default function Releases() {
       )}
 
       {!loading && heroPicks.length >= 3 && (
-        <section className="hero-spotlight" aria-label="Top picks">
+        <section className="hero-spotlight" aria-label="Top picks" ref={heroRef}>
           {heroPicks.map((r, i) => (
             <article
               key={r.id}

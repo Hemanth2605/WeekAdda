@@ -33,13 +33,13 @@ export default function Navbar() {
           to="/movies"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Film size={16} /> Movies
+          <Film size={16} /> <span className="nav-link-label">Movies</span>
         </NavLink>
         <NavLink
           to="/cricket"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Trophy size={16} /> Cricket
+          <Trophy size={16} /> <span className="nav-link-label">Cricket</span>
         </NavLink>
       </nav>
 

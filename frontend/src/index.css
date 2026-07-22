@@ -1150,8 +1150,13 @@ input {
 
 /* ---------------- responsive ---------------- */
 @media (max-width: 720px) {
-  .navbar { padding: 14px 20px; }
+  .navbar { padding: 12px 16px; gap: 10px; }
   .nav-tagline { display: none; }
+  .nav-brand { gap: 7px; }
+  .nav-brand span { font-size: 18px; }
+  .nav-links { gap: 2px; }
+  .nav-link { padding: 8px 10px; font-size: 12.5px; gap: 6px; }
+  .theme-toggle { width: 36px; height: 36px; }
   .feature-grid { padding: 20px 20px 50px; }
   .site-footer { padding: 28px 20px 34px; }
   .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .week-nav { padding-left: 20px; padding-right: 20px; }
@@ -1704,3 +1709,14 @@ input {
   border-color: rgba(163, 116, 27, 0.4);
 }
 
+
+/* Very narrow phones: nav links collapse to icons so the theme toggle
+   always stays on screen */
+@media (max-width: 400px) {
+  .nav-link-label {
+    display: none;
+  }
+  .nav-link {
+    padding: 8px 9px;
+  }
+}

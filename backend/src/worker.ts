@@ -107,8 +107,8 @@ export default {
         // fall through to validation
       }
       const { kind, platform, titleId, title, language } = body
-      if (kind !== 'watch' && kind !== 'book' && kind !== 'score') {
-        return json({ error: 'kind must be watch, book or score' }, 400)
+      if (kind !== 'watch' && kind !== 'book' && kind !== 'score' && kind !== 'share') {
+        return json({ error: 'kind must be watch, book, score or share' }, 400)
       }
       if (!platform || !title) {
         return json({ error: 'platform and title are required' }, 400)

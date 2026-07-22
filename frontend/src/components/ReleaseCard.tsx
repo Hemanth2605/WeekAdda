@@ -1,7 +1,8 @@
-import { Star, CalendarDays, Play, Ticket } from 'lucide-react'
+import { Star, CalendarDays, Play, Ticket, MessageCircle } from 'lucide-react'
 import { Release } from '../types'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
+import { platformClass, shareRelease } from '../share'
 
 // Deterministic gradient for films without poster art
 export function coverGradient(title: string) {
@@ -57,7 +58,7 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
           </span>
         )}
         {isOtt && (
-          <span className="release-flag ott">
+          <span className={`release-flag ott ${platformClass(release.platforms![0])}`}>
             {release.platforms![0]}
             {release.platforms!.length > 1 && ` +${release.platforms!.length - 1}`}
           </span>
@@ -116,6 +117,16 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
         <p>
           <CalendarDays size={12} /> {formatDate(release.releaseDate)}
           <span className="release-lang">{release.languageLabel}</span>
+          <button
+            className="card-share"
+            title={`Share ${release.title} on WhatsApp`}
+            onClick={(e) => {
+              e.stopPropagation()
+              shareRelease(release)
+            }}
+          >
+            <MessageCircle size={13} />
+          </button>
         </p>
       </div>
     </article>

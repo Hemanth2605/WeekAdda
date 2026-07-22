@@ -1114,3 +1114,345 @@ input {
   .release-detail-body { padding: 24px; }
   .login-card { padding: 34px 26px; }
 }
+
+/* ---------------- hero spotlight (top picks of the week) ---------------- */
+.hero-spotlight {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr 1fr 1fr;
+  gap: 16px;
+  padding: 10px 42px 6px;
+}
+.hero-card {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  min-height: 250px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s, border-color 0.3s;
+}
+.hero-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-strong);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55), 0 0 40px rgba(232, 179, 75, 0.1);
+}
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 20%;
+  filter: blur(28px) saturate(1.25) brightness(0.38);
+  transform: scale(1.4);
+}
+.hero-big-inner {
+  position: relative;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  height: 100%;
+  padding: 22px 26px;
+}
+.hero-poster {
+  height: 210px;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+  flex: 0 0 auto;
+}
+.hero-text {
+  min-width: 0;
+}
+.hero-toplabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 8px;
+}
+.hero-text h3 {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 1.12;
+  margin: 0 0 8px;
+}
+.hero-overview {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 14px;
+}
+.hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hero-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.hero-chip.gold {
+  background: rgba(232, 179, 75, 0.16);
+  border-color: rgba(232, 179, 75, 0.4);
+  color: var(--gold-bright);
+}
+.hero-fill {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 34px 14px 12px;
+  background: linear-gradient(to top, rgba(6, 6, 10, 0.92), rgba(6, 6, 10, 0.55) 60%, transparent);
+}
+.hero-overlay h4 {
+  font-size: 14.5px;
+  line-height: 1.25;
+  margin: 0 0 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-overlay span {
+  font-size: 11.5px;
+  color: var(--gold-bright);
+}
+@media (max-width: 980px) {
+  .hero-spotlight {
+    grid-template-columns: 1fr 1fr;
+    padding: 10px 18px 6px;
+  }
+  .hero-card.big {
+    grid-column: 1 / -1;
+  }
+  .hero-poster {
+    height: 160px;
+  }
+}
+
+/* ---------------- skeleton loading ---------------- */
+.sk {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.sk-poster {
+  flex: 0 0 175px;
+  width: 175px;
+  aspect-ratio: 2 / 3;
+  border-radius: 14px;
+}
+.sk-line {
+  height: 16px;
+  border-radius: 6px;
+}
+.sk-match {
+  flex: 0 0 320px;
+  width: 320px;
+  height: 158px;
+  border-radius: 16px;
+}
+
+/* ---------------- platform brand colours ---------------- */
+.release-flag.ott.pf-netflix { background: #e50914; color: #fff; border-color: transparent; }
+.release-flag.ott.pf-amazonprimevideo { background: #00a8e1; color: #04222d; border-color: transparent; }
+.release-flag.ott.pf-jiohotstar { background: #1476f2; color: #fff; border-color: transparent; }
+.release-flag.ott.pf-sonyliv { background: #5a4fcf; color: #fff; border-color: transparent; }
+.release-flag.ott.pf-zee5 { background: #8230c6; color: #fff; border-color: transparent; }
+.release-flag.ott.pf-aha { background: #ff6a00; color: #fff; border-color: transparent; }
+.release-flag.ott.pf-etvwin { background: #d6006e; color: #fff; border-color: transparent; }
+.hero-chip.pf { color: #fff; border-color: transparent; }
+.hero-chip.pf.pf-netflix { background: #e50914; }
+.hero-chip.pf.pf-amazonprimevideo { background: #00a8e1; color: #04222d; }
+.hero-chip.pf.pf-jiohotstar { background: #1476f2; }
+.hero-chip.pf.pf-sonyliv { background: #5a4fcf; }
+.hero-chip.pf.pf-zee5 { background: #8230c6; }
+.hero-chip.pf.pf-aha { background: #ff6a00; }
+.hero-chip.pf.pf-etvwin { background: #d6006e; }
+.pf-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--gold);
+}
+.pf-dot.pf-netflix { background: #e50914; }
+.pf-dot.pf-amazonprimevideo { background: #00a8e1; }
+.pf-dot.pf-jiohotstar { background: #1476f2; }
+.pf-dot.pf-sonyliv { background: #5a4fcf; }
+.pf-dot.pf-zee5 { background: #8230c6; }
+.pf-dot.pf-aha { background: #ff6a00; }
+.pf-dot.pf-etvwin { background: #d6006e; }
+
+/* ---------------- WhatsApp share ---------------- */
+.share-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #25d366;
+  color: #06301a;
+  font-weight: 700;
+  font-size: 13.5px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 20px;
+  margin-top: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.share-wa:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(37, 211, 102, 0.3);
+}
+.share-wa.sm {
+  padding: 7px 14px;
+  font-size: 12.5px;
+  margin-top: 0;
+}
+.card-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 1px solid rgba(37, 211, 102, 0.35);
+  background: rgba(37, 211, 102, 0.12);
+  color: #4ce38a;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.card-share:hover {
+  background: #25d366;
+  color: #06301a;
+  transform: scale(1.1);
+}
+
+/* ---------------- India match banner ---------------- */
+.india-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 8px 42px 16px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: linear-gradient(115deg, rgba(232, 179, 75, 0.14), rgba(18, 84, 48, 0.22) 60%, rgba(10, 10, 14, 0.4));
+  border: 1px solid rgba(232, 179, 75, 0.38);
+  animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.india-flag {
+  font-size: 34px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+.india-body {
+  min-width: 0;
+  flex: 1;
+}
+.india-series {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin-bottom: 6px;
+}
+.india-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-bottom: 5px;
+}
+.india-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.india-team img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.india-team b {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.india-team.winner b {
+  color: var(--gold-bright);
+}
+.india-result {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.india-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.india-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gold-bright);
+  text-decoration: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 7px 14px;
+  transition: background 0.2s;
+}
+.india-cta:hover {
+  background: rgba(232, 179, 75, 0.14);
+}
+@media (max-width: 720px) {
+  .india-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 8px 18px 16px;
+  }
+  .india-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+

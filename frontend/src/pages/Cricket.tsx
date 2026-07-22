@@ -10,10 +10,12 @@ import {
   CalendarDays,
   MapPin,
   ExternalLink,
+  MessageCircle,
 } from 'lucide-react'
 import { api, trackClick } from '../api'
 import { usePageMeta } from '../seo'
 import { CricketMatch, CricketMeta, WeekInfo } from '../types'
+import { shareMatch } from '../share'
 
 type Window = 'recent' | 'upcoming'
 
@@ -109,6 +111,18 @@ export default function Cricket() {
   }, [matches])
 
   const maxWeeks = weekInfo?.maxWeeks ?? 13
+
+  // Headline India's match when the current view has one (results: latest
+  // result; upcoming: next fixture)
+  const indiaMatch = useMemo(
+    () =>
+      search.trim()
+        ? null
+        : matches.find((m) =>
+            m.teams.some((t) => t.name.toLowerCase().startsWith('india'))
+          ) ?? null,
+    [matches, search]
+  )
 
   return (
     <main>
@@ -223,7 +237,85 @@ export default function Cricket() {
         </div>
       </div>
 
-      {!loading && matches.length === 0 ? (
+      {!loading && indiaMatch && (
+        <section className="india-banner" aria-label="India match">
+          <span className="india-flag" aria-hidden>
+            🇮🇳
+          </span>
+          <div className="india-body">
+            <span className="india-series">
+              {indiaMatch.series}
+              {indiaMatch.label ? ` · ${indiaMatch.label}` : ''}
+            </span>
+            <div className="india-teams">
+              {indiaMatch.teams.map((t, i) => (
+                <span key={i} className={`india-team${t.winner ? ' winner' : ''}`}>
+                  {t.logo && <img src={t.logo} alt="" />}
+                  {t.name}
+                  {t.score && <b>{t.score}</b>}
+                </span>
+              ))}
+            </div>
+            <span className="india-result">
+              {indiaMatch.state === 'pre'
+                ? `Upcoming · ${matchDateTime(indiaMatch.date)}`
+                : resultLine(indiaMatch)}
+              {indiaMatch.venue && ` · ${indiaMatch.venue}`}
+            </span>
+          </div>
+          <div className="india-actions">
+            {indiaMatch.url && (
+              <a
+                href={indiaMatch.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="india-cta"
+                onClick={() =>
+                  trackClick({
+                    kind: 'score',
+                    platform: 'ESPN',
+                    titleId: indiaMatch.id,
+                    title: indiaMatch.name,
+                    language: indiaMatch.series,
+                  })
+                }
+              >
+                {indiaMatch.state === 'pre' ? 'Match page' : 'Scorecard'} <ExternalLink size={12} />
+              </a>
+            )}
+            <button
+              className="share-wa sm"
+              onClick={() =>
+                shareMatch(
+                  indiaMatch,
+                  indiaMatch.state === 'pre'
+                    ? `Upcoming · ${matchDateTime(indiaMatch.date)}`
+                    : resultLine(indiaMatch)
+                )
+              }
+            >
+              <MessageCircle size={14} /> Share
+            </button>
+          </div>
+        </section>
+      )}
+
+      {loading ? (
+        <div className="lang-sections" aria-hidden>
+          {[0, 1].map((s) => (
+            <section key={s} className="lang-section">
+              <div className="lang-head">
+                <div className="sk sk-line" style={{ width: 160 }} />
+              </div>
+              <div className="lang-row">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <div key={i} className="sk sk-match" />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : matches.length === 0 ? (
         <div className="empty-state">
           <Trophy size={54} />
           <h3>No matches here</h3>
@@ -298,6 +390,22 @@ export default function Cricket() {
                           <MapPin size={11} /> {m.venue}
                         </span>
                       )}
+                      <button
+                        className="card-share"
+                        title="Share on WhatsApp"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          shareMatch(
+                            m,
+                            m.state === 'pre'
+                              ? `Upcoming · ${matchDateTime(m.date)}`
+                              : resultLine(m)
+                          )
+                        }}
+                      >
+                        <MessageCircle size={13} />
+                      </button>
                     </div>
                   </a>
                 ))}

@@ -1,6 +1,6 @@
 /** Fire-and-forget outbound-click tracking; must never block or break navigation. */
 export function trackClick(payload: {
-  kind: 'watch' | 'book' | 'score'
+  kind: 'watch' | 'book' | 'score' | 'share'
   platform: string
   titleId: string
   title: string

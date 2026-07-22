@@ -273,7 +273,7 @@ export function queryCricket(data: CricketCache, q: CricketQuery, extras: { sync
 
 export interface Click {
   ts: string
-  kind: 'watch' | 'book' | 'score'
+  kind: 'watch' | 'book' | 'score' | 'share'
   platform: string
   titleId: string
   title: string

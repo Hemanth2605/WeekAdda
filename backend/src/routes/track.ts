@@ -17,8 +17,8 @@ const router = Router()
 
 router.post('/click', (req: Request, res: Response) => {
   const { kind, platform, titleId, title, language } = req.body ?? {}
-  if (kind !== 'watch' && kind !== 'book' && kind !== 'score') {
-    return res.status(400).json({ error: 'kind must be watch, book or score' })
+  if (kind !== 'watch' && kind !== 'book' && kind !== 'score' && kind !== 'share') {
+    return res.status(400).json({ error: 'kind must be watch, book, score or share' })
   }
   if (!platform || !title) {
     return res.status(400).json({ error: 'platform and title are required' })

@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket } from 'lucide-react'
+import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket, MessageCircle } from 'lucide-react'
 import { Release } from '../types'
 import { coverGradient, formatDate, daysUntil } from './ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
+import { platformClass, shareRelease } from '../share'
 
 interface Props {
   release: Release
@@ -124,6 +125,7 @@ export default function ReleaseModal({ release, onClose }: Props) {
                       })
                     }
                   >
+                    <span className={`pf-dot ${platformClass(p)}`} />
                     <Play size={13} fill="currentColor" />
                     {days > 0 ? p : `Watch on ${p}`}
                     <ExternalLink size={11} />
@@ -132,6 +134,9 @@ export default function ReleaseModal({ release, onClose }: Props) {
               </div>
             )}
             <p className="modal-synopsis">{release.overview}</p>
+            <button className="share-wa" onClick={() => shareRelease(release)}>
+              <MessageCircle size={16} /> Share on WhatsApp
+            </button>
           </div>
         </div>
       </div>

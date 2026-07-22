@@ -11,11 +11,13 @@ import {
   CalendarDays,
   MonitorPlay,
 } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { api } from '../api'
 import { usePageMeta } from '../seo'
 import { Release, ReleaseMeta, LanguageInfo, WeekInfo } from '../types'
-import ReleaseCard from '../components/ReleaseCard'
+import ReleaseCard, { coverGradient, formatDate } from '../components/ReleaseCard'
 import ReleaseModal from '../components/ReleaseModal'
+import { platformClass } from '../share'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
@@ -119,6 +121,15 @@ export default function Releases() {
   const showRows = language === 'all' && !search.trim()
   const maxWeeks = weekInfo?.maxWeeks ?? 13
   const isWeekView = windowTab !== 'upcoming'
+
+  // The week's biggest titles (by ratings volume) headline the page
+  const heroPicks = useMemo(() => {
+    if (!isWeekView || !showRows) return []
+    return [...releases]
+      .filter((r) => r.poster)
+      .sort((a, b) => b.votes - a.votes)
+      .slice(0, 4)
+  }, [releases, isWeekView, showRows])
 
   return (
     <main>
@@ -236,6 +247,63 @@ export default function Releases() {
         </div>
       )}
 
+      {!loading && heroPicks.length >= 3 && (
+        <section className="hero-spotlight" aria-label="Top picks">
+          {heroPicks.map((r, i) => (
+            <article
+              key={r.id}
+              className={`hero-card${i === 0 ? ' big' : ''}`}
+              style={{ animationDelay: `${i * 70}ms` }}
+              onClick={() => setSelected(r)}
+            >
+              <div
+                className="hero-bg"
+                style={
+                  r.poster
+                    ? { backgroundImage: `url(${r.poster})` }
+                    : { background: coverGradient(r.title) }
+                }
+              />
+              {i === 0 ? (
+                <div className="hero-big-inner">
+                  <img className="hero-poster" src={r.poster!} alt={r.title} />
+                  <div className="hero-text">
+                    <span className="hero-toplabel">
+                      <Star size={12} fill="currentColor" /> #1 pick · {weekTitle(week)}
+                    </span>
+                    <h3>{r.title}</h3>
+                    <p className="hero-overview">{r.overview}</p>
+                    <div className="hero-chips">
+                      {r.rating > 0 && (
+                        <span className="hero-chip gold">★ {r.rating.toFixed(1)}</span>
+                      )}
+                      <span className="hero-chip">{r.languageLabel}</span>
+                      <span className="hero-chip">{formatDate(r.releaseDate)}</span>
+                      {r.platforms?.[0] && (
+                        <span className={`hero-chip pf ${platformClass(r.platforms[0])}`}>
+                          {r.platforms[0]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <img className="hero-fill" src={r.poster!} alt={r.title} loading="lazy" />
+                  <div className="hero-overlay">
+                    <h4>{r.title}</h4>
+                    <span>
+                      {r.rating > 0 ? `★ ${r.rating.toFixed(1)} · ` : ''}
+                      {r.platforms?.[0] ?? r.languageLabel}
+                    </span>
+                  </div>
+                </>
+              )}
+            </article>
+          ))}
+        </section>
+      )}
+
       <div className="toolbar">
         <div className="search-wrap">
           <Search size={17} />
@@ -303,7 +371,22 @@ export default function Releases() {
         </div>
       </div>
 
-      {!loading && releases.length === 0 ? (
+      {loading ? (
+        <div className="lang-sections" aria-hidden>
+          {[0, 1].map((s) => (
+            <section key={s} className="lang-section">
+              <div className="lang-head">
+                <div className="sk sk-line" style={{ width: 120 }} />
+              </div>
+              <div className="lang-row">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="sk sk-poster" />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : releases.length === 0 ? (
         <div className="empty-state">
           <Film size={54} />
           <h3>Nothing on the reel</h3>

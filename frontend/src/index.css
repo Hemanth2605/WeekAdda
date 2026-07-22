@@ -888,9 +888,15 @@ input {
   transform: translate(-50%, -50%) scale(1.08) !important;
 }
 @media (hover: none) {
+  /* No hover on touch: dock the pill low on the poster (corners hold the
+     rating and Series badges) so faces and gradient-card titles stay clear */
   .card-watch {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    top: auto;
+    bottom: 42px;
+    transform: translate(-50%, 0) scale(1);
+    font-size: 12px;
+    padding: 7px 15px;
   }
 }
 .release-kind {

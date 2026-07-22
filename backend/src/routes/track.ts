@@ -1,27 +1,19 @@
 import { Router, Request, Response } from 'express'
 import fs from 'fs'
 import path from 'path'
-import readline from 'readline'
+import { Click, aggregateClicks } from '../queries'
 
 /**
  * Outbound-click tracking: the audience-proof for future platform deals.
- * Clicks are appended to a JSONL file (one JSON object per line) so writes
- * are atomic and the history is never rewritten.
+ * Locally clicks are appended to a JSONL file (one JSON object per line) so
+ * writes are atomic and the history is never rewritten. In production the
+ * Cloudflare Worker writes the same shape to the Supabase clicks table.
  */
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'cache')
 const CLICKS_FILE = path.join(DATA_DIR, 'clicks.jsonl')
 
 const router = Router()
-
-interface Click {
-  ts: string
-  kind: 'watch' | 'book' | 'score'
-  platform: string
-  titleId: string
-  title: string
-  language: string
-}
 
 router.post('/click', (req: Request, res: Response) => {
   const { kind, platform, titleId, title, language } = req.body ?? {}
@@ -47,46 +39,19 @@ router.post('/click', (req: Request, res: Response) => {
 })
 
 // Aggregated stats — the numbers you show a platform team.
-router.get('/stats', async (_req: Request, res: Response) => {
-  const stats = {
-    totalClicks: 0,
-    byKind: {} as Record<string, number>,
-    byPlatform: {} as Record<string, number>,
-    byLanguage: {} as Record<string, number>,
-    byDay: {} as Record<string, number>,
-    topTitles: [] as Array<{ title: string; clicks: number }>,
-    since: null as string | null,
-  }
-  if (!fs.existsSync(CLICKS_FILE)) return res.json(stats)
-
-  const titleCounts = new Map<string, number>()
-  const rl = readline.createInterface({
-    input: fs.createReadStream(CLICKS_FILE, 'utf-8'),
-    crlfDelay: Infinity,
-  })
-  for await (const line of rl) {
-    if (!line.trim()) continue
-    let c: Click
-    try {
-      c = JSON.parse(line)
-    } catch {
-      continue
+router.get('/stats', (_req: Request, res: Response) => {
+  const clicks: Click[] = []
+  if (fs.existsSync(CLICKS_FILE)) {
+    for (const line of fs.readFileSync(CLICKS_FILE, 'utf-8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        clicks.push(JSON.parse(line))
+      } catch {
+        // a corrupt line is skipped, never fatal
+      }
     }
-    stats.totalClicks++
-    if (!stats.since) stats.since = c.ts
-    stats.byKind[c.kind] = (stats.byKind[c.kind] ?? 0) + 1
-    stats.byPlatform[c.platform] = (stats.byPlatform[c.platform] ?? 0) + 1
-    if (c.language) stats.byLanguage[c.language] = (stats.byLanguage[c.language] ?? 0) + 1
-    const day = c.ts.slice(0, 10)
-    stats.byDay[day] = (stats.byDay[day] ?? 0) + 1
-    titleCounts.set(c.title, (titleCounts.get(c.title) ?? 0) + 1)
   }
-  stats.topTitles = [...titleCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
-    .map(([title, clicks]) => ({ title, clicks }))
-
-  res.json(stats)
+  res.json(aggregateClicks(clicks))
 })
 
 export default router

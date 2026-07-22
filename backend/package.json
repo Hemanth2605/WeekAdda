@@ -6,7 +6,9 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "sweep": "tsx src/sweep.ts",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",

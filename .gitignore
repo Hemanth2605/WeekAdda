@@ -13,6 +13,9 @@ backend/cache/
 frontend/dist/
 *.tsbuildinfo
 
+# Wrangler local state
+.wrangler/
+
 # Logs
 *.log
 npm-debug.log*

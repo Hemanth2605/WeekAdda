@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { sampleMatches } from '../data/sampleMatches'
+import { CRICKET_MAX_WEEKS, CricketTeam, CricketMatch, CricketCache } from '../queries'
 
 /**
  * Cricket agent — same pattern as movie releases: daily sweep, disk cache,
@@ -9,43 +10,16 @@ import { sampleMatches } from '../data/sampleMatches'
  * month across the window. Because ESPN only lists CURRENT leagues, the cache
  * accumulates: matches from leagues that later disappear stay cached until
  * they age out of the window.
+ *
+ * Cache shapes and CRICKET_MAX_WEEKS live in ../queries (shared with the
+ * Cloudflare Worker); re-exported here so existing imports keep working.
  */
 
-export const CRICKET_MAX_WEEKS = 13
+export { CRICKET_MAX_WEEKS }
+export type { CricketTeam, CricketMatch, CricketCache }
+
 const PAST_DAYS = CRICKET_MAX_WEEKS * 7 - 1
 const FUTURE_DAYS = 90
-
-export interface CricketTeam {
-  name: string
-  abbreviation: string
-  score: string
-  logo: string | null
-  winner: boolean
-}
-
-export interface CricketMatch {
-  id: string
-  name: string
-  shortName: string
-  series: string
-  seriesId: string
-  date: string // ISO datetime
-  venue: string
-  state: 'pre' | 'in' | 'post'
-  statusDetail: string
-  international: boolean // national sides on both ends (vs franchise/domestic)
-  url: string | null // ESPN scorecard / live score page
-  label: string // e.g. "1st T20I", "2nd ODI", "Only Test", "Final"
-  teams: CricketTeam[]
-}
-
-export interface CricketCache {
-  fetchedAt: string
-  source: 'espn' | 'sample'
-  version?: number
-  knownLeagues?: Array<{ id: string; name: string }>
-  matches: CricketMatch[]
-}
 
 const CRICKET_CACHE_VERSION = 5
 

@@ -1,0 +1,40 @@
+# The daily agent sweep: gathers movies/OTT (TMDB + Wikipedia + Watchmode)
+# and cricket (ESPN), then pushes the caches to Supabase where the Cloudflare
+# Worker reads them. Runs free on GitHub Actions.
+#
+# Manual sweep: repo → Actions → "Daily sweep" → Run workflow.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   TMDB_API_KEY, WATCHMODE_API_KEY (optional), SUPABASE_URL, SUPABASE_SERVICE_KEY
+name: Daily sweep
+
+on:
+  schedule:
+    - cron: '30 0 * * *' # 00:30 UTC = 6:00 AM IST
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Sweep and push to Supabase
+        working-directory: backend
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          WATCHMODE_API_KEY: ${{ secrets.WATCHMODE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: npm run sweep

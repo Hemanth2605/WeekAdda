@@ -4,38 +4,15 @@ import { sampleReleases, sampleOtt, sampleOttUpcoming } from '../data/sampleRele
 import { sweepWikipedia } from './wikipediaSource'
 import { sweepWikipediaOtt } from './wikipediaOttSource'
 import { sweepWatchmode } from './watchmodeSource'
+import { LANGUAGES, MAX_WEEKS, Release, OttRelease, ReleaseCache } from '../queries'
+
+// Cache shapes, LANGUAGES and MAX_WEEKS live in ../queries (shared with the
+// Cloudflare Worker); re-exported here so existing imports keep working.
+export { LANGUAGES, MAX_WEEKS }
+export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
 const SOURCES_VERSION = 5
-
-export interface Release {
-  id: string
-  title: string
-  originalTitle: string
-  language: string // ISO code, e.g. 'te'
-  languageLabel: string // e.g. 'Telugu'
-  releaseDate: string // YYYY-MM-DD
-  overview: string
-  poster: string | null // full image URL when available
-  rating: number // 0–10 (0 = not yet rated)
-  votes: number
-}
-
-export interface OttRelease extends Release {
-  platforms: string[] // e.g. ['Netflix', 'ZEE5']
-  week: number // which weekly bucket (0 = this week) the digital release fell into
-  contentType: 'movie' | 'series'
-}
-
-export interface ReleaseCache {
-  fetchedAt: string
-  source: 'tmdb' | 'sample'
-  rangeDays?: number // how far back this cache reaches (for invalidation)
-  sourcesVersion?: number
-  releases: Release[]
-  ott: OttRelease[]
-  ottUpcoming: OttRelease[] // digital releases announced for the next FUTURE_DAYS
-}
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -47,27 +24,10 @@ export const OTT_PROVIDERS = [
   { id: 532, label: 'Aha' },
 ]
 
-export const LANGUAGES = [
-  { code: 'te', label: 'Telugu' },
-  { code: 'hi', label: 'Hindi' },
-  { code: 'ta', label: 'Tamil' },
-  { code: 'ml', label: 'Malayalam' },
-  { code: 'kn', label: 'Kannada' },
-  { code: 'bn', label: 'Bengali' },
-  { code: 'mr', label: 'Marathi' },
-  { code: 'pa', label: 'Punjabi' },
-  { code: 'en', label: 'English' },
-  { code: 'ko', label: 'Korean' },
-  { code: 'ja', label: 'Japanese' },
-  { code: 'es', label: 'Spanish' },
-]
-
 const CACHE_DIR = path.join(__dirname, '..', '..', 'cache')
 const CACHE_FILE = path.join(CACHE_DIR, 'releases.json')
 const TMDB = 'https://api.themoviedb.org/3'
 
-// Weekly history: 13 weeks (~3 months). Week 0 = today-6..today, week 12 is the oldest.
-export const MAX_WEEKS = 13
 export const PAST_DAYS = MAX_WEEKS * 7 - 1 // 90 days back
 const FUTURE_DAYS = 90
 const MAX_PAGES = 3 // TMDB pages per language per sweep (20 films each)

@@ -1,12 +1,9 @@
-# 🎬 CinePitch — This Week in Movies, OTT & Cricket
+# 🎬 WeekAdda — This Week in Movies, OTT & Cricket
 
 A weekly entertainment portal for India. One place that answers: **what released this week?**
 — movies in theatres, new arrivals on OTT platforms, upcoming films, and cricket results &
 fixtures. Built-in agents sweep public data sources daily; everything is browsable
 **week by week** going back ~3 months.
-
-> **Naming note:** the working title is CinePitch; a rebrand to **WeekAdda** is under
-> consideration (domains reserved). No code has been renamed yet.
 
 ## What's inside
 
@@ -136,5 +133,4 @@ frontend/
 ## Roadmap
 
 - More sports beyond cricket (the weekly-results pattern generalizes)
-- Rebrand decision: CinePitch → WeekAdda
-- Deployment + real domain, then SSR/prerender for SEO
+- Deployment on weekadda.com, then SSR/prerender for SEO

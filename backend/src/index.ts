@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT) || 4000
 app.use(cors())
 app.use(express.json())
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'CinePitch API' }))
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'WeekAdda API' }))
 app.use('/api/releases', releaseRoutes)
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)
@@ -26,7 +26,7 @@ cron.schedule('0 6 * * *', () => {
 })
 
 app.listen(PORT, () => {
-  console.log(`🎬 CinePitch API running at http://localhost:${PORT}`)
+  console.log(`🎬 WeekAdda API running at http://localhost:${PORT}`)
   syncIfStale()
   syncCricketIfStale()
 })

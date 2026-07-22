@@ -1,8 +1,8 @@
 {
-  "name": "cinepitch-backend",
+  "name": "weekadda-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "CinePitch API - cinematic film platform backend",
+  "description": "WeekAdda API — weekly movies, OTT & cricket backend",
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",

@@ -67,9 +67,9 @@ export default function Cricket() {
 
   usePageMeta(
     windowTab === 'recent'
-      ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | CinePitch`
-      : 'Upcoming Cricket Matches — Fixtures & Schedules | CinePitch',
-    'Cricket match results week by week and upcoming fixtures across international series and leagues — updated daily by the CinePitch agent.'
+      ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | WeekAdda`
+      : 'Upcoming Cricket Matches — Fixtures & Schedules | WeekAdda',
+    'Cricket match results week by week and upcoming fixtures across international series and leagues — updated daily by the WeekAdda agent.'
   )
 
   function load() {
@@ -138,7 +138,7 @@ export default function Cricket() {
           <h1>{windowTab === 'recent' ? `Cricket · ${weekTitle(week)}` : 'Upcoming Matches'}</h1>
           <p>
             Match results week by week and upcoming fixtures across every active series and
-            league — swept daily by the CinePitch agent, grouped series by series.
+            league — swept daily by the WeekAdda agent, grouped series by series.
           </p>
         </div>
         <div className="agent-panel">

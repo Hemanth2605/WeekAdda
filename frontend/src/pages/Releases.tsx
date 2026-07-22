@@ -59,18 +59,18 @@ export default function Releases() {
 
   usePageMeta(
     windowTab === 'ott'
-      ? 'New OTT Releases India This Week — Netflix, Prime Video, JioHotstar, ZEE5 | CinePitch'
+      ? 'New OTT Releases India This Week — Netflix, Prime Video, JioHotstar, ZEE5 | WeekAdda'
       : windowTab === 'upcoming'
         ? upcomingSource === 'ott'
-          ? 'Upcoming OTT Releases India — Digital Premiere Dates | CinePitch'
-          : 'Upcoming Movies in India — Theatre Release Dates | CinePitch'
+          ? 'Upcoming OTT Releases India — Digital Premiere Dates | WeekAdda'
+          : 'Upcoming Movies in India — Theatre Release Dates | WeekAdda'
         : week === 0
-          ? 'New Movie Releases This Week by Language — Hindi, Telugu, Tamil & More | CinePitch'
-          : `Movie Releases ${weekTitle(week)} by Language | CinePitch`,
+          ? 'New Movie Releases This Week by Language — Hindi, Telugu, Tamil & More | WeekAdda'
+          : `Movie Releases ${weekTitle(week)} by Language | WeekAdda`,
     windowTab === 'ott'
       ? 'Movies and web series that just arrived on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha in India — updated daily, browsable week by week.'
       : windowTab === 'upcoming'
-        ? 'Upcoming movie and OTT release dates in India across every language — updated daily by the CinePitch agent.'
+        ? 'Upcoming movie and OTT release dates in India across every language — updated daily by the WeekAdda agent.'
         : 'This week\'s new movie releases in Hindi, Telugu, Tamil, Malayalam, Kannada, English and more — with ratings, posters and 13 weeks of history.'
   )
 
@@ -167,7 +167,7 @@ export default function Releases() {
               ? 'Movies and web series that just arrived on JioHotstar, Prime Video, Netflix, Sony LIV, ZEE5 and Aha — swept daily, laid out language by language, week by week.'
               : windowTab === 'upcoming' && upcomingSource === 'ott'
                 ? 'Digital premieres announced for the next 90 days — platform-tagged where known, plus India digital releases whose platform is yet to be announced.'
-                : 'Movie releases from every region and language — swept daily by the CinePitch agent and laid out language by language, one week at a time.'}
+                : 'Movie releases from every region and language — swept daily by the WeekAdda agent and laid out language by language, one week at a time.'}
           </p>
         </div>
         <div className="agent-panel">

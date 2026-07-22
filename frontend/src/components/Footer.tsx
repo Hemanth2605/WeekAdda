@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="footer-brand">
         <Clapperboard size={18} />
         <span>
-          Cine<em>Pitch</em>
+          Week<em>Adda</em>
         </span>
       </div>
       <p>
@@ -20,7 +20,7 @@ export default function Footer() {
         <Link to="/movies">Movies</Link>
         <Link to="/cricket">Cricket</Link>
       </nav>
-      <p className="footer-credit">Movie &amp; OTT data from TMDB. Updated daily by the CinePitch agent.</p>
+      <p className="footer-credit">Movie &amp; OTT data from TMDB. Updated daily by the WeekAdda agent.</p>
     </footer>
   )
 }

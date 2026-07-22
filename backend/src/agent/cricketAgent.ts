@@ -83,7 +83,7 @@ function isNationalSide(teamName: string): boolean {
 
 const CACHE_DIR = path.join(__dirname, '..', '..', 'cache')
 const CACHE_FILE = path.join(CACHE_DIR, 'cricket.json')
-const UA = { 'User-Agent': 'Mozilla/5.0 (CinePitch release tracker)' }
+const UA = { 'User-Agent': 'Mozilla/5.0 (WeekAdda release tracker)' }
 
 let cache: CricketCache | null = null
 let syncing = false

@@ -1,4 +1,4 @@
-# CinePitch — instructions for Claude Code
+# WeekAdda — instructions for Claude Code
 
 Weekly entertainment portal: movie releases, OTT arrivals in India, upcoming films, and
 cricket results/fixtures. See `README.md` for the full feature and API overview.
@@ -50,14 +50,14 @@ cd frontend && npm run build
 - Optional data sources (Watchmode) must **fail silent** when their key is missing.
 - A failed parse of any single source page is skipped safely — one bad page must never
   break a sweep.
-- **Rebrand pending:** the owner is considering renaming CinePitch → WeekAdda. Do not
-  rename anything in code until told to.
+- **Renamed CinePitch → WeekAdda** (July 2026) across the whole codebase. Do not
+  reintroduce the old name; the GitHub repo is Hemanth2605/WeekAdda.
 - Ask before making code changes when the owner is in "discussion mode" — they often
   want analysis or opinions only.
 
 ## Gotchas
 
-- Windows machine, PowerShell primary; no git repository is initialized in this project.
+- Windows machine, PowerShell primary; remote is https://github.com/Hemanth2605/WeekAdda.
 - `frontend/dist/` is stale build output — don't read it as source of truth.
 - `backend/.env` exists and contains a real TMDB key — never print or commit it.
 - Dates everywhere are ISO strings compared lexicographically; week math uses

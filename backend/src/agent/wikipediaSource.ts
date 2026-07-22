@@ -53,7 +53,7 @@ export function fetchWikiHtml(page: string): Promise<string> {
     await new Promise((r) => setTimeout(r, WIKI_GAP_MS))
     const url = `https://en.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(page)}`
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'CinePitch/1.0 (release tracker; contact: hemanth.mareedu8@gmail.com)' },
+      headers: { 'User-Agent': 'WeekAdda/1.0 (release tracker; contact: hemanth.mareedu8@gmail.com)' },
     })
     if (!res.ok) throw new Error(`Wikipedia ${res.status} for ${page}`)
     return res.text()

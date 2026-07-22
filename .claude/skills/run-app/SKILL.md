@@ -1,15 +1,15 @@
 ---
 name: run-app
-description: Launch the CinePitch dev environment — backend API and frontend web app — and verify a change in the running site. Use when asked to run, start, preview, or screenshot the app.
+description: Launch the WeekAdda dev environment — backend API and frontend web app — and verify a change in the running site. Use when asked to run, start, preview, or screenshot the app.
 ---
 
-# Running CinePitch locally
+# Running WeekAdda locally
 
 Two dev servers, started independently (no root package.json):
 
 1. **Backend API** — from `backend/`, run `npm run dev` **in the background** (tsx watch,
    long-running). Serves http://localhost:4000. Ready when the log shows
-   `🎬 CinePitch API running`. Health check: GET http://localhost:4000/api/health →
+   `🎬 WeekAdda API running`. Health check: GET http://localhost:4000/api/health →
    `{"status":"ok"}`.
 2. **Frontend** — from `frontend/`, run `npm run dev` **in the background** (Vite,
    long-running). Serves http://localhost:5173 and calls the API on :4000, so start the

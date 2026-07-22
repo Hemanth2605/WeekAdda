@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Search,
   Bot,
-  RefreshCw,
   Trophy,
   CalendarClock,
   Sparkles,
-  Info,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -62,8 +60,6 @@ export default function Cricket() {
   const [meta, setMeta] = useState<CricketMeta | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [notice, setNotice] = useState('')
 
   usePageMeta(
     windowTab === 'recent'
@@ -93,20 +89,6 @@ export default function Cricket() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, matchType])
-
-  async function refresh() {
-    setRefreshing(true)
-    setNotice('')
-    try {
-      await api('/cricket/refresh', { method: 'POST' })
-      await load()
-      setNotice('Cricket sweep complete — matches are up to date.')
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Sync failed')
-    } finally {
-      setRefreshing(false)
-    }
-  }
 
   // Group matches by series; series featuring India always come first
   const sections = useMemo(() => {
@@ -152,18 +134,8 @@ export default function Cricket() {
                 : 'Agent status…'}
             </span>
           </div>
-          <button className="btn-hero outline sm" onClick={refresh} disabled={refreshing}>
-            <RefreshCw size={15} className={refreshing ? 'spinning' : ''} />
-            {refreshing ? 'Sweeping…' : 'Sync now'}
-          </button>
         </div>
       </section>
-
-      {notice && (
-        <p className="agent-notice">
-          <Info size={14} /> {notice}
-        </p>
-      )}
 
       <div className="opp-tabs">
         <button

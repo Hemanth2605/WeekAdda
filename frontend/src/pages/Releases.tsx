@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Search,
   Bot,
-  RefreshCw,
   Popcorn,
   CalendarClock,
   Sparkles,
   Film,
-  Info,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -54,8 +52,6 @@ export default function Releases() {
   const [language, setLanguage] = useState('all')
   const [selected, setSelected] = useState<Release | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [notice, setNotice] = useState('')
 
   usePageMeta(
     windowTab === 'ott'
@@ -104,20 +100,6 @@ export default function Releases() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, language, ottType, upcomingSource])
-
-  async function refresh() {
-    setRefreshing(true)
-    setNotice('')
-    try {
-      await api('/releases/refresh', { method: 'POST' })
-      await load()
-      setNotice('Agent sweep complete — releases are up to date.')
-    } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Sync failed')
-    } finally {
-      setRefreshing(false)
-    }
-  }
 
   // Group by language; Telugu always leads, then largest sections first
   const sections = useMemo(() => {
@@ -181,18 +163,8 @@ export default function Releases() {
                 : 'Agent status…'}
             </span>
           </div>
-          <button className="btn-hero outline sm" onClick={refresh} disabled={refreshing}>
-            <RefreshCw size={15} className={refreshing ? 'spinning' : ''} />
-            {refreshing ? 'Sweeping…' : 'Sync now'}
-          </button>
         </div>
       </section>
-
-      {notice && (
-        <p className="agent-notice">
-          <Info size={14} /> {notice}
-        </p>
-      )}
 
       <div className="opp-tabs">
         <button

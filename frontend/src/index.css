@@ -207,7 +207,7 @@ input {
   animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 .match-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-4px) scale(1.025);
   border-color: var(--border-strong);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
 }
@@ -809,6 +809,10 @@ input {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.release-card:hover .release-poster img {
+  transform: scale(1.08);
 }
 .release-poster-title {
   font-family: var(--font-display);
@@ -1214,6 +1218,10 @@ input {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hero-card:hover .hero-fill {
+  transform: scale(1.06);
 }
 .hero-overlay {
   position: absolute;

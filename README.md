@@ -130,7 +130,20 @@ frontend/
   deploying, along with the canonical/OG URLs in `index.html`
 - For maximum crawlability, consider prerendering or SSR (e.g. Next.js) once live
 
+## Production
+
+Live at **https://weekadda.hemanth-mareedu8.workers.dev** — all free tiers:
+
+- **Daily sweep**: GitHub Actions (`.github/workflows/sweep.yml`) at 6 AM IST runs the
+  agents and pushes both caches to Supabase (manual run: Actions → Daily sweep →
+  Run workflow)
+- **Serving**: a Cloudflare Worker (`backend/src/worker.ts`) reads the Supabase caches
+  and serves the built frontend as static assets
+- **Database**: Supabase — schema in `supabase/schema.sql`
+- **Deploy app changes**: `cd frontend && npm run build && cd ../backend && npx wrangler deploy`
+
 ## Roadmap
 
 - More sports beyond cricket (the weekly-results pattern generalizes)
-- Deployment on weekadda.com, then SSR/prerender for SEO
+- Custom domain weekadda.com (SEO tags already point there), then SSR/prerender
+- Google Search Console + sitemap submission once the domain is live

@@ -24,18 +24,41 @@ cd frontend && npm run build
 
 - **Monorepo, no workspace tooling** — `backend/` and `frontend/` have independent
   `package.json`s; install and run each separately.
-- **No database.** Agents write JSON caches to `backend/cache/` (`releases.json`,
-  `cricket.json`, `clicks.jsonl`). Deleting a cache file is safe — it regenerates on the
-  next sync.
-- **Two daily agents** (cron `0 6 * * *` in `backend/src/index.ts`, plus stale-check on
-  boot): `releaseAgent.ts` (TMDB + Wikipedia film lists + Wikipedia OTT originals +
-  optional Watchmode) and `cricketAgent.ts` (ESPN public scoreboard JSON, accumulating
-  cache). Each has a POST `/refresh` route wired to a "Sync now" button.
+- **Local dev has no database.** Agents write JSON caches to `backend/cache/`
+  (`releases.json`, `cricket.json`, `clicks.jsonl`). Deleting a cache file is safe — it
+  regenerates on the next sync.
+- **Two daily agents**: `releaseAgent.ts` (TMDB + Wikipedia film lists + Wikipedia OTT
+  originals + optional Watchmode) and `cricketAgent.ts` (ESPN public scoreboard JSON,
+  accumulating cache). Locally node-cron runs them at 6 AM (`backend/src/index.ts`);
+  each keeps a POST `/refresh` route for dev convenience (no UI button).
+- **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
+  and the cache types, used by both the Express routes and the Worker. Change behaviour
+  there, never in just one of the two.
 - **Frontend** is React 18 + Vite with two pages: `Releases.tsx` (movies/OTT/upcoming
   tabs) and `Cricket.tsx` (results/upcoming tabs). Shared week-paging pattern: week 0 =
-  last 7 days, up to 13 weeks back.
+  last 7 days, up to 13 weeks back. All API calls are relative `/api/...`.
 - Without `TMDB_API_KEY` in `backend/.env` the app serves sample data from
   `backend/src/data/` — everything must keep working in that keyless mode.
+
+## Production (live since July 2026, all free tiers)
+
+- **Live URL**: https://weekadda.hemanth-mareedu8.workers.dev
+- **Sweep**: GitHub Actions (`.github/workflows/sweep.yml`) daily at 00:30 UTC
+  (6 AM IST) runs `npm run sweep` (`backend/src/sweep.ts`) — the unchanged Node agents,
+  then pushes caches to Supabase. Repo secrets: `TMDB_API_KEY`, `WATCHMODE_API_KEY`,
+  `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`. Manual sweep = Actions → "Daily sweep" →
+  Run workflow (owner-only Sync button).
+- **Serve**: Cloudflare Worker (`backend/src/worker.ts`, config `backend/wrangler.jsonc`)
+  reads the Supabase `caches` table (5-min in-isolate TTL) and writes the `clicks`
+  table. Built frontend ships as Worker static assets with SPA fallback. Worker
+  secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`) set via `wrangler secret put`.
+- **Database**: Supabase (Mumbai), schema in `supabase/schema.sql` (`caches` +
+  `clicks`, RLS on, no public policies — service key only).
+- **Deploying app changes is manual** (no git integration):
+  `cd frontend && npm run build`, then `cd ../backend && npx wrangler deploy`.
+  Pushing to GitHub alone does NOT update the live site.
+- The Worker never needs the TMDB key; the sweep never needs Cloudflare. Keep
+  `worker.ts` and `queries.ts` free of Node-only imports (fs/path/express).
 
 ## Owner decisions & conventions (do not undo)
 

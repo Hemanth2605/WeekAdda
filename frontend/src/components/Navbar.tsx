@@ -1,13 +1,13 @@
 import { NavLink, Link } from 'react-router-dom'
-import { Clapperboard, Film, Trophy } from 'lucide-react'
+import { CalendarRange, Film, Trophy } from 'lucide-react'
 
 export default function Navbar() {
   return (
     <header className="navbar">
       <Link to="/movies" className="nav-brand">
-        <Clapperboard size={26} />
+        <CalendarRange size={26} />
         <span>
-          Cine<em>Pitch</em>
+          Week<em>Adda</em>
         </span>
       </Link>
 

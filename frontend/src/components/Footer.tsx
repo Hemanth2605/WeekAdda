@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { Clapperboard } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 
 export default function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-brand">
-        <Clapperboard size={18} />
+        <CalendarRange size={18} />
         <span>
           Week<em>Adda</em>
         </span>

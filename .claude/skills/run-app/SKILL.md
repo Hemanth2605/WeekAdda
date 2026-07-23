@@ -15,7 +15,8 @@ Two dev servers, started independently (no root package.json):
    long-running). Serves http://localhost:5173 and calls the API on :4000, so start the
    backend first.
 
-Routes to verify: `/movies` (default; `/` redirects there) and `/cricket`.
+Routes to verify: `/movies` (default; `/` redirects there), `/cricket`, and `/blog`
+(visitor posts; local store is `backend/cache/blog.json`).
 
 ## Notes
 

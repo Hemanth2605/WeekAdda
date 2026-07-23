@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket, MessageCircle } from 'lucide-react'
+import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket, Share2 } from 'lucide-react'
 import { Release } from '../types'
 import { coverGradient, formatDate, daysUntil } from './ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
@@ -135,7 +135,7 @@ export default function ReleaseModal({ release, onClose }: Props) {
             )}
             <p className="modal-synopsis">{release.overview}</p>
             <button className="share-wa" onClick={() => shareRelease(release)}>
-              <MessageCircle size={16} /> Share on WhatsApp
+              <Share2 size={16} /> Share
             </button>
           </div>
         </div>

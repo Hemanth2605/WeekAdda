@@ -10,7 +10,7 @@ import {
   CalendarDays,
   MapPin,
   ExternalLink,
-  MessageCircle,
+  Share2,
 } from 'lucide-react'
 import { api, trackClick } from '../api'
 import { usePageMeta } from '../seo'
@@ -320,7 +320,7 @@ export default function Cricket() {
                 )
               }
             >
-              <MessageCircle size={14} /> Share
+              <Share2 size={14} /> Share
             </button>
           </div>
         </section>
@@ -439,7 +439,7 @@ export default function Cricket() {
                       </span>
                       <button
                         className="card-share"
-                        title="Share on WhatsApp"
+                        title="Share this match"
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -451,7 +451,7 @@ export default function Cricket() {
                           )
                         }}
                       >
-                        <MessageCircle size={13} />
+                        <Share2 size={13} />
                       </button>
                     </div>
                   </a>

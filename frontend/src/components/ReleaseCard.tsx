@@ -1,4 +1,4 @@
-import { Star, Play, Ticket, MessageCircle } from 'lucide-react'
+import { Star, Play, Ticket, Share2 } from 'lucide-react'
 import { Release } from '../types'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
@@ -128,13 +128,13 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
           <span className="release-lang">{release.languageLabel}</span>
           <button
             className="card-share"
-            title={`Share ${release.title} on WhatsApp`}
+            title={`Share ${release.title}`}
             onClick={(e) => {
               e.stopPropagation()
               shareRelease(release)
             }}
           >
-            <MessageCircle size={13} />
+            <Share2 size={13} />
           </button>
         </p>
       </div>

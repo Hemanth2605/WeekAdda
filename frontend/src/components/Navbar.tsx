@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Link } from 'react-router-dom'
-import { CalendarRange, Film, Trophy, Sun, Moon } from 'lucide-react'
+import { CalendarRange, Film, Trophy, Feather, Sun, Moon } from 'lucide-react'
 
 export default function Navbar() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
@@ -40,6 +40,12 @@ export default function Navbar() {
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           <Trophy size={16} /> <span className="nav-link-label">Cricket</span>
+        </NavLink>
+        <NavLink
+          to="/blog"
+          className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        >
+          <Feather size={16} /> <span className="nav-link-label">Blog</span>
         </NavLink>
       </nav>
 

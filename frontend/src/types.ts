@@ -58,6 +58,23 @@ export interface CricketMatch {
   teams: CricketTeam[]
 }
 
+export interface BlogTag {
+  kind: 'movie' | 'match'
+  id: string
+  label: string
+  sub: string
+  poster: string | null
+}
+
+export interface BlogPost {
+  id: string
+  ts: string
+  author: string
+  title: string
+  body: string
+  tag: BlogTag
+}
+
 export interface CricketMeta {
   fetchedAt: string
   source: 'espn' | 'sample'

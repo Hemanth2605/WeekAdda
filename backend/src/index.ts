@@ -5,6 +5,7 @@ import cron from 'node-cron'
 import releaseRoutes from './routes/releases'
 import cricketRoutes from './routes/cricket'
 import trackRoutes from './routes/track'
+import blogRoutes from './routes/blog'
 import { syncReleases, syncIfStale } from './agent/releaseAgent'
 import { syncCricket, syncCricketIfStale } from './agent/cricketAgent'
 
@@ -18,6 +19,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'WeekAdd
 app.use('/api/releases', releaseRoutes)
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)
+app.use('/api/blog', blogRoutes)
 
 // The daily agents: every morning at 06:00 — movies then cricket.
 cron.schedule('0 6 * * *', () => {

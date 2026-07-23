@@ -18,6 +18,21 @@ export function trackClick(payload: {
   }
 }
 
+// ---------------------------------------------------------------- blog
+
+export function fetchPosts(): Promise<{ posts: import('./types').BlogPost[] }> {
+  return api('/blog')
+}
+
+export function createPost(payload: {
+  author: string
+  title: string
+  body: string
+  tag: import('./types').BlogTag
+}): Promise<import('./types').BlogPost> {
+  return api('/blog', { method: 'POST', body: JSON.stringify(payload) })
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...options,

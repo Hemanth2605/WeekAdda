@@ -307,3 +307,51 @@ export function aggregateClicks(clicks: Click[]) {
     .map(([title, clicks]) => ({ title, clicks }))
   return stats
 }
+
+// ---------------------------------------------------------------- blog
+
+/** What a post is about: a movie/series from releases or a cricket match. */
+export interface BlogTag {
+  kind: 'movie' | 'match'
+  id: string
+  label: string
+  sub: string
+  poster: string | null
+}
+
+export interface BlogPost {
+  id: string
+  ts: string
+  author: string
+  title: string
+  body: string
+  tag: BlogTag
+}
+
+/** Validate + sanitize an incoming post; null when it isn't publishable. */
+export function buildPost(input: unknown): BlogPost | null {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const tagRaw = (raw.tag ?? {}) as Record<string, unknown>
+  const title = String(raw.title ?? '').trim().slice(0, 120)
+  const body = String(raw.body ?? '').trim().slice(0, 5000)
+  const author = String(raw.author ?? '').trim().slice(0, 40) || 'Anonymous'
+  const kind = tagRaw.kind
+  const label = String(tagRaw.label ?? '').trim().slice(0, 160)
+  if (!title || !body || !label) return null
+  if (kind !== 'movie' && kind !== 'match') return null
+  return {
+    id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    author,
+    title,
+    body,
+    tag: {
+      kind,
+      id: String(tagRaw.id ?? '').slice(0, 120),
+      label,
+      sub: String(tagRaw.sub ?? '').trim().slice(0, 160),
+      poster: typeof tagRaw.poster === 'string' ? tagRaw.poster.slice(0, 400) : null,
+    },
+  }
+}
+

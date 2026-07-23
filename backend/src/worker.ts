@@ -2,6 +2,8 @@ import {
   queryReleases,
   queryCricket,
   aggregateClicks,
+  buildPost,
+  BlogPost,
   ReleaseCache,
   CricketCache,
   Click,
@@ -112,6 +114,33 @@ export default {
     if (url.pathname === '/api/cricket' && request.method === 'GET') {
       const data = await loadCache(env, 'cricket', EMPTY_CRICKET)
       return json(queryCricket(data, query, { syncing: false }))
+    }
+
+    if (url.pathname === '/api/blog' && request.method === 'GET') {
+      const hit = memory.get('blog-list')
+      if (hit && Date.now() - hit.at < TTL_MS) return json(hit.value)
+      const res = await sb(env, 'posts?select=id,ts,author,title,body,tag&order=ts.desc&limit=200')
+      const posts = res.ok ? ((await res.json()) as BlogPost[]) : []
+      const value = { posts }
+      memory.set('blog-list', { at: Date.now(), value })
+      return json(value)
+    }
+
+    if (url.pathname === '/api/blog' && request.method === 'POST') {
+      let body: unknown = {}
+      try {
+        body = await request.json()
+      } catch {
+        // fall through to validation
+      }
+      const post = buildPost(body)
+      if (!post) {
+        return json({ error: 'title, body and a tagged movie or match are required' }, 400)
+      }
+      const insert = await sb(env, 'posts', { method: 'POST', body: JSON.stringify(post) })
+      if (!insert.ok) return json({ error: 'Could not publish the post' }, 502)
+      memory.delete('blog-list')
+      return json(post, 201)
     }
 
     if (url.pathname === '/api/track/click' && request.method === 'POST') {

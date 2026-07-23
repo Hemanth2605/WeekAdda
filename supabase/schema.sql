@@ -24,5 +24,17 @@ create table if not exists clicks (
   language text
 );
 
+-- Replaces backend/cache/blog.json — one row per visitor blog post about a
+-- tagged movie or cricket match, inserted by the Worker.
+create table if not exists posts (
+  id text primary key,
+  ts timestamptz not null default now(),
+  author text not null,
+  title text not null,
+  body text not null,
+  tag jsonb not null          -- { kind, id, label, sub, poster }
+);
+
 alter table caches enable row level security;
 alter table clicks enable row level security;
+alter table posts enable row level security;

@@ -19,6 +19,7 @@ export default function Footer() {
       <nav aria-label="Footer">
         <Link to="/movies">Movies</Link>
         <Link to="/cricket">Cricket</Link>
+        <Link to="/blog">Blog</Link>
       </nav>
       <p className="footer-credit">Movie &amp; OTT data from TMDB. Updated daily by the WeekAdda agent.</p>
     </footer>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Feather,
   Film,
@@ -281,9 +281,15 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
 
 function PostCard({ post, index }: { post: BlogPost; index: number }) {
   const [expanded, setExpanded] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const paragraphs = post.body.split(/\n+/).filter((p) => p.trim())
-  const long = post.body.length > 420
-  const shown = expanded || !long ? paragraphs : [post.body.slice(0, 420) + '…']
+
+  // Show the read-more control only when the clamped body actually overflows
+  useEffect(() => {
+    const el = bodyRef.current
+    if (el) setClipped(el.scrollHeight > el.clientHeight + 2)
+  }, [])
 
   return (
     <article className="blog-card" style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}>
@@ -304,12 +310,12 @@ function PostCard({ post, index }: { post: BlogPost; index: number }) {
           </span>
         </div>
       </header>
-      <div className="blog-card-body">
-        {shown.map((p, i) => (
+      <div ref={bodyRef} className={`blog-card-body${expanded ? '' : ' clamped'}`}>
+        {paragraphs.map((p, i) => (
           <p key={i}>{p}</p>
         ))}
       </div>
-      {long && (
+      {(clipped || expanded) && (
         <button className="blog-readmore" onClick={() => setExpanded((e) => !e)}>
           {expanded ? 'Show less' : 'Read the full take →'}
         </button>

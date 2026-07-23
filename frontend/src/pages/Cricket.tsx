@@ -16,6 +16,7 @@ import { api, trackClick } from '../api'
 import { usePageMeta } from '../seo'
 import { CricketMatch, CricketMeta, WeekInfo } from '../types'
 import { shareMatch } from '../share'
+import { countryFlag } from '../flags'
 
 type Window = 'recent' | 'upcoming'
 
@@ -276,7 +277,7 @@ export default function Cricket() {
             <div className="india-teams">
               {indiaMatch.teams.map((t, i) => (
                 <span key={i} className={`india-team${t.winner ? ' winner' : ''}`}>
-                  {t.logo && <img src={t.logo} alt="" />}
+                  {(countryFlag(t.name) ?? t.logo) && <img src={countryFlag(t.name) ?? t.logo!} alt="" />}
                   {t.name}
                   {t.score && <b>{t.score}</b>}
                 </span>
@@ -402,8 +403,8 @@ export default function Cricket() {
                     <div className="match-teams">
                       {m.teams.map((t, ti) => (
                         <div key={ti} className={`match-team${t.winner ? ' winner' : ''}`}>
-                          {t.logo ? (
-                            <img src={t.logo} alt="" loading="lazy" />
+                          {countryFlag(t.name) ?? t.logo ? (
+                            <img src={countryFlag(t.name) ?? t.logo!} alt="" loading="lazy" />
                           ) : (
                             <span className="team-dot" />
                           )}

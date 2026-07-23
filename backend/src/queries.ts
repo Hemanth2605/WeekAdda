@@ -317,6 +317,8 @@ export interface BlogTag {
   label: string
   sub: string
   poster: string | null
+  /** Match posts: the two team flag images */
+  logos?: string[]
 }
 
 export interface BlogPost {
@@ -351,6 +353,12 @@ export function buildPost(input: unknown): BlogPost | null {
       label,
       sub: String(tagRaw.sub ?? '').trim().slice(0, 160),
       poster: typeof tagRaw.poster === 'string' ? tagRaw.poster.slice(0, 400) : null,
+      logos: Array.isArray(tagRaw.logos)
+        ? tagRaw.logos
+            .filter((l): l is string => typeof l === 'string' && l.length > 0)
+            .slice(0, 2)
+            .map((l) => l.slice(0, 400))
+        : [],
     },
   }
 }

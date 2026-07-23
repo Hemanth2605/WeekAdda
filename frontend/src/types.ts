@@ -64,6 +64,8 @@ export interface BlogTag {
   label: string
   sub: string
   poster: string | null
+  /** Match posts: the two team flag images */
+  logos?: string[]
 }
 
 export interface BlogPost {

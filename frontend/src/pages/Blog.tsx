@@ -11,6 +11,7 @@ import {
   Tag,
 } from 'lucide-react'
 import { api, fetchPosts, createPost } from '../api'
+import { matchFlags } from '../flags'
 import { usePageMeta } from '../seo'
 import { BlogPost, BlogTag, Release, CricketMatch } from '../types'
 
@@ -22,6 +23,68 @@ function timeAgo(iso: string) {
   const days = Math.round(hours / 24)
   if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Tiny letter tiles drifting down behind the page — pure decoration
+const RAIN_GLYPHS = 'సినిమాక్రికెట్వారంఅడ్డాCINEMAOTTCRICKETBLOG★🎬🏏'
+
+function LetterRain() {
+  // Greet, then get out of the way: fully visible at the top of the page,
+  // faded out by the time the reader scrolls into the feed
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const fade = Math.max(0, 1 - window.scrollY / 480)
+      el.style.opacity = String(fade)
+      el.style.visibility = fade === 0 ? 'hidden' : ''
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  const tiles = useMemo(
+    () =>
+      Array.from({ length: 26 }, (_, i) => ({
+        left: (i + Math.random()) * (100 / 26),
+        size: 13 + Math.random() * 11,
+        duration: 14 + Math.random() * 16,
+        delay: -Math.random() * 30,
+        spin: (Math.random() < 0.5 ? -1 : 1) * (15 + Math.random() * 40),
+        char: [...RAIN_GLYPHS][Math.floor(Math.random() * [...RAIN_GLYPHS].length)],
+      })),
+    []
+  )
+  return (
+    <div ref={wrapRef} className="letter-rain" aria-hidden>
+      {tiles.map((t, i) => (
+        <span
+          key={i}
+          className="rain-tile"
+          style={{
+            left: `${t.left}%`,
+            fontSize: t.size,
+            animationDuration: `${t.duration}s`,
+            animationDelay: `${t.delay}s`,
+            ['--spin' as string]: `${t.spin}deg`,
+          }}
+        >
+          {t.char}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 /** Candidate movies/matches the writer can tag, loaded once per kind. */
@@ -102,6 +165,7 @@ function useTagOptions(kind: 'movie' | 'match', open: boolean) {
             label: m.name,
             sub: `${m.series} · ${new Date(m.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`,
             poster: null,
+            logos: m.teams.map((t) => t.logo).filter((l): l is string => Boolean(l)).slice(0, 2),
           }))
         )
       })
@@ -212,7 +276,17 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
 
       {tag ? (
         <div className="blog-tag-picked">
-          {tag.poster ? <img src={tag.poster} alt="" /> : <span className="blog-tag-icon">{tag.kind === 'movie' ? <Film size={16} /> : <Trophy size={16} />}</span>}
+          {tag.poster ? (
+            <img src={tag.poster} alt="" />
+          ) : matchFlags(tag).length > 0 ? (
+            <span className="blog-tag-flags">
+              {matchFlags(tag).map((l, i) => (
+                <img key={i} src={l} alt="" />
+              ))}
+            </span>
+          ) : (
+            <span className="blog-tag-icon">{tag.kind === 'movie' ? <Film size={16} /> : <Trophy size={16} />}</span>
+          )}
           <span className="blog-tag-text">
             <b>{tag.label}</b>
             <small>{tag.sub}</small>
@@ -234,7 +308,17 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
           <div className="blog-tag-options">
             {suggestions.map((o) => (
               <button key={o.id} className="blog-tag-option" onClick={() => setTag(o)}>
-                {o.poster ? <img src={o.poster} alt="" loading="lazy" /> : <span className="blog-tag-icon">{o.kind === 'movie' ? <Film size={15} /> : <Trophy size={15} />}</span>}
+                {o.poster ? (
+                  <img src={o.poster} alt="" loading="lazy" />
+                ) : matchFlags(o).length > 0 ? (
+                  <span className="blog-tag-flags">
+                    {matchFlags(o).map((l, i) => (
+                      <img key={i} src={l} alt="" loading="lazy" />
+                    ))}
+                  </span>
+                ) : (
+                  <span className="blog-tag-icon">{o.kind === 'movie' ? <Film size={15} /> : <Trophy size={15} />}</span>
+                )}
                 <span className="blog-tag-text">
                   <b>{o.label}</b>
                   <small>{o.sub}</small>
@@ -296,6 +380,12 @@ function PostCard({ post, index }: { post: BlogPost; index: number }) {
       <header className="blog-card-head">
         {post.tag.poster ? (
           <img className="blog-card-poster" src={post.tag.poster} alt="" loading="lazy" />
+        ) : matchFlags(post.tag).length > 0 ? (
+          <span className="blog-card-poster flags">
+            {matchFlags(post.tag).map((l, i) => (
+              <img key={i} src={l} alt="" loading="lazy" />
+            ))}
+          </span>
         ) : (
           <span className="blog-card-poster fallback">{post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}</span>
         )}
@@ -344,7 +434,8 @@ export default function Blog() {
   const visible = filter === 'all' ? posts : posts.filter((p) => p.tag.kind === filter)
 
   return (
-    <main>
+    <main className="blog-page">
+      <LetterRain />
       <section className="opp-header">
         <div>
           <span className="hero-eyebrow">

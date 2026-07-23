@@ -1455,6 +1455,53 @@ input {
 .pf-dot.pf-etvwin { background: #d6006e; }
 
 /* ---------------- blog ---------------- */
+.blog-page > *:not(.letter-rain) {
+  position: relative;
+  z-index: 1;
+}
+.letter-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.rain-tile {
+  position: absolute;
+  top: -60px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1em;
+  height: 2.1em;
+  border-radius: 0.45em;
+  background: linear-gradient(160deg, var(--bg-raised), var(--bg-card));
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(232, 179, 75, 0.18);
+  color: var(--gold-bright);
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.5;
+  user-select: none;
+  animation: tileFall linear infinite;
+}
+@keyframes tileFall {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(125vh) rotate(var(--spin, 30deg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rain-tile {
+    display: none;
+  }
+}
+:root[data-theme='light'] .rain-tile {
+  opacity: 0.4;
+}
 .blog-wrap {
   max-width: 1280px;
   margin: 0 auto;
@@ -1580,6 +1627,26 @@ input {
   color: var(--gold);
   flex: 0 0 auto;
 }
+/* two team flags, "versus" style, in the tag picker */
+.blog-tag-flags {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 48px;
+  flex: 0 0 auto;
+}
+.blog-tag-flags img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+}
+.blog-tag-flags img + img {
+  margin-left: -8px;
+}
 .blog-tag-text {
   display: flex;
   flex-direction: column;
@@ -1692,6 +1759,25 @@ input {
   place-items: center;
   background: rgba(232, 179, 75, 0.12);
   color: var(--gold);
+}
+/* match posts: the two team flags in place of a poster */
+.blog-card-poster.flags {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(232, 179, 75, 0.08);
+  box-shadow: none;
+}
+.blog-card-poster.flags img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+}
+.blog-card-poster.flags img + img {
+  margin-left: -10px;
 }
 .blog-card-meta {
   min-width: 0;

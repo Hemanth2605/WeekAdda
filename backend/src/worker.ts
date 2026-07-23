@@ -8,6 +8,7 @@ import {
   CricketCache,
   Click,
 } from './queries'
+import { buildMoviesSeo, buildCricketSeo, buildBlogSeo } from './seo'
 
 /**
  * Cloudflare Worker entry: serves /api/* from the Supabase-stored caches that
@@ -74,6 +75,31 @@ async function loadCache<T>(env: Env, key: string, empty: T): Promise<T> {
   }
 }
 
+async function loadPosts(env: Env): Promise<{ posts: BlogPost[] }> {
+  const hit = memory.get('blog-list')
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as { posts: BlogPost[] }
+  const res = await sb(env, 'posts?select=id,ts,author,title,body,tag&order=ts.desc&limit=200')
+  const posts = res.ok ? ((await res.json()) as BlogPost[]) : []
+  const value = { posts }
+  memory.set('blog-list', { at: Date.now(), value })
+  return value
+}
+
+/** Pages that get a pre-rendered content block inside <div id="root">. */
+const SEO_PAGES = new Set(['/', '/movies', '/cricket', '/blog'])
+
+async function seoBlockFor(env: Env, pathname: string): Promise<string> {
+  if (pathname === '/cricket') {
+    return buildCricketSeo(await loadCache(env, 'cricket', EMPTY_CRICKET))
+  }
+  if (pathname === '/blog') {
+    return buildBlogSeo((await loadPosts(env)).posts)
+  }
+  return buildMoviesSeo(await loadCache(env, 'releases', EMPTY_RELEASES))
+}
+
+const ROOT_SHELL = '<div id="root"></div>'
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -95,7 +121,31 @@ export default {
     }
 
     if (!url.pathname.startsWith('/api/')) {
-      return env.ASSETS.fetch(request)
+      const asset = await env.ASSETS.fetch(request)
+      // Edge pre-render: inject real content into the SPA shell so crawlers
+      // see this week's titles. Any hiccup falls back to the untouched page.
+      if (
+        request.method === 'GET' &&
+        SEO_PAGES.has(url.pathname) &&
+        (asset.headers.get('Content-Type') ?? '').includes('text/html')
+      ) {
+        try {
+          const [html, block] = await Promise.all([asset.text(), seoBlockFor(env, url.pathname)])
+          const headers = new Headers(asset.headers)
+          headers.delete('Content-Length')
+          headers.delete('ETag')
+          headers.set('Cache-Control', 'no-cache')
+          return new Response(
+            html.includes(ROOT_SHELL)
+              ? html.replace(ROOT_SHELL, `<div id="root">${block}</div>`)
+              : html,
+            { status: asset.status, headers }
+          )
+        } catch {
+          return env.ASSETS.fetch(request)
+        }
+      }
+      return asset
     }
 
     const query = Object.fromEntries(url.searchParams)
@@ -117,13 +167,7 @@ export default {
     }
 
     if (url.pathname === '/api/blog' && request.method === 'GET') {
-      const hit = memory.get('blog-list')
-      if (hit && Date.now() - hit.at < TTL_MS) return json(hit.value)
-      const res = await sb(env, 'posts?select=id,ts,author,title,body,tag&order=ts.desc&limit=200')
-      const posts = res.ok ? ((await res.json()) as BlogPost[]) : []
-      const value = { posts }
-      memory.set('blog-list', { at: Date.now(), value })
-      return json(value)
+      return json(await loadPosts(env))
     }
 
     if (url.pathname === '/api/blog' && request.method === 'POST') {

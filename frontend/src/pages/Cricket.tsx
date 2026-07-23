@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Search,
   Bot,
@@ -58,7 +58,7 @@ function resultLine(m: CricketMatch): string {
 }
 
 export default function Cricket() {
-  const [windowTab, setWindowTab] = useState<Window>('recent')
+  const [windowTab, setWindowTab] = useState<Window>('upcoming')
   const [matchType, setMatchType] = useState<'international' | 'league' | 'all'>('international')
   const [week, setWeek] = useState(0)
   const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null)
@@ -70,7 +70,7 @@ export default function Cricket() {
   usePageMeta(
     windowTab === 'recent'
       ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | WeekAdda`
-      : 'Upcoming Cricket Matches — Fixtures & Schedules | WeekAdda',
+      : "Today's Cricket Matches & This Week's Fixtures | WeekAdda",
     'Cricket match results week by week and upcoming fixtures across international series and leagues — updated daily by the WeekAdda agent.'
   )
 
@@ -96,23 +96,45 @@ export default function Cricket() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, matchType])
 
-  // Group matches by series; series featuring India always come first
-  const sections = useMemo(() => {
-    const map = new Map<string, { label: string; items: CricketMatch[] }>()
-    for (const m of matches) {
-      if (!map.has(m.seriesId)) map.set(m.seriesId, { label: m.series, items: [] })
-      map.get(m.seriesId)!.items.push(m)
+  // Group matches by series; series featuring India always come first. Fixtures
+  // are additionally banded by when they play: Today / This Week / Later.
+  const bands = useMemo(() => {
+    const groupBySeries = (items: CricketMatch[]) => {
+      const map = new Map<string, { label: string; items: CricketMatch[] }>()
+      for (const m of items) {
+        if (!map.has(m.seriesId)) map.set(m.seriesId, { label: m.series, items: [] })
+        map.get(m.seriesId)!.items.push(m)
+      }
+      const hasIndia = (list: CricketMatch[]) =>
+        list.some((m) => m.teams.some((t) => t.name.toLowerCase().startsWith('india')))
+      return [...map.entries()]
+        .map(([id, v]) => ({ id, ...v }))
+        .sort(
+          (a, b) =>
+            Number(hasIndia(b.items)) - Number(hasIndia(a.items)) ||
+            b.items.length - a.items.length
+        )
     }
-    const hasIndia = (items: CricketMatch[]) =>
-      items.some((m) => m.teams.some((t) => t.name.toLowerCase().startsWith('india')))
-    return [...map.entries()]
-      .map(([id, v]) => ({ id, ...v }))
-      .sort(
-        (a, b) =>
-          Number(hasIndia(b.items)) - Number(hasIndia(a.items)) ||
-          b.items.length - a.items.length
-      )
-  }, [matches])
+
+    if (windowTab !== 'upcoming') return [{ label: '', sections: groupBySeries(matches) }]
+
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+    const todayMs = startOfDay(new Date())
+    const today: CricketMatch[] = []
+    const thisWeek: CricketMatch[] = []
+    const later: CricketMatch[] = []
+    for (const m of matches) {
+      const days = Math.round((startOfDay(new Date(m.date)) - todayMs) / 86400000)
+      if (days <= 0) today.push(m)
+      else if (days <= 7) thisWeek.push(m)
+      else later.push(m)
+    }
+    return [
+      { label: 'Today', sections: groupBySeries(today) },
+      { label: 'This Week', sections: groupBySeries(thisWeek) },
+      { label: 'Later', sections: groupBySeries(later) },
+    ].filter((b) => b.sections.length > 0)
+  }, [matches, windowTab])
 
   const maxWeeks = weekInfo?.maxWeeks ?? 13
 
@@ -135,7 +157,7 @@ export default function Cricket() {
           <span className="hero-eyebrow">
             <Trophy size={13} /> From the pitch
           </span>
-          <h1>{windowTab === 'recent' ? `Cricket · ${weekTitle(week)}` : 'Upcoming Matches'}</h1>
+          <h1>{windowTab === 'recent' ? `Cricket · ${weekTitle(week)}` : 'Today & This Week'}</h1>
           <p>
             Match results week by week and upcoming fixtures across every active series and
             league — swept daily by the WeekAdda agent, grouped series by series.
@@ -157,6 +179,12 @@ export default function Cricket() {
 
       <div className="opp-tabs">
         <button
+          className={windowTab === 'upcoming' ? 'active' : ''}
+          onClick={() => setWindowTab('upcoming')}
+        >
+          <CalendarClock size={15} /> Fixtures
+        </button>
+        <button
           className={windowTab === 'recent' ? 'active' : ''}
           onClick={() => {
             setWindowTab('recent')
@@ -164,12 +192,6 @@ export default function Cricket() {
           }}
         >
           <Sparkles size={15} /> Results
-        </button>
-        <button
-          className={windowTab === 'upcoming' ? 'active' : ''}
-          onClick={() => setWindowTab('upcoming')}
-        >
-          <CalendarClock size={15} /> Upcoming
         </button>
       </div>
 
@@ -331,8 +353,19 @@ export default function Cricket() {
         </div>
       ) : (
         <div className="lang-sections">
-          {sections.map((section) => (
-            <section key={section.id} className="lang-section">
+          {bands.map((band) => (
+            <Fragment key={band.label || 'all'}>
+              {band.label && (
+                <div className="time-band">
+                  <h2>{band.label}</h2>
+                  <span>
+                    {band.sections.reduce((n, s) => n + s.items.length, 0)} match
+                    {band.sections.reduce((n, s) => n + s.items.length, 0) === 1 ? '' : 'es'}
+                  </span>
+                </div>
+              )}
+              {band.sections.map((section) => (
+                <section key={section.id} className="lang-section">
               <div className="lang-head">
                 <h2>{section.label}</h2>
                 <span className="count">
@@ -425,6 +458,8 @@ export default function Cricket() {
                 ))}
               </div>
             </section>
+              ))}
+            </Fragment>
           ))}
         </div>
       )}

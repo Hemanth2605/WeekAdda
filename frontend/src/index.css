@@ -753,6 +753,23 @@ input {
   gap: 14px;
   padding: 0 42px 14px;
 }
+.time-band {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 30px 42px 0;
+}
+.time-band h2 {
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+.time-band span {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
 .lang-head h2 {
   font-size: 24px;
 }
@@ -1159,7 +1176,7 @@ input {
   .theme-toggle { width: 36px; height: 36px; }
   .feature-grid { padding: 20px 20px 50px; }
   .site-footer { padding: 28px 20px 34px; }
-  .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .week-nav { padding-left: 20px; padding-right: 20px; }
+  .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .time-band, .week-nav { padding-left: 20px; padding-right: 20px; }
   .week-strip { display: none; }
   .agent-notice { margin: 10px 20px 0; }
   .lang-row { padding: 4px 20px 16px; gap: 13px; }

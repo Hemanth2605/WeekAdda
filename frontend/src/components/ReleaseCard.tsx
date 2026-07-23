@@ -125,7 +125,6 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
               {new Date(release.releaseDate + 'T00:00:00').getDate()}
             </span>
           </span>
-          <span className="release-lang">{release.languageLabel}</span>
           <button
             className="card-share"
             title={`Share ${release.title}`}

@@ -42,7 +42,7 @@ function weekTitle(index: number) {
 }
 
 export default function Releases() {
-  const [windowTab, setWindowTab] = useState<Window>('released')
+  const [windowTab, setWindowTab] = useState<Window>('ott')
   const [ottType, setOttType] = useState<'all' | 'movie' | 'series'>('all')
   const [upcomingSource, setUpcomingSource] = useState<'theatres' | 'ott'>('theatres')
   const [week, setWeek] = useState(0)
@@ -214,15 +214,6 @@ export default function Releases() {
 
       <div className="opp-tabs">
         <button
-          className={windowTab === 'released' ? 'active' : ''}
-          onClick={() => {
-            setWindowTab('released')
-            setWeek(0)
-          }}
-        >
-          <Sparkles size={15} /> In Theatres
-        </button>
-        <button
           className={windowTab === 'ott' ? 'active' : ''}
           onClick={() => {
             setWindowTab('ott')
@@ -230,6 +221,15 @@ export default function Releases() {
           }}
         >
           <MonitorPlay size={15} /> OTT India
+        </button>
+        <button
+          className={windowTab === 'released' ? 'active' : ''}
+          onClick={() => {
+            setWindowTab('released')
+            setWeek(0)
+          }}
+        >
+          <Sparkles size={15} /> In Theatres
         </button>
         <button
           className={windowTab === 'upcoming' ? 'active' : ''}

@@ -9,14 +9,19 @@ import {
 
 /**
  * Cloudflare Worker entry: serves /api/* from the Supabase-stored caches that
- * the daily GitHub Actions sweep writes. Static assets (the built frontend)
- * are served by Cloudflare's asset handling — only /api/* reaches this code
- * (see wrangler.jsonc run_worker_first). Must stay free of Node-only imports.
+ * the daily GitHub Actions sweep writes. All requests reach this code (see
+ * wrangler.jsonc run_worker_first): the legacy workers.dev host is 301-redirected
+ * to the canonical domain, /api/* is handled here, and everything else is
+ * forwarded to the built frontend via the ASSETS binding (SPA fallback included).
+ * Must stay free of Node-only imports.
  */
+
+const CANONICAL_HOST = 'weekadda.com'
 
 interface Env {
   SUPABASE_URL: string
   SUPABASE_SERVICE_KEY: string
+  ASSETS: { fetch(request: Request): Promise<Response> }
 }
 
 const EMPTY_RELEASES: ReleaseCache = {
@@ -81,6 +86,16 @@ export default {
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ): Promise<Response> {
     const url = new URL(request.url)
+
+    if (url.hostname.endsWith('.workers.dev')) {
+      url.hostname = CANONICAL_HOST
+      return Response.redirect(url.toString(), 301)
+    }
+
+    if (!url.pathname.startsWith('/api/')) {
+      return env.ASSETS.fetch(request)
+    }
+
     const query = Object.fromEntries(url.searchParams)
 
     if (url.pathname === '/api/health') {

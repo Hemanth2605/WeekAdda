@@ -132,7 +132,8 @@ frontend/
 
 ## Production
 
-Live at **https://weekadda.hemanth-mareedu8.workers.dev** — all free tiers:
+Live at **https://weekadda.com** (the old workers.dev URL redirects there) — all
+free tiers plus the domain:
 
 - **Daily sweep**: GitHub Actions (`.github/workflows/sweep.yml`) at 6 AM IST runs the
   agents and pushes both caches to Supabase (manual run: Actions → Daily sweep →

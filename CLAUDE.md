@@ -42,7 +42,8 @@ cd frontend && npm run build
 
 ## Production (live since July 2026, all free tiers)
 
-- **Live URL**: https://weekadda.hemanth-mareedu8.workers.dev
+- **Live URL**: https://weekadda.com (domain on Cloudflare Registrar; the old
+  weekadda.hemanth-mareedu8.workers.dev host 301-redirects to it via worker.ts)
 - **Sweep**: GitHub Actions (`.github/workflows/sweep.yml`) daily at 00:30 UTC
   (6 AM IST) runs `npm run sweep` (`backend/src/sweep.ts`) — the unchanged Node agents,
   then pushes caches to Supabase. Repo secrets: `TMDB_API_KEY`, `WATCHMODE_API_KEY`,

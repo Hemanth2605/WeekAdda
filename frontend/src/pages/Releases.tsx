@@ -283,6 +283,18 @@ export default function Releases() {
       )}
 
       {!loading && heroPicks.length >= 3 && (
+        <div className="spotlight-head">
+          <h2>
+            <Star size={16} fill="currentColor" /> Top Picks · {weekTitle(week)}
+          </h2>
+          <span>
+            {windowTab === 'ott'
+              ? 'The most talked-about OTT arrivals of the week'
+              : 'The most talked-about releases of the week'}
+          </span>
+        </div>
+      )}
+      {!loading && heroPicks.length >= 3 && (
         <section className="hero-spotlight" aria-label="Top picks" ref={heroRef}>
           {heroPicks.map((r, i) => (
             <article

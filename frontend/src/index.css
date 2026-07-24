@@ -2241,3 +2241,63 @@ input {
     padding: 8px 9px;
   }
 }
+
+/* ---------------- per-title page (/movie/:id/:slug) ---------------- */
+.movie-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+.movie-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin-bottom: 18px;
+  transition: color 0.2s;
+}
+.movie-back:hover {
+  color: var(--text);
+}
+.movie-page-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.movie-page-card .release-detail-body h1 {
+  font-size: clamp(26px, 3.4vw, 36px);
+  margin-bottom: 4px;
+}
+.movie-related-head {
+  margin-top: 40px;
+}
+.movie-page-missing {
+  text-align: center;
+  padding: 90px 20px;
+  color: var(--text-dim);
+}
+.movie-page-missing h1 {
+  margin-bottom: 10px;
+}
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+.modal-actions .share-wa {
+  margin-top: 0;
+}
+.modal-page-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  transition: color 0.2s;
+}
+.modal-page-link:hover {
+  color: var(--text);
+}

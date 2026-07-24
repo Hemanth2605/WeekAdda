@@ -6,7 +6,8 @@ import releaseRoutes from './routes/releases'
 import cricketRoutes from './routes/cricket'
 import trackRoutes from './routes/track'
 import blogRoutes from './routes/blog'
-import { syncReleases, syncIfStale } from './agent/releaseAgent'
+import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
+import { findTitle, relatedTitles } from './queries'
 import { syncCricket, syncCricketIfStale } from './agent/cricketAgent'
 
 const app = express()
@@ -17,6 +18,12 @@ app.use(express.json())
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'WeekAdda API' }))
 app.use('/api/releases', releaseRoutes)
+app.get('/api/title/:id', (req, res) => {
+  const data = getReleaseData()
+  const found = findTitle(data, req.params.id)
+  if (!found) return res.status(404).json({ error: 'Title not found' })
+  res.json({ release: found.item, status: found.status, related: relatedTitles(data, found.item) })
+})
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)
 app.use('/api/blog', blogRoutes)

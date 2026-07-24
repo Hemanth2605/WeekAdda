@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket, Share2 } from 'lucide-react'
 import { Release } from '../types'
+import { titlePath } from '../seo'
 import { coverGradient, formatDate, daysUntil } from './ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
@@ -134,9 +136,14 @@ export default function ReleaseModal({ release, onClose }: Props) {
               </div>
             )}
             <p className="modal-synopsis">{release.overview}</p>
-            <button className="share-wa" onClick={() => shareRelease(release)}>
-              <Share2 size={16} /> Share
-            </button>
+            <div className="modal-actions">
+              <button className="share-wa" onClick={() => shareRelease(release)}>
+                <Share2 size={16} /> Share
+              </button>
+              <Link className="modal-page-link" to={titlePath(release)} onClick={onClose}>
+                Full page <ExternalLink size={13} />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

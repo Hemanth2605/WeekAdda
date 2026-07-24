@@ -57,19 +57,19 @@ export default function Releases() {
 
   usePageMeta(
     windowTab === 'ott'
-      ? 'New OTT Releases India This Week — Netflix, Prime Video, JioHotstar, ZEE5 | WeekAdda'
+      ? 'OTT Releases This Week India — Netflix, JioHotstar, ZEE5 | WeekAdda'
       : windowTab === 'upcoming'
         ? upcomingSource === 'ott'
           ? 'Upcoming OTT Releases India — Digital Premiere Dates | WeekAdda'
           : 'Upcoming Movies in India — Theatre Release Dates | WeekAdda'
         : week === 0
-          ? 'New Movie Releases This Week by Language — Hindi, Telugu, Tamil & More | WeekAdda'
-          : `Movie Releases ${weekTitle(week)} by Language | WeekAdda`,
+          ? 'Movie & OTT Releases This Week — Telugu, Hindi, Tamil | WeekAdda'
+          : `Movie & OTT Releases ${weekTitle(week)} by Language | WeekAdda`,
     windowTab === 'ott'
-      ? 'Movies and web series that just arrived on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha in India — updated daily, browsable week by week.'
+      ? 'Movies and web series that just arrived on Netflix, Prime Video, JioHotstar, ZEE5 and Aha in India — updated daily, browsable week by week.'
       : windowTab === 'upcoming'
         ? 'Upcoming movie and OTT release dates in India across every language — updated daily by the WeekAdda agent.'
-        : 'This week\'s new movie releases in Hindi, Telugu, Tamil, Malayalam, Kannada, English and more — with ratings, posters and 13 weeks of history.'
+        : "This week's new movie releases and OTT arrivals in Telugu, Hindi, Tamil and more — on Netflix, Prime Video, JioHotstar & ZEE5, with 13 weeks of history."
   )
 
   function load() {

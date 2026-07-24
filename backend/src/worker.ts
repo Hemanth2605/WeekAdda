@@ -3,12 +3,21 @@ import {
   queryCricket,
   aggregateClicks,
   buildPost,
+  findTitle,
+  relatedTitles,
   BlogPost,
   ReleaseCache,
   CricketCache,
   Click,
 } from './queries'
-import { buildMoviesSeo, buildCricketSeo, buildBlogSeo } from './seo'
+import {
+  buildMoviesSeo,
+  buildCricketSeo,
+  buildBlogSeo,
+  buildTitlePage,
+  buildSitemap,
+  routeMeta,
+} from './seo'
 
 /**
  * Cloudflare Worker entry: serves /api/* from the Supabase-stored caches that
@@ -120,27 +129,60 @@ export default {
       return Response.redirect(url.toString(), 301)
     }
 
+    if (url.pathname === '/sitemap.xml' && request.method === 'GET') {
+      const data = await loadCache(env, 'releases', EMPTY_RELEASES)
+      return new Response(buildSitemap(data), {
+        headers: { 'Content-Type': 'application/xml', 'Cache-Control': 'no-cache' },
+      })
+    }
+
     if (!url.pathname.startsWith('/api/')) {
       const asset = await env.ASSETS.fetch(request)
+      const isMoviePage = /^\/movie\/[^/]+/.test(url.pathname)
       // Edge pre-render: inject real content into the SPA shell so crawlers
       // see this week's titles. Any hiccup falls back to the untouched page.
       if (
         request.method === 'GET' &&
-        SEO_PAGES.has(url.pathname) &&
+        (SEO_PAGES.has(url.pathname) || isMoviePage) &&
         (asset.headers.get('Content-Type') ?? '').includes('text/html')
       ) {
         try {
-          const [html, block] = await Promise.all([asset.text(), seoBlockFor(env, url.pathname)])
+          let block: string
+          let status = asset.status
+          // Route-specific <title>/description/canonical so crawlers that skip
+          // JS rendering don't see the homepage metadata on every route
+          let meta: { title: string; description: string } | null
+          let canonical: string
+          if (isMoviePage) {
+            const id = decodeURIComponent(url.pathname.split('/')[2] ?? '')
+            const page = buildTitlePage(await loadCache(env, 'releases', EMPTY_RELEASES), id)
+            if (!page) return asset
+            block = page.block
+            meta = { title: page.title, description: page.description }
+            canonical = page.canonical
+          } else {
+            block = await seoBlockFor(env, url.pathname)
+            meta = routeMeta(url.pathname)
+            canonical = `https://weekadda.com${url.pathname}`
+          }
+          const html = await asset.text()
           const headers = new Headers(asset.headers)
           headers.delete('Content-Length')
           headers.delete('ETag')
           headers.set('Cache-Control', 'no-cache')
-          return new Response(
-            html.includes(ROOT_SHELL)
-              ? html.replace(ROOT_SHELL, `<div id="root">${block}</div>`)
-              : html,
-            { status: asset.status, headers }
-          )
+          let out = html.includes(ROOT_SHELL)
+            ? html.replace(ROOT_SHELL, `<div id="root">${block}</div>`)
+            : html
+          if (meta) {
+            out = out
+              .replace(/<title>[\s\S]*?<\/title>/, `<title>${meta.title}</title>`)
+              .replace(
+                /(<meta\s+name="description"\s+content=")[\s\S]*?("\s*\/?>)/,
+                `$1${meta.description}$2`
+              )
+              .replace(/(<link rel="canonical" href=")[^"]*(")/, `$1${canonical}$2`)
+          }
+          return new Response(out, { status, headers })
         } catch {
           return env.ASSETS.fetch(request)
         }
@@ -159,6 +201,14 @@ export default {
       return json(
         queryReleases(data, query, { syncing: false, liveConfigured: data.source === 'tmdb' })
       )
+    }
+
+    if (url.pathname.startsWith('/api/title/') && request.method === 'GET') {
+      const id = decodeURIComponent(url.pathname.slice('/api/title/'.length))
+      const data = await loadCache(env, 'releases', EMPTY_RELEASES)
+      const found = findTitle(data, id)
+      if (!found) return json({ error: 'Title not found' }, 404)
+      return json({ release: found.item, status: found.status, related: relatedTitles(data, found.item) })
     }
 
     if (url.pathname === '/api/cricket' && request.method === 'GET') {

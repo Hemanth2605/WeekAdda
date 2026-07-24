@@ -198,6 +198,53 @@ export function queryReleases(
   }
 }
 
+// ---------------- per-title pages ----------------
+
+/** URL-safe slug for per-title pages; decorative (lookup is by id). */
+export function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'title'
+  )
+}
+
+export function titleUrl(r: { id: string; title: string }): string {
+  return `/movie/${r.id}/${slugify(r.title)}`
+}
+
+export type TitleStatus = 'streaming' | 'upcoming-ott' | 'in-theatres' | 'upcoming-theatre'
+
+/** Look a title up by id across all three release pools. */
+export function findTitle(
+  data: ReleaseCache,
+  id: string
+): { item: Release | OttRelease; status: TitleStatus } | null {
+  const today = new Date().toISOString().slice(0, 10)
+  const ott = data.ott.find((r) => r.id === id) ?? data.ottUpcoming.find((r) => r.id === id)
+  if (ott) return { item: ott, status: ott.releaseDate > today ? 'upcoming-ott' : 'streaming' }
+  const rel = data.releases.find((r) => r.id === id)
+  if (rel) return { item: rel, status: rel.releaseDate > today ? 'upcoming-theatre' : 'in-theatres' }
+  return null
+}
+
+/** Same-language titles for the detail page's "more like this" links. */
+export function relatedTitles(data: ReleaseCache, item: Release, limit = 8): Release[] {
+  const seen = new Set<string>([item.id])
+  const out: Release[] = []
+  for (const r of [...data.ott, ...data.releases, ...data.ottUpcoming]) {
+    if (seen.has(r.id) || r.languageLabel !== item.languageLabel) continue
+    seen.add(r.id)
+    out.push(r)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
 // ---------------- /api/cricket ----------------
 
 // "India", "India Women", "India Under-19s", "India A" — but not "West Indies"

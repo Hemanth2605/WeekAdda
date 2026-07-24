@@ -71,8 +71,8 @@ export default function Cricket() {
   usePageMeta(
     windowTab === 'recent'
       ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | WeekAdda`
-      : "Today's Cricket Matches & This Week's Fixtures | WeekAdda",
-    'Cricket match results week by week and upcoming fixtures across international series and leagues — updated daily by the WeekAdda agent.'
+      : 'India Cricket Match Today, Fixtures & Results | WeekAdda',
+    "When is India's next cricket match? Upcoming fixtures with date, time and venue, plus this week's results across international series."
   )
 
   function load() {

@@ -50,7 +50,9 @@ export default function ReleaseModal({ release, onClose }: Props) {
                     days > 0 ? 'Coming to' : 'Streaming on'
                   } ${release.platforms.join(', ')}`
                 : release.contentType
-                  ? `${release.contentType === 'series' ? 'Web series' : 'Movie'} · Coming to OTT India`
+                  ? `${release.contentType === 'series' ? 'Web series' : 'Movie'} · ${
+                      days > 0 ? 'Coming to OTT India' : 'On OTT in India — platform to be announced'
+                    }`
                   : days > 0
                     ? 'Coming soon'
                     : 'In theatres'}

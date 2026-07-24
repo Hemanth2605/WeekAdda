@@ -68,11 +68,17 @@ export default function Cricket() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
+  // Only claim "matches today" when cricket (any country) is actually on today
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const matchesToday =
+    windowTab === 'upcoming' && matches.some((m) => m.date.slice(0, 10) === todayIso)
   usePageMeta(
     windowTab === 'recent'
       ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | WeekAdda`
-      : 'India Cricket Match Today, Fixtures & Results | WeekAdda',
-    "When is India's next cricket match? Upcoming fixtures with date, time and venue, plus this week's results across international series."
+      : matchesToday
+        ? 'Cricket Matches Today — Time, Venue & Fixtures | WeekAdda'
+        : 'Upcoming Cricket Fixtures & Results This Week | WeekAdda',
+    'Upcoming cricket fixtures with date, time and venue for every international series, plus results week by week — updated daily.'
   )
 
   function load() {

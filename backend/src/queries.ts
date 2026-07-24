@@ -325,11 +325,17 @@ export interface Click {
   titleId: string
   title: string
   language: string
+  /** Anonymous per-browser id (localStorage UUID) — every visitor has one */
+  visitorId?: string
+  /** Verified Google account, only when the visitor was signed in */
+  userEmail?: string
 }
 
 export function aggregateClicks(clicks: Click[]) {
   const stats = {
     totalClicks: 0,
+    uniqueVisitors: 0,
+    signedInClicks: 0,
     byKind: {} as Record<string, number>,
     byPlatform: {} as Record<string, number>,
     byLanguage: {} as Record<string, number>,
@@ -338,9 +344,12 @@ export function aggregateClicks(clicks: Click[]) {
     since: null as string | null,
   }
   const titleCounts = new Map<string, number>()
+  const visitors = new Set<string>()
   for (const c of clicks) {
     stats.totalClicks++
     if (!stats.since) stats.since = c.ts
+    if (c.visitorId) visitors.add(c.visitorId)
+    if (c.userEmail) stats.signedInClicks++
     stats.byKind[c.kind] = (stats.byKind[c.kind] ?? 0) + 1
     stats.byPlatform[c.platform] = (stats.byPlatform[c.platform] ?? 0) + 1
     if (c.language) stats.byLanguage[c.language] = (stats.byLanguage[c.language] ?? 0) + 1
@@ -348,11 +357,121 @@ export function aggregateClicks(clicks: Click[]) {
     stats.byDay[day] = (stats.byDay[day] ?? 0) + 1
     titleCounts.set(c.title, (titleCounts.get(c.title) ?? 0) + 1)
   }
+  stats.uniqueVisitors = visitors.size
   stats.topTitles = [...titleCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20)
     .map(([title, clicks]) => ({ title, clicks }))
   return stats
+}
+
+// ---------------------------------------------------------------- auth
+
+export interface GoogleProfile {
+  email: string
+  name: string
+  picture: string
+}
+
+/**
+ * Verify a Google sign-in token via Google's tokeninfo endpoint — accepts the
+ * OAuth access token our popup flow issues (checked first) or a GIS ID token.
+ * Returns the profile when the token is valid and issued for our client id;
+ * null otherwise. Platform-neutral (fetch exists in Workers and Node 18+).
+ */
+export async function verifyGoogleToken(
+  token: string,
+  clientId: string
+): Promise<GoogleProfile | null> {
+  try {
+    // Access token (custom-button popup flow)
+    const at = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`
+    )
+    if (at.ok) {
+      const p = (await at.json()) as Record<string, string>
+      if (p.aud === clientId && p.email_verified === 'true' && p.email) {
+        // Display name/photo live on the userinfo endpoint
+        const ui = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        const u = ui.ok ? ((await ui.json()) as Record<string, string>) : {}
+        return { email: p.email, name: u.name ?? '', picture: u.picture ?? '' }
+      }
+    }
+    // ID token (JWT credential)
+    const it = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`
+    )
+    if (!it.ok) return null
+    const p = (await it.json()) as Record<string, string>
+    if (p.aud !== clientId || p.email_verified !== 'true') return null
+    return { email: p.email ?? '', name: p.name ?? '', picture: p.picture ?? '' }
+  } catch {
+    return null
+  }
+}
+
+// ---------------------------------------------------------------- adda (community board)
+
+export interface AddaListing {
+  id: string
+  ts: string
+  author: string
+  /** Verified Google account — server-side; revealed only via mutual interest */
+  authorEmail: string
+  /** Optional, poster's wish; revealed only with interest, never in public lists */
+  whatsapp?: string
+  title: string
+  details: string
+  status: 'open' | 'closed'
+}
+
+export interface AddaInterest {
+  listingId: string
+  userEmail: string
+  name: string
+  ts: string
+}
+
+export const ADDA_MAX_AGE_DAYS = 30
+
+/** Public shape: contact details stripped. */
+export function publicListing(l: AddaListing): Omit<AddaListing, 'authorEmail' | 'whatsapp'> {
+  const { authorEmail: _e, whatsapp: _w, ...pub } = l
+  return pub
+}
+
+/** Validate + sanitize a new listing; requires a verified poster. */
+export function buildListing(input: unknown, verified: GoogleProfile): AddaListing | null {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const title = String(raw.title ?? '').trim().slice(0, 120)
+  const details = String(raw.details ?? '').trim().slice(0, 2000)
+  if (!title || details.length < 10) return null
+  const whatsapp = String(raw.whatsapp ?? '')
+    .replace(/[^\d+]/g, '')
+    .slice(0, 16)
+  return {
+    id: `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    author:
+      String(raw.author ?? '').trim().slice(0, 40) ||
+      (verified.name || '').trim().slice(0, 40) ||
+      'Someone',
+    authorEmail: verified.email,
+    ...(whatsapp.length >= 10 ? { whatsapp } : {}),
+    title,
+    details,
+    status: 'open',
+  }
+}
+
+/** Open, non-expired listings, newest first. */
+export function liveListings(listings: AddaListing[]): AddaListing[] {
+  const cutoff = new Date(Date.now() - ADDA_MAX_AGE_DAYS * 86_400_000).toISOString()
+  return listings
+    .filter((l) => l.status === 'open' && l.ts >= cutoff)
+    .sort((a, b) => b.ts.localeCompare(a.ts))
 }
 
 // ---------------------------------------------------------------- blog
@@ -372,18 +491,77 @@ export interface BlogPost {
   id: string
   ts: string
   author: string
+  /** Verified Google account of the writer — kept server-side for moderation,
+   *  stripped from every public API response. */
+  authorEmail?: string
   title: string
   body: string
   tag: BlogTag
 }
 
+/** Public shape of a post: everything except the writer's email. */
+export function publicPost(post: BlogPost): Omit<BlogPost, 'authorEmail'> {
+  const { authorEmail: _authorEmail, ...pub } = post
+  return pub
+}
+
+// ---------------- blog post ratings ----------------
+
+export interface PostRating {
+  postId: string
+  userEmail: string
+  rating: number // 1..5
+  ts: string
+}
+
+export interface RatingSummary {
+  avg: number
+  count: number
+  /** The viewer's own rating, present only on authenticated reads */
+  mine?: number
+}
+
+export function sanitizeRating(v: unknown): number | null {
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null
+}
+
+/** Per-post average/count (+ the viewer's own rating when email given). */
+export function summarizeRatings(
+  rows: Array<Pick<PostRating, 'postId' | 'userEmail' | 'rating'>>,
+  viewerEmail?: string
+): Record<string, RatingSummary> {
+  const acc = new Map<string, { sum: number; count: number; mine?: number }>()
+  for (const r of rows) {
+    const a = acc.get(r.postId) ?? { sum: 0, count: 0 }
+    a.sum += r.rating
+    a.count++
+    if (viewerEmail && r.userEmail === viewerEmail) a.mine = r.rating
+    acc.set(r.postId, a)
+  }
+  const out: Record<string, RatingSummary> = {}
+  for (const [id, a] of acc) {
+    out[id] = {
+      avg: Math.round((a.sum / a.count) * 10) / 10,
+      count: a.count,
+      ...(a.mine ? { mine: a.mine } : {}),
+    }
+  }
+  return out
+}
+
 /** Validate + sanitize an incoming post; null when it isn't publishable. */
-export function buildPost(input: unknown): BlogPost | null {
+export function buildPost(input: unknown, verified?: GoogleProfile | null): BlogPost | null {
   const raw = (input ?? {}) as Record<string, unknown>
   const tagRaw = (raw.tag ?? {}) as Record<string, unknown>
   const title = String(raw.title ?? '').trim().slice(0, 120)
   const body = String(raw.body ?? '').trim().slice(0, 5000)
-  const author = String(raw.author ?? '').trim().slice(0, 40) || 'Anonymous'
+  // Display name stays self-chosen; a signed-in user's Google name is the
+  // fallback before Anonymous
+  const author =
+    String(raw.author ?? '').trim().slice(0, 40) ||
+    (verified?.name ?? '').trim().slice(0, 40) ||
+    'Anonymous'
   const kind = tagRaw.kind
   const label = String(tagRaw.label ?? '').trim().slice(0, 160)
   if (!title || !body || !label) return null
@@ -392,6 +570,7 @@ export function buildPost(input: unknown): BlogPost | null {
     id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     ts: new Date().toISOString(),
     author,
+    ...(verified?.email ? { authorEmail: verified.email } : {}),
     title,
     body,
     tag: {

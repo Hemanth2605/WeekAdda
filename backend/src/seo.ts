@@ -80,19 +80,29 @@ function section(title: string, items: string[]): string {
 export function routeMeta(pathname: string): { title: string; description: string } | null {
   const meta: Record<string, { title: string; description: string }> = {
     '/movies': {
-      title: 'OTT & Movie Releases This Week India by Language | WeekAdda',
+      title: 'OTT & Theatre Movie Releases This Week India | WeekAdda',
       description:
         'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5 & Aha, plus theatre releases and upcoming release dates.',
-    },
-    '/cricket': {
-      title: 'India Cricket Match Today, Fixtures & Results | WeekAdda',
-      description:
-        "When is India's next cricket match? Upcoming fixtures with date, time and venue, plus this week's results across international series.",
     },
     '/blog': {
       title: 'WeekAdda Blog — Audience Takes on Movies & Cricket',
       description:
         'Real audience blogs about this week\u2019s movies, OTT releases and cricket matches — written by WeekAdda visitors, tagged to the title or match they talk about.',
+    },
+    '/about': {
+      title: 'About WeekAdda — Built by Hemanth Mareedu',
+      description:
+        'WeekAdda is built by Hemanth Mareedu, a software engineer and movie & cricket fan — weekly movie releases, OTT arrivals and cricket updates in one place.',
+    },
+    '/adda': {
+      title: 'The Adda — Ask, Offer & Find Company | WeekAdda',
+      description:
+        'A community board for movie and cricket fans in India: spare tickets at face value, company for a show or match, honest asks. Free to read; respond with Google sign-in.',
+    },
+    '/privacy': {
+      title: 'Privacy Policy | WeekAdda',
+      description:
+        'What WeekAdda collects, why, and who can see it — in plain language. Browsing needs no account; Google sign-in is used only for posting, rating and the Adda.',
     },
   }
   const m = meta[pathname]
@@ -187,7 +197,7 @@ export function buildMoviesSeo(data: ReleaseCache): string {
 
   return (
     WRAP_OPEN +
-    '<h1>OTT Releases This Week in India &amp; New Movie Releases by Language</h1>' +
+    '<h1>OTT Releases This Week in India &amp; New Movies in Theatres</h1>' +
     `<p>Updated for the week of ${esc(weekFrom)} – ${esc(weekTo)}: new OTT releases on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha, this week's theatre releases in every language, and upcoming OTT &amp; theatre release dates in India.</p>` +
     ottSections +
     section(
@@ -228,7 +238,7 @@ export function buildMoviesSeo(data: ReleaseCache): string {
 export function buildTitlePage(
   data: ReleaseCache,
   id: string
-): { block: string; title: string; description: string; canonical: string } | null {
+): { block: string; title: string; description: string; canonical: string; image?: string } | null {
   const found = findTitle(data, id)
   if (!found) return null
   const r = found.item as OttRelease
@@ -315,6 +325,7 @@ export function buildTitlePage(
     title: esc(metaTitle),
     description: esc(description),
     canonical: `https://weekadda.com${titleUrl(r)}`,
+    image: r.poster ?? undefined,
   }
 }
 
@@ -325,7 +336,7 @@ export function buildSitemap(data: ReleaseCache): string {
   const base = 'https://weekadda.com'
   const lastmod = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt.slice(0, 10) : ''
   const mod = lastmod ? `<lastmod>${lastmod}</lastmod>` : ''
-  const urls = ['/', '/movies', '/cricket', '/blog'].map(
+  const urls = ['/', '/movies', '/cricket', '/blog', '/adda', '/about', '/privacy'].map(
     (p) => `<url><loc>${base}${p}</loc>${mod}<changefreq>daily</changefreq><priority>${p === '/' || p === '/movies' ? '1.0' : '0.8'}</priority></url>`
   )
   const seen = new Set<string>()
@@ -378,6 +389,44 @@ function indiaSeriesSections(indiaUpcoming: CricketMatch[]): string {
     .join('')
 }
 
+/** "Australia vs England, 2nd ODI at 4:30 pm IST" — any country, no bias. */
+function matchPhrase(m: CricketMatch, withDate = false): string {
+  const versus =
+    m.teams.length === 2 ? `${m.teams[0].name} vs ${m.teams[1].name}` : m.shortName || m.name
+  const time = istTime(m.date)
+  return `${versus}${m.label ? `, ${m.label}` : ''}${withDate ? ` on ${day(m.date)}` : ''}${time ? ` at ${time}` : ''}`
+}
+
+/** Today's fixtures (all countries) and the soonest upcoming match. */
+function fixturesPulse(data: CricketCache): { todays: CricketMatch[]; next: CricketMatch | null } {
+  const upcoming = queryCricket(data, { window: 'upcoming' }, { syncing: false }).matches
+  const today = new Date().toISOString().slice(0, 10)
+  const todays = upcoming.filter((m) => m.date.slice(0, 10) === today)
+  const next = [...upcoming].sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
+  return { todays, next }
+}
+
+/**
+ * Cricket <title>/description built from the live cache so the page never
+ * claims "matches today" on a day no cricket is on — every country counts.
+ */
+export function cricketMeta(data: CricketCache): { title: string; description: string } {
+  const { todays, next } = fixturesPulse(data)
+  const title =
+    todays.length > 0
+      ? 'Cricket Matches Today — Time, Venue & Fixtures | WeekAdda'
+      : 'Upcoming Cricket Fixtures & Results This Week | WeekAdda'
+  const lead =
+    todays.length > 0
+      ? `Today: ${todays.slice(0, 2).map((m) => matchPhrase(m)).join('; ')}.`
+      : next
+        ? `Next match: ${matchPhrase(next, true)}.`
+        : 'Cricket fixtures and results, updated daily.'
+  const full = `${lead} Fixtures with date, time and venue for every international series, plus this week's results.`
+  const description = full.length <= 160 ? full : `${full.slice(0, 157).replace(/\s+\S*$/, '')}…`
+  return { title: esc(title), description: esc(description) }
+}
+
 export function buildCricketSeo(data: CricketCache): string {
   const results = queryCricket(data, { window: 'recent', week: 0 }, { syncing: false }).matches.slice(0, 20)
   const upcoming = queryCricket(data, { window: 'upcoming' }, { syncing: false }).matches
@@ -407,10 +456,22 @@ export function buildCricketSeo(data: CricketCache): string {
           })),
         })
 
+  const { todays, next } = fixturesPulse(data)
+  const h1 =
+    todays.length > 0
+      ? 'Cricket Matches Today, Upcoming Fixtures &amp; Results'
+      : 'Upcoming Cricket Fixtures &amp; Results This Week'
+  const lead =
+    todays.length > 0
+      ? `Today: ${esc(todays.slice(0, 3).map((m) => matchPhrase(m)).join('; '))}. `
+      : next
+        ? `Next match: ${esc(matchPhrase(next, true))}${next.venue ? `, ${esc(next.venue)}` : ''}. `
+        : ''
+
   return (
     WRAP_OPEN +
-    '<h1>India Cricket Match Today, Upcoming Fixtures &amp; Results This Week</h1>' +
-    "<p>When is India's next cricket match? Upcoming fixtures with date, time (IST) and venue for every India series, today's and tomorrow's matches, and this week's completed results — updated daily.</p>" +
+    `<h1>${h1}</h1>` +
+    `<p>${lead}Upcoming fixtures with date, time (IST) and venue for every international series, today's and tomorrow's matches, and this week's completed results — updated daily.</p>` +
     section('India cricket match today', indiaToday.map((m) => fixtureLine(m))) +
     section('India cricket match tomorrow', indiaTomorrow.map((m) => fixtureLine(m))) +
     indiaSeriesSections(indiaUpcoming) +
@@ -425,6 +486,66 @@ export function buildCricketSeo(data: CricketCache): string {
     section('Other upcoming international matches', others.map((m) => fixtureLine(m))) +
     NAV +
     ld +
+    '</div>'
+  )
+}
+
+// ---------------- /about ----------------
+
+export function buildAboutSeo(): string {
+  return (
+    WRAP_OPEN +
+    '<h1>About WeekAdda — This Week in Movies, OTT &amp; Cricket</h1>' +
+    '<p>WeekAdda — live since July 2026 — puts the week&#39;s entertainment in one clean place, free, no account needed, refreshed automatically every morning:</p>' +
+    '<ul>' +
+    '<li>New movie releases in Telugu, Hindi, Tamil, Malayalam, Kannada, English and 12+ languages, browsable week by week</li>' +
+    '<li>Daily OTT arrivals on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha, plus upcoming theatre and OTT release dates</li>' +
+    '<li>Cricket fixtures with date, time and venue for every international series, and results week by week</li>' +
+    '<li>A visitor blog with real takes and star ratings, each post tagged to the movie or match it talks about</li>' +
+    '<li>The Adda — a community board to ask, offer and find company: spare tickets at face value, someone to watch a movie or match with, honest asks between fellow fans</li>' +
+    '</ul>' +
+    '<h2>Founder</h2>' +
+    '<p><strong>Hemanth Mareedu</strong> — a software engineer with 10+ years of experience and a lifelong movie and cricket fan who loves building things that are genuinely helpful to people. Connect with Hemanth on <a href="https://www.linkedin.com/in/hemanth-mareedu-a69271116/" rel="me">LinkedIn</a>.</p>' +
+    NAV +
+    jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      name: 'Hemanth Mareedu',
+      url: 'https://weekadda.com/about',
+      image: 'https://weekadda.com/founder.jpg',
+      jobTitle: 'Software Engineer',
+      sameAs: ['https://www.linkedin.com/in/hemanth-mareedu-a69271116/'],
+      knowsAbout: ['Movies', 'OTT platforms', 'Cricket'],
+      mainEntityOfPage: 'https://weekadda.com/about',
+    }) +
+    '</div>'
+  )
+}
+
+// ---------------- /adda ----------------
+
+export function buildAddaSeo(listings: Array<{ title: string; author: string; ts: string }>): string {
+  return (
+    WRAP_OPEN +
+    '<h1>The Adda — Ask, Offer &amp; Find Company</h1>' +
+    '<p>A community board for movie and cricket fans in India: spare tickets at face value, company for a show or a match, honest asks. Free to read; responding takes a Google sign-in, and contact details are shared only between the two people.</p>' +
+    section(
+      'Open on the adda right now',
+      listings.slice(0, 20).map((l) => `${esc(l.title)} — posted by ${esc(l.author)}, ${day(l.ts)}`)
+    ) +
+    NAV +
+    '</div>'
+  )
+}
+
+// ---------------- /privacy ----------------
+
+export function buildPrivacySeo(): string {
+  return (
+    WRAP_OPEN +
+    '<h1>WeekAdda Privacy Policy</h1>' +
+    '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish blog posts, rate posts, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
+    NAV +
     '</div>'
   )
 }

@@ -176,6 +176,34 @@ async function fetchOttWeek(
     }))
 }
 
+/**
+ * One weekly bucket of India digital releases with NO platform tagged on TMDB
+ * yet — catches films (often regional, e.g. ZEE5 pickups) whose digital date
+ * is known but whose provider JustWatch hasn't linked. They show as OTT
+ * arrivals with the platform "to be announced"; a later sweep fills it in.
+ */
+async function fetchOttWeekAnyPlatform(apiKey: string, week: number): Promise<OttRelease[]> {
+  const from = isoDate(-(week * 7 + 6))
+  const to = isoDate(-(week * 7))
+  const url =
+    `${TMDB}/discover/movie?api_key=${apiKey}` +
+    `&region=IN&with_release_type=4` +
+    `&release_date.gte=${from}&release_date.lte=${to}` +
+    `&sort_by=popularity.desc&include_adult=false&page=1`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`TMDB ${res.status} for any-platform week ${week}`)
+  const body = (await res.json()) as { results: TmdbMovie[] }
+  return (body.results ?? [])
+    .filter((m) => m.release_date)
+    .map((m) => ({
+      ...toRelease(m, { code: m.original_language, label: labelForLanguage(m.original_language) }),
+      id: `ott-${m.id}`,
+      platforms: [], // platform not linked on TMDB yet
+      week,
+      contentType: 'movie' as const,
+    }))
+}
+
 interface TmdbTv {
   id: number
   name: string
@@ -331,8 +359,8 @@ async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
 
 /** Sweep all providers × all weekly buckets, merging platforms per film. */
 async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
-  const perProvider = await Promise.allSettled(
-    OTT_PROVIDERS.map(async (provider) => {
+  const perProvider = await Promise.allSettled([
+    ...OTT_PROVIDERS.map(async (provider) => {
       const out: OttRelease[] = []
       // Weeks sequentially per provider to stay well under TMDB rate limits
       for (let w = 0; w < MAX_WEEKS; w++) {
@@ -348,8 +376,20 @@ async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
         }
       }
       return out
-    })
-  )
+    }),
+    // Digital dates with no platform tagged yet (platform "to be announced")
+    (async () => {
+      const out: OttRelease[] = []
+      for (let w = 0; w < MAX_WEEKS; w++) {
+        try {
+          out.push(...(await fetchOttWeekAnyPlatform(apiKey, w)))
+        } catch {
+          // Not fatal — the per-provider queries still cover tagged titles
+        }
+      }
+      return out
+    })(),
+  ])
 
   const merged = new Map<string, OttRelease>()
   for (const result of perProvider) {
@@ -357,8 +397,8 @@ async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
     for (const item of result.value) {
       const existing = merged.get(item.id)
       if (existing) {
-        if (!existing.platforms.includes(item.platforms[0])) {
-          existing.platforms.push(item.platforms[0])
+        for (const p of item.platforms) {
+          if (!existing.platforms.includes(p)) existing.platforms.push(p)
         }
         existing.week = Math.min(existing.week, item.week)
       } else {

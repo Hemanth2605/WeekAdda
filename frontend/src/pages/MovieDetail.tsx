@@ -38,7 +38,6 @@ export default function MovieDetail() {
     api<TitleResponse>(`/title/${encodeURIComponent(id ?? '')}`)
       .then(setData)
       .catch(() => setMissing(true))
-    window.scrollTo(0, 0)
   }, [id])
 
   const r = data?.release

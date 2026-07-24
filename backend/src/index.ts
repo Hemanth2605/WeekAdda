@@ -6,6 +6,7 @@ import releaseRoutes from './routes/releases'
 import cricketRoutes from './routes/cricket'
 import trackRoutes from './routes/track'
 import blogRoutes from './routes/blog'
+import addaRoutes from './routes/adda'
 import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
 import { findTitle, relatedTitles } from './queries'
 import { syncCricket, syncCricketIfStale } from './agent/cricketAgent'
@@ -27,6 +28,7 @@ app.get('/api/title/:id', (req, res) => {
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)
 app.use('/api/blog', blogRoutes)
+app.use('/api/adda', addaRoutes)
 
 // The daily agents: every morning at 06:00 — movies then cricket.
 cron.schedule('0 6 * * *', () => {

@@ -20,8 +20,29 @@ export default function Footer() {
         <Link to="/movies">Movies</Link>
         <Link to="/cricket">Cricket</Link>
         <Link to="/blog">Blog</Link>
+        <Link to="/adda">Adda</Link>
+        <Link to="/about">About</Link>
+        <Link to="/privacy">Privacy</Link>
       </nav>
-      <p className="footer-credit">Movie &amp; OTT data from TMDB. Updated daily by the WeekAdda agent.</p>
+      <p className="footer-credit">
+        © {new Date().getFullYear()} WeekAdda · Built with{' '}
+        <span className="footer-heart">❤️</span> by{' '}
+        <a
+          href="https://www.linkedin.com/in/hemanth-mareedu-a69271116/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Hemanth Mareedu
+        </a>{' '}
+        · Updated daily by the WeekAdda agent
+      </p>
+      <p className="footer-attribution">
+        This product uses the{' '}
+        <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">
+          TMDB
+        </a>{' '}
+        API but is not endorsed or certified by TMDB. Cricket data via ESPN.
+      </p>
     </footer>
   )
 }

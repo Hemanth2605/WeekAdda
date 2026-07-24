@@ -36,8 +36,9 @@ interface Props {
 export default function ReleaseCard({ release, index, onOpen }: Props) {
   const days = daysUntil(release.releaseDate)
   const isOtt = Boolean(release.platforms?.length)
+  // OTT entry whose platform TMDB hasn't linked yet (contentType marks OTT pools)
+  const isOttUnknown = !isOtt && Boolean(release.contentType)
   const isUpcoming = days > 0
-  const isNew = !isOtt && days <= 0 && days >= -10
 
   return (
     <article
@@ -51,7 +52,6 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
         ) : (
           <span className="release-poster-title">{release.title}</span>
         )}
-        {isNew && <span className="release-flag new">New</span>}
         {isUpcoming && (
           <span className={`release-flag soon${isOtt ? ' right' : ''}`}>
             {days === 1 ? 'Tomorrow' : `In ${days} days`}
@@ -85,7 +85,8 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
             <Play size={14} fill="currentColor" /> Watch
           </a>
         )}
-        {!isOtt && days <= 0 && (
+        {isOttUnknown && days <= 0 && <span className="release-flag ott">OTT</span>}
+        {!isOtt && !isOttUnknown && days <= 0 && (
           <a
             className="card-watch"
             href={bookingUrls(release.title)[0].url}

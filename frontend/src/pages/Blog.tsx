@@ -9,11 +9,14 @@ import {
   PenLine,
   CalendarDays,
   Tag,
+  Star,
 } from 'lucide-react'
-import { api, fetchPosts, createPost } from '../api'
+import { api, fetchPosts, fetchMyPosts, fetchRatings, ratePost, createPost } from '../api'
+import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } from '../auth'
+import GoogleButton from '../components/GoogleButton'
 import { matchFlags } from '../flags'
 import { usePageMeta } from '../seo'
-import { BlogPost, BlogTag, Release, CricketMatch } from '../types'
+import { BlogPost, BlogTag, RatingSummary, Release, CricketMatch } from '../types'
 
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -178,8 +181,15 @@ function useTagOptions(kind: 'movie' | 'match', open: boolean) {
   return options
 }
 
-function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
-  const [open, setOpen] = useState(false)
+function Composer({
+  open,
+  onClose,
+  onPublished,
+}: {
+  open: boolean
+  onClose: () => void
+  onPublished: (post: BlogPost) => void
+}) {
   const [kind, setKind] = useState<'movie' | 'match'>('movie')
   const [tag, setTag] = useState<BlogTag | null>(null)
   const [tagSearch, setTagSearch] = useState('')
@@ -194,6 +204,14 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  // Publishing needs Google sign-in (when configured); reading never does.
+  // The state is app-wide: signing in from the navbar covers the composer too.
+  const user = useGoogleUser()
+  const needsSignIn = authEnabled && !user
+
+  useEffect(() => {
+    if (user) setAuthor((prev) => prev || user.name.slice(0, 40))
+  }, [user])
 
   const options = useTagOptions(kind, open)
 
@@ -210,6 +228,12 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
     if (!tag) return setError(`Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`)
     if (!title.trim()) return setError('Give your blog a title')
     if (body.trim().length < 20) return setError('Write a little more — at least a few sentences')
+    let token: string | undefined
+    if (authEnabled) {
+      const fresh = refreshUser()
+      if (!fresh) return setError('Please sign in with Google to publish')
+      token = fresh.token
+    }
     setError('')
     setSending(true)
     try {
@@ -217,30 +241,23 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
     } catch {
       // remembering the name is best-effort
     }
-    createPost({ author: author.trim(), title: title.trim(), body: body.trim(), tag })
+    createPost({ author: author.trim(), title: title.trim(), body: body.trim(), tag }, token)
       .then((post) => {
         onPublished(post)
-        setOpen(false)
+        onClose()
         setTag(null)
         setTagSearch('')
         setTitle('')
         setBody('')
       })
-      .catch(() => setError('Could not publish right now — please try again'))
+      .catch((err: Error) => {
+        if (err.message.toLowerCase().includes('sign in')) signOut()
+        setError(err.message || 'Could not publish right now — please try again')
+      })
       .finally(() => setSending(false))
   }
 
-  if (!open) {
-    return (
-      <button className="blog-open-composer" onClick={() => setOpen(true)}>
-        <PenLine size={17} />
-        <span>
-          <b>Write your take</b>
-          <small>Loved it? Hated it? Tag a movie or a match and tell everyone why.</small>
-        </span>
-      </button>
-    )
-  }
+  if (!open) return null
 
   return (
     <section className="blog-composer">
@@ -248,7 +265,7 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
         <h2>
           <Feather size={17} /> Your take
         </h2>
-        <button className="share-close" onClick={() => setOpen(false)} aria-label="Close composer">
+        <button className="share-close" onClick={onClose} aria-label="Close composer">
           <X size={16} />
         </button>
       </div>
@@ -351,20 +368,202 @@ function Composer({ onPublished }: { onPublished: (post: BlogPost) => void }) {
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
           maxLength={40}
-          placeholder="Your name — blank posts as Anonymous"
+          placeholder={
+            authEnabled ? 'Display name shown on your post' : 'Your name — blank posts as Anonymous'
+          }
         />
         <span className="blog-count">{body.length}/5000</span>
-        <button className="share-wa sm" onClick={publish} disabled={sending}>
-          <Send size={14} /> {sending ? 'Publishing…' : 'Publish'}
-        </button>
+        {needsSignIn ? (
+          <GoogleButton onError={setError} />
+        ) : (
+          <button className="share-wa sm" onClick={publish} disabled={sending}>
+            <Send size={14} /> {sending ? 'Publishing…' : 'Publish'}
+          </button>
+        )}
       </div>
+      {needsSignIn && (
+        <p className="blog-signin-hint">
+          Sign in with Google to publish — only used to keep the blog spam-free; your post shows
+          the display name you choose.
+        </p>
+      )}
       {error && <p className="blog-error">{error}</p>}
     </section>
   )
 }
 
-function PostCard({ post, index }: { post: BlogPost; index: number }) {
-  const [expanded, setExpanded] = useState(false)
+/**
+ * 5-star rating row on a post. Reading is free; the first click from a
+ * signed-out visitor opens the Google popup, then their rating applies.
+ * Authors can see their post's average but can't rate it themselves.
+ */
+function StarRow({
+  post,
+  summary,
+  own,
+  onRated,
+}: {
+  post: BlogPost
+  summary?: RatingSummary
+  own: boolean
+  onRated: (postId: string, summary: RatingSummary) => void
+}) {
+  const [hover, setHover] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+  const interactive = authEnabled && !own
+
+  const shown = hover || summary?.mine || Math.round(summary?.avg ?? 0)
+
+  const rate = async (value: number) => {
+    if (!interactive || busy) return
+    setBusy(true)
+    setNote('')
+    try {
+      let token = refreshUser()?.token
+      if (!token) token = (await signInWithGoogle()).token
+      const fresh = await ratePost(post.id, value, token)
+      onRated(post.id, fresh)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : ''
+      if (message !== 'popup_closed' && message !== 'popup_closed_by_user') {
+        setNote(message || 'Could not save your rating — please try again')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    // Rating clicks must not bubble into the card's open-modal click
+    <div className="post-rating" onClick={(e) => e.stopPropagation()}>
+      <span
+        className={`post-stars${interactive ? ' interactive' : ''}`}
+        onMouseLeave={() => setHover(0)}
+        role={interactive ? 'radiogroup' : undefined}
+        aria-label={interactive ? 'Rate this take' : undefined}
+      >
+        {[1, 2, 3, 4, 5].map((value) => (
+          <button
+            key={value}
+            className={`post-star${value <= shown ? ' filled' : ''}${summary?.mine ? ' mine' : ''}`}
+            disabled={!interactive || busy}
+            onMouseEnter={() => interactive && setHover(value)}
+            onClick={() => rate(value)}
+            title={
+              own
+                ? 'Your take — others rate it'
+                : summary?.mine
+                  ? `Your rating: ${summary.mine} — click to change`
+                  : `Rate ${value} star${value === 1 ? '' : 's'}`
+            }
+          >
+            <Star size={15} fill={value <= shown ? 'currentColor' : 'none'} />
+          </button>
+        ))}
+      </span>
+      <span className="post-rating-meta">
+        {summary && summary.count > 0 ? (
+          <>
+            {summary.avg.toFixed(1)} · {summary.count} rating{summary.count === 1 ? '' : 's'}
+            {own && <em> · your take</em>}
+            {summary.mine ? <em> · you rated {summary.mine}</em> : null}
+          </>
+        ) : own ? (
+          <em>your take — no ratings yet</em>
+        ) : (
+          <em>be the first to rate</em>
+        )}
+      </span>
+      {note && <span className="post-rating-note">{note}</span>}
+    </div>
+  )
+}
+
+/** Full take in a modal — same pattern as movie cards, no grid reflow. */
+function PostModal({
+  post,
+  rating,
+  own,
+  onRated,
+  onClose,
+}: {
+  post: BlogPost
+  rating?: RatingSummary
+  own: boolean
+  onRated: (postId: string, summary: RatingSummary) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [onClose])
+
+  const paragraphs = post.body.split(/\n+/).filter((p) => p.trim())
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal blog-post-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <X size={20} />
+        </button>
+        <header className="blog-card-head">
+          {post.tag.poster ? (
+            <img className="blog-card-poster" src={post.tag.poster} alt="" />
+          ) : matchFlags(post.tag).length > 0 ? (
+            <span className="blog-card-poster flags">
+              {matchFlags(post.tag).map((l, i) => (
+                <img key={i} src={l} alt="" />
+              ))}
+            </span>
+          ) : (
+            <span className="blog-card-poster fallback">
+              {post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
+            </span>
+          )}
+          <div className="blog-card-meta">
+            <span className="blog-card-tag">
+              <Tag size={12} /> {post.tag.label}
+              {post.tag.sub && <em> · {post.tag.sub}</em>}
+            </span>
+            <h2>{post.title}</h2>
+            <span className="blog-card-byline">
+              {post.author} {own && <span className="blog-you">You</span>} ·{' '}
+              <CalendarDays size={12} /> {timeAgo(post.ts)}
+            </span>
+          </div>
+        </header>
+        <div className="blog-modal-body">
+          {paragraphs.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+        <StarRow post={post} summary={rating} own={own} onRated={onRated} />
+      </div>
+    </div>
+  )
+}
+
+function PostCard({
+  post,
+  index,
+  mine,
+  rating,
+  onRated,
+  onOpen,
+}: {
+  post: BlogPost
+  index: number
+  mine?: boolean
+  rating?: RatingSummary
+  onRated: (postId: string, summary: RatingSummary) => void
+  onOpen: (post: BlogPost) => void
+}) {
   const [clipped, setClipped] = useState(false)
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const paragraphs = post.body.split(/\n+/).filter((p) => p.trim())
@@ -376,7 +575,11 @@ function PostCard({ post, index }: { post: BlogPost; index: number }) {
   }, [])
 
   return (
-    <article className="blog-card" style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}>
+    <article
+      className="blog-card"
+      style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}
+      onClick={() => onOpen(post)}
+    >
       <header className="blog-card-head">
         {post.tag.poster ? (
           <img className="blog-card-poster" src={post.tag.poster} alt="" loading="lazy" />
@@ -396,20 +599,28 @@ function PostCard({ post, index }: { post: BlogPost; index: number }) {
           </span>
           <h2>{post.title}</h2>
           <span className="blog-card-byline">
-            {post.author} · <CalendarDays size={12} /> {timeAgo(post.ts)}
+            {post.author} {mine && <span className="blog-you">You</span>} ·{' '}
+            <CalendarDays size={12} /> {timeAgo(post.ts)}
           </span>
         </div>
       </header>
-      <div ref={bodyRef} className={`blog-card-body${expanded ? '' : ' clamped'}`}>
+      <div ref={bodyRef} className="blog-card-body clamped">
         {paragraphs.map((p, i) => (
           <p key={i}>{p}</p>
         ))}
       </div>
-      {(clipped || expanded) && (
-        <button className="blog-readmore" onClick={() => setExpanded((e) => !e)}>
-          {expanded ? 'Show less' : 'Read the full take →'}
+      {clipped && (
+        <button
+          className="blog-readmore"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen(post)
+          }}
+        >
+          Read the full take →
         </button>
       )}
+      <StarRow post={post} summary={rating} own={Boolean(mine)} onRated={onRated} />
     </article>
   )
 }
@@ -417,7 +628,34 @@ function PostCard({ post, index }: { post: BlogPost; index: number }) {
 export default function Blog() {
   const [posts, setPosts] = useState<BlogPost[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'movie' | 'match'>('all')
+  const [filter, setFilter] = useState<'all' | 'movie' | 'match' | 'mine'>('all')
+  // The signed-in visitor's own contributions ("My takes")
+  const user = useGoogleUser()
+  const [myPosts, setMyPosts] = useState<BlogPost[] | null>(null)
+  const [ratings, setRatings] = useState<Record<string, RatingSummary>>({})
+  const [selected, setSelected] = useState<BlogPost | null>(null)
+  const [composerOpen, setComposerOpen] = useState(false)
+
+  // Rating summaries — refetched on sign-in/out so "your rating" stays right
+  useEffect(() => {
+    fetchRatings(user ? refreshUser()?.token : undefined)
+      .then((r) => setRatings(r.ratings))
+      .catch(() => {})
+  }, [user])
+
+  useEffect(() => {
+    const fresh = user && refreshUser()
+    if (!fresh) {
+      setMyPosts(null)
+      setFilter((f) => (f === 'mine' ? 'all' : f))
+      return
+    }
+    fetchMyPosts(fresh.token)
+      .then((r) => setMyPosts(r.posts))
+      .catch(() => setMyPosts([]))
+  }, [user])
+
+  const mineIds = useMemo(() => new Set((myPosts ?? []).map((p) => p.id)), [myPosts])
 
   usePageMeta(
     'WeekAdda Blog — Audience Takes on Movies & Cricket',
@@ -431,13 +669,18 @@ export default function Blog() {
       .finally(() => setLoading(false))
   }, [])
 
-  const visible = filter === 'all' ? posts : posts.filter((p) => p.tag.kind === filter)
+  const visible =
+    filter === 'all'
+      ? posts
+      : filter === 'mine'
+        ? (myPosts ?? [])
+        : posts.filter((p) => p.tag.kind === filter)
 
   return (
     <main className="blog-page">
       <LetterRain />
-      <section className="opp-header">
-        <div>
+      <section className="community-hero">
+        <div className="community-hero-text">
           <span className="hero-eyebrow">
             <Feather size={13} /> From the audience
           </span>
@@ -447,10 +690,22 @@ export default function Blog() {
             like. Every post is tagged to the title or match it talks about.
           </p>
         </div>
+        {!composerOpen && (
+          <button className="community-cta" onClick={() => setComposerOpen(true)}>
+            <PenLine size={18} /> Write your take
+          </button>
+        )}
       </section>
 
       <div className="blog-wrap">
-        <Composer onPublished={(post) => setPosts((p) => [post, ...p])} />
+        <Composer
+          open={composerOpen}
+          onClose={() => setComposerOpen(false)}
+          onPublished={(post) => {
+            setPosts((p) => [post, ...p])
+            if (user) setMyPosts((mine) => [post, ...(mine ?? [])])
+          }}
+        />
 
         <div className="genre-row blog-filter">
           {(
@@ -468,7 +723,22 @@ export default function Blog() {
               {label}
             </button>
           ))}
+          {user && myPosts !== null && (
+            <button
+              className={`genre-chip mine${filter === 'mine' ? ' active' : ''}`}
+              onClick={() => setFilter('mine')}
+            >
+              My takes{myPosts.length > 0 && <span className="mine-count">{myPosts.length}</span>}
+            </button>
+          )}
         </div>
+
+        {filter === 'mine' && myPosts !== null && myPosts.length > 0 && (
+          <p className="mine-summary">
+            You&apos;ve contributed {myPosts.length} take{myPosts.length === 1 ? '' : 's'} to the
+            WeekAdda blog — thanks for writing!
+          </p>
+        )}
 
         {loading ? (
           <div className="blog-feed" aria-hidden>
@@ -479,17 +749,48 @@ export default function Blog() {
         ) : visible.length === 0 ? (
           <div className="empty-state">
             <Feather size={54} />
-            <h3>No posts yet</h3>
-            <p>Be the first — hit “Write your take” and tell everyone about something you watched.</p>
+            {filter === 'mine' ? (
+              <>
+                <h3>No takes from you yet</h3>
+                <p>
+                  Write your first — hit “Write your take” above and it will show up here under
+                  your name.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3>No posts yet</h3>
+                <p>Be the first — hit “Write your take” and tell everyone about something you watched.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="blog-feed">
             {visible.map((post, i) => (
-              <PostCard key={post.id} post={post} index={i} />
+              <PostCard
+                key={post.id}
+                post={post}
+                index={i}
+                mine={mineIds.has(post.id)}
+                rating={ratings[post.id]}
+                onRated={(postId, summary) =>
+                  setRatings((r) => ({ ...r, [postId]: summary }))
+                }
+                onOpen={setSelected}
+              />
             ))}
           </div>
         )}
       </div>
+      {selected && (
+        <PostModal
+          post={selected}
+          rating={ratings[selected.id]}
+          own={mineIds.has(selected.id)}
+          onRated={(postId, summary) => setRatings((r) => ({ ...r, [postId]: summary }))}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </main>
   )
 }

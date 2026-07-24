@@ -1455,7 +1455,7 @@ input {
 .pf-dot.pf-etvwin { background: #d6006e; }
 
 /* ---------------- blog ---------------- */
-.blog-page > *:not(.letter-rain) {
+.blog-page > *:not(.letter-rain):not(.modal-overlay) {
   position: relative;
   z-index: 1;
 }
@@ -1832,8 +1832,7 @@ input {
   overflow-wrap: anywhere;
 }
 .blog-readmore {
-  margin-top: auto;
-  padding-top: 12px;
+  margin: 0 0 14px;
   align-self: flex-start;
   background: none;
   border: none;
@@ -2300,4 +2299,608 @@ input {
 }
 .modal-page-link:hover {
   color: var(--text);
+}
+
+/* ---------------- about page ---------------- */
+.about-page {
+  max-width: 760px;
+}
+.about-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 42px 40px;
+}
+.about-card h1 {
+  font-size: clamp(26px, 3.4vw, 36px);
+  margin: 8px 0 18px;
+}
+.about-card p {
+  color: var(--text-dim);
+  line-height: 1.8;
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+.about-wave {
+  display: inline-block;
+}
+.about-connect {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: #0a66c2;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.2s, filter 0.2s;
+}
+.about-connect:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+.footer-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.footer-credit a:hover {
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .about-card {
+    padding: 30px 22px;
+  }
+}
+
+/* ---------------- blog google sign-in ---------------- */
+.blog-signin {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+.blog-signin-hint {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+.blog-signed-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+.blog-signed-in img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.blog-signed-in button {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+.blog-signed-in button:hover {
+  color: var(--text);
+}
+
+/* ---------------- navbar sign-in ---------------- */
+.nav-signin {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+.nav-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.nav-user img,
+.nav-user-initial {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+.nav-user-initial {
+  display: grid;
+  place-items: center;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--text);
+}
+.nav-signout {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.nav-signout:hover {
+  color: var(--text);
+}
+@media (max-width: 760px) {
+  .nav-user-name {
+    display: none;
+  }
+}
+
+/* ---------------- custom google button (site chrome, official logo) ----------------
+   The ring is a rotating conic gradient: a bright gold streak circulating over
+   a dim gold base border. ::before paints the spinning gradient, ::after
+   covers the middle, leaving a 2px ring visible. */
+.google-btn {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 21px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.google-btn::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  inset: -150%;
+  background: conic-gradient(
+    rgba(232, 179, 75, 0.25),
+    var(--gold) 12%,
+    var(--gold-bright) 20%,
+    var(--gold) 28%,
+    rgba(232, 179, 75, 0.25) 40%,
+    rgba(232, 179, 75, 0.25)
+  );
+  animation: google-ring 3s linear infinite;
+}
+.google-btn::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 2px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  transition: background 0.2s;
+}
+@keyframes google-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.google-btn:hover {
+  transform: translateY(-1px);
+}
+.google-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  transform: none;
+}
+.google-btn.sm {
+  padding: 8px 15px;
+  font-size: 13px;
+  gap: 8px;
+}
+@media (max-width: 760px) {
+  .google-btn.sm {
+    padding: 8px 11px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .google-btn::before {
+    animation: none;
+  }
+}
+
+/* ---------------- my takes ---------------- */
+.blog-you {
+  display: inline-block;
+  padding: 1px 8px;
+  margin-left: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.mine-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  margin-left: 7px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1a1508;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.genre-chip.mine.active .mine-count {
+  background: #1a1508;
+  color: var(--gold-bright);
+}
+.mine-summary {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin: 2px 0 14px;
+}
+
+/* ---------------- about: features + founder ---------------- */
+.about-features {
+  list-style: none;
+  margin: 6px 0 4px;
+  display: grid;
+  gap: 14px;
+}
+.about-features li {
+  display: flex;
+  gap: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+  font-size: 14.5px;
+}
+.about-features svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: var(--gold);
+}
+.about-features b {
+  color: var(--text);
+}
+.founder-card {
+  margin-top: 18px;
+}
+.founder-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+.founder-photo {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  border: 2px solid var(--gold);
+  flex-shrink: 0;
+}
+.founder-row h2 {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+@media (max-width: 640px) {
+  .founder-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+/* ---------------- blog post ratings ---------------- */
+/* Pinned to the card's bottom edge (cards in a grid row share a height), so
+   every rating bar lines up no matter how long the take above it is */
+.post-rating {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.blog-card .blog-card-body {
+  margin-bottom: 14px;
+}
+.post-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.post-star {
+  border: none;
+  background: none;
+  padding: 2px;
+  color: var(--text-dim);
+  opacity: 0.55;
+  cursor: default;
+  transition: transform 0.15s, color 0.15s, opacity 0.15s;
+}
+.post-star.filled {
+  color: var(--gold);
+  opacity: 1;
+}
+.post-stars.interactive .post-star {
+  cursor: pointer;
+}
+.post-stars.interactive .post-star:hover {
+  transform: scale(1.25);
+}
+.post-star:disabled {
+  cursor: default;
+}
+.post-rating-meta {
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+.post-rating-meta em {
+  font-style: normal;
+  color: var(--gold);
+}
+.post-rating-note {
+  color: #e05a4e;
+  font-size: 12.5px;
+}
+
+/* ---------------- blog post modal ---------------- */
+.blog-card {
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.blog-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+:root[data-theme='light'] .blog-card:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+}
+.blog-post-modal {
+  max-width: 680px;
+  padding: 30px 34px 26px;
+}
+.blog-post-modal .blog-card-head {
+  padding-right: 40px;
+}
+.blog-post-modal .blog-card-meta h2 {
+  font-size: 24px;
+}
+.blog-modal-body {
+  margin: 18px 0 6px;
+}
+.blog-modal-body p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.blog-modal-body p + p {
+  margin-top: 12px;
+}
+.blog-post-modal .post-rating {
+  margin-top: 16px;
+}
+
+.footer-copyright {
+  margin-top: 6px;
+  color: var(--text-dim);
+  opacity: 0.75;
+  font-size: 12px;
+}
+.footer-attribution {
+  margin-top: 3px;
+  color: var(--text-dim);
+  opacity: 0.55;
+  font-size: 11.5px;
+}
+.footer-attribution a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.footer-attribution a:hover {
+  color: var(--text);
+}
+
+/* ---------------- the adda ---------------- */
+.adda-rules {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  max-width: 820px;
+  margin: 14px auto 4px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.adda-rules svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--gold);
+}
+.adda-card {
+  cursor: default;
+}
+.adda-card:hover {
+  transform: none;
+}
+.adda-card .blog-card-meta h2 {
+  font-size: 19px;
+}
+.adda-card-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.adda-card .blog-card-body {
+  margin-bottom: 14px;
+}
+.adda-close:hover {
+  border-color: rgba(224, 90, 78, 0.6);
+  color: #e05a4e;
+}
+.adda-contact {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.adda-contact svg {
+  color: var(--gold);
+}
+.adda-contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.adda-contact a:hover {
+  color: var(--gold-bright);
+}
+.adda-interest-list {
+  list-style: none;
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.adda-interest-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.adda-interest-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--gold);
+}
+.adda-composer-foot {
+  flex-wrap: wrap;
+}
+
+/* ---------------- privacy page + adda disclosure ---------------- */
+.privacy-card h2 {
+  font-size: 17px;
+  margin: 22px 0 8px;
+}
+.privacy-updated {
+  font-size: 12.5px;
+  opacity: 0.8;
+  margin-top: -8px;
+}
+.privacy-card ul {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 6px 0 16px;
+}
+.privacy-card ul li {
+  color: var(--text-dim);
+  line-height: 1.7;
+  font-size: 14.5px;
+  padding-left: 16px;
+  position: relative;
+}
+.privacy-card ul li::before {
+  content: "\2022";
+  position: absolute;
+  left: 2px;
+  color: var(--gold);
+}
+.privacy-card b {
+  color: var(--text);
+}
+.privacy-card a {
+  color: var(--gold);
+}
+.privacy-note {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.adda-respond {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.adda-respond small {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+/* ---------------- community hero (blog + adda) ---------------- */
+.community-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 38px 42px 20px;
+}
+.community-hero-text {
+  max-width: 640px;
+}
+.community-hero-text h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  margin: 6px 0 10px;
+}
+.community-hero-text p {
+  color: var(--text-dim);
+  line-height: 1.65;
+  font-size: 14.5px;
+}
+.community-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 26px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  color: #241a05;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(232, 179, 75, 0.22);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.community-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 38px rgba(232, 179, 75, 0.34);
+}
+@media (max-width: 760px) {
+  .community-hero {
+    padding: 30px 20px 16px;
+    gap: 18px;
+  }
+  .community-cta {
+    width: 100%;
+    justify-content: center;
+  }
 }

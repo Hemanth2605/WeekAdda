@@ -57,7 +57,7 @@ export default function Releases() {
 
   usePageMeta(
     windowTab === 'ott'
-      ? 'OTT Releases This Week India — Netflix, JioHotstar, ZEE5 | WeekAdda'
+      ? 'OTT Releases This Week India & New Theatre Movies | WeekAdda'
       : windowTab === 'upcoming'
         ? upcomingSource === 'ott'
           ? 'Upcoming OTT Releases India — Digital Premiere Dates | WeekAdda'

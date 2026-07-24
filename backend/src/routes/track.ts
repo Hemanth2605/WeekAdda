@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express'
 import fs from 'fs'
 import path from 'path'
-import { Click, aggregateClicks } from '../queries'
+import { Click, aggregateClicks, verifyGoogleToken } from '../queries'
 
 /**
  * Outbound-click tracking: the audience-proof for future platform deals.
@@ -16,26 +16,39 @@ const CLICKS_FILE = path.join(DATA_DIR, 'clicks.jsonl')
 const router = Router()
 
 router.post('/click', (req: Request, res: Response) => {
-  const { kind, platform, titleId, title, language } = req.body ?? {}
+  const { kind, platform, titleId, title, language, visitorId } = req.body ?? {}
   if (kind !== 'watch' && kind !== 'book' && kind !== 'score' && kind !== 'share') {
     return res.status(400).json({ error: 'kind must be watch, book, score or share' })
   }
   if (!platform || !title) {
     return res.status(400).json({ error: 'platform and title are required' })
   }
-  const click: Click = {
-    ts: new Date().toISOString(),
-    kind,
-    platform: String(platform).slice(0, 60),
-    titleId: String(titleId ?? '').slice(0, 120),
-    title: String(title).slice(0, 200),
-    language: String(language ?? '').slice(0, 40),
-  }
-  fs.mkdirSync(DATA_DIR, { recursive: true })
-  fs.appendFile(CLICKS_FILE, JSON.stringify(click) + '\n', (err) => {
-    if (err) console.warn('⚠️  Could not record click:', err.message)
-  })
+  const authz = req.headers.authorization ?? ''
+  const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
   res.status(204).end()
+  // Identity is resolved after responding: signed-in clicks get the verified
+  // account, everyone else keeps just the anonymous visitor id
+  void (async () => {
+    let userEmail = ''
+    if (token && process.env.GOOGLE_CLIENT_ID) {
+      const profile = await verifyGoogleToken(token, process.env.GOOGLE_CLIENT_ID)
+      userEmail = profile?.email ?? ''
+    }
+    const click: Click = {
+      ts: new Date().toISOString(),
+      kind,
+      platform: String(platform).slice(0, 60),
+      titleId: String(titleId ?? '').slice(0, 120),
+      title: String(title).slice(0, 200),
+      language: String(language ?? '').slice(0, 40),
+      ...(visitorId ? { visitorId: String(visitorId).slice(0, 64) } : {}),
+      ...(userEmail ? { userEmail } : {}),
+    }
+    fs.mkdirSync(DATA_DIR, { recursive: true })
+    fs.appendFile(CLICKS_FILE, JSON.stringify(click) + '\n', (err) => {
+      if (err) console.warn('⚠️  Could not record click:', err.message)
+    })
+  })()
 })
 
 // Aggregated stats — the numbers you show a platform team.

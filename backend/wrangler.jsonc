@@ -9,6 +9,12 @@
   "name": "weekadda",
   "main": "src/worker.ts",
   "compatibility_date": "2025-12-01",
+  // Public config (not secret). GOOGLE_CLIENT_ID gates blog publishing behind
+  // Google sign-in; while empty, anonymous posting stays allowed. The same id
+  // must be in frontend/.env.production as VITE_GOOGLE_CLIENT_ID at build time.
+  "vars": {
+    "GOOGLE_CLIENT_ID": "1039028958438-ivvvnn1bv7r2jj56idumgojm41g5ksfd.apps.googleusercontent.com"
+  },
   "assets": {
     "directory": "../frontend/dist",
     "not_found_handling": "single-page-application",

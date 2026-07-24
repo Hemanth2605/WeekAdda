@@ -77,6 +77,13 @@ export interface BlogPost {
   tag: BlogTag
 }
 
+export interface RatingSummary {
+  avg: number
+  count: number
+  /** The viewer's own rating, present only when signed in */
+  mine?: number
+}
+
 export interface CricketMeta {
   fetchedAt: string
   source: 'espn' | 'sample'

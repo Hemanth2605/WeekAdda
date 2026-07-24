@@ -16,9 +16,11 @@ Two dev servers, started independently (no root package.json):
    backend first.
 
 Routes to verify: `/movies` (default; `/` redirects there), `/cricket`, `/blog`
-(visitor posts; local store is `backend/cache/blog.json`), and a per-title detail
-page at `/movie/:id/:slug` (open any release's modal → "Full page", or fetch an id
-from GET `/api/title/<id>` — ids come from the release caches, e.g. `tmdb-…`/`ott-…`).
+(visitor posts + star ratings; local store `backend/cache/blog.json`, ratings in
+`ratings.json`), `/adda` (community board; store `backend/cache/adda.json`), `/about`,
+`/privacy`, and a per-title detail page at `/movie/:id/:slug` (open any release's
+modal → "Full page", or fetch an id from GET `/api/title/<id>` — ids come from the
+release caches, e.g. `tmdb-…`/`ott-…`).
 
 ## Notes
 
@@ -32,3 +34,9 @@ from GET `/api/title/<id>` — ids come from the release caches, e.g. `tmdb-…`
   5173 is busy — read the actual URL from Vite's startup output.
 - Both servers are watch-mode; after code edits just reload the browser, no restart
   needed (backend restarts itself via tsx watch).
+- **Google sign-in** (needed to publish/rate a blog post or post/respond on the Adda)
+  works locally only if `GOOGLE_CLIENT_ID` is in `backend/.env` and
+  `VITE_GOOGLE_CLIENT_ID` in `frontend/.env` (both already set). Without them,
+  anonymous posting still works. The sign-in popup is a real Google flow — it can't be
+  driven by a headless browser, so verify it by hand. You can't rate/interest on your
+  own posts by design (needs a second Google account to see the full flow).

@@ -35,23 +35,49 @@ cd frontend && npm run build
 - **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
   and the cache types, used by both the Express routes and the Worker. Change behaviour
   there, never in just one of the two.
-- **Frontend** is React 18 + Vite with three main pages plus a per-title detail page
-  (`MovieDetail.tsx` at /movie/:id/:slug, fed by GET `/api/title/:id`): `Releases.tsx`
-  (defaults to the
-  OTT India tab; tabs OTT/theatres/upcoming), `Cricket.tsx` (defaults to Fixtures,
-  banded Today / This Week / Later; Results is the second tab), and `Blog.tsx`
-  (visitor posts tagged to a movie or match, no login — blank names post as
-  Anonymous). Shared week-paging pattern: week 0 = last 7 days, up to 13 weeks back.
-  All API calls are relative `/api/...`.
-- **Blog**: `/api/blog` GET/POST, shared `buildPost` sanitizer in `queries.ts`;
-  local store `backend/cache/blog.json`, production store Supabase `posts` table.
+- **Frontend** is React 18 + Vite. Pages: `Releases.tsx` (defaults to the OTT India
+  tab; tabs OTT/theatres/upcoming), a per-title detail page `MovieDetail.tsx` at
+  /movie/:id/:slug fed by GET `/api/title/:id`, `Cricket.tsx` (defaults to Fixtures,
+  banded Today / This Week / Later; Results is the second tab), `Blog.tsx` (visitor
+  posts tagged to a movie or match + 5-star ratings), `Adda.tsx` (community board,
+  see below), plus `About.tsx` and `Privacy.tsx`. `App.tsx` has a `ScrollToTop` that
+  resets scroll on every route change. Shared week-paging pattern: week 0 = last 7
+  days, up to 13 weeks back. All API calls are relative `/api/...`.
+- **Blog**: `/api/blog` GET/POST (+ `/mine`, `/rate`, `/ratings`), shared `buildPost`
+  sanitizer in `queries.ts`; local store `backend/cache/blog.json` (+ `ratings.json`),
+  production Supabase `posts` / `post_ratings` tables.
+- **Auth is Google-only, and only for writing** (added July 2026). Browsing everything
+  is account-free. Sign-in uses Google Identity Services' **OAuth token flow** (custom
+  `GoogleButton.tsx` + `frontend/src/auth.ts`; app-wide state via `useGoogleUser`), NOT
+  the pre-built iframe button. The browser sends the access token as `Authorization:
+  Bearer`; the server verifies it with `verifyGoogleToken` in `queries.ts` (used by
+  both Express and Worker). Gated writes: publishing/rating a blog post, and posting/
+  responding on the Adda. Verified emails are stored server-side (`author_email`,
+  `user_email`) and **never returned by public APIs** (`publicPost`/`publicListing`
+  strip them). Needs `GOOGLE_CLIENT_ID` (Worker var in wrangler.jsonc + backend/.env)
+  and `VITE_GOOGLE_CLIENT_ID` (frontend/.env, baked in at build). While unset,
+  anonymous posting still works — keep that keyless fallback.
+- **The Adda** (`Adda.tsx`, `backend/src/routes/adda.ts`, Worker `/api/adda*`): a
+  community board where anyone posts asks/offers (spare ticket, company for a
+  movie/match). Reading is public; posting and clicking "I'm interested" need sign-in.
+  On interest, contact (email, optional WhatsApp) is revealed **mutually** — poster
+  sees responders, responder sees poster — that reveal is the only place emails leave
+  the server. Poster can close a listing; anything >30 days auto-expires. Supabase
+  `listings` / `listing_interests`, local `cache/adda.json`.
+- **Click tracking carries identity**: each outbound click sends an anonymous per-
+  browser `visitorId` (localStorage UUID), plus the verified `userEmail` when signed
+  in; stats report `uniqueVisitors`/`signedInClicks`. Emails never surface in the
+  public stats endpoint.
 - **Country flags are self-hosted**: `frontend/public/flags/*.png` + resolver
   `frontend/src/flags.ts` (team name → country, Women/U19 squads share the flag).
   Unknown teams fall back to the remote ESPN logo URL — keep that fallback.
 - **Edge pre-render (SEO)**: the Worker injects search-phrased HTML (built by
   `backend/src/seo.ts` from the same caches) inside `<div id="root">` for
-  /, /movies, /cricket, /blog. React clears it on mount; on any error the Worker
-  serves the untouched page. `seo.ts` must stay free of Node-only imports.
+  /, /movies, /cricket, /blog, /adda, /about, /privacy, and every /movie/:id/:slug.
+  It also stamps per-route `<title>`/description/canonical **and Open Graph + Twitter
+  tags** (movie pages get the poster as `og:image`) so shared links preview correctly.
+  React clears the injected block on mount; on any error the Worker serves the
+  untouched page. `seo.ts` must stay free of Node-only imports.
 - Without `TMDB_API_KEY` in `backend/.env` the app serves sample data from
   `backend/src/data/` — everything must keep working in that keyless mode.
 
@@ -69,9 +95,14 @@ cd frontend && npm run build
   table. Built frontend ships as Worker static assets with SPA fallback. Worker
   secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`) set via `wrangler secret put`.
 - **Database**: Supabase (Mumbai), schema in `supabase/schema.sql` (`caches`,
-  `clicks`, `posts`; RLS on, no public policies — service key only). New tables
-  must be added to schema.sql AND run manually in the Supabase SQL Editor before
-  the Worker code that uses them is deployed.
+  `clicks`, `posts`, `post_ratings`, `listings`, `listing_interests`; RLS on, no
+  public policies — service key only). New tables/columns must be added to
+  schema.sql AND run manually in the Supabase SQL Editor before the Worker code
+  that uses them is deployed (schema.sql ships idempotent `add column if not exists`
+  migrations for the auth/ratings/Adda additions).
+- **`GOOGLE_CLIENT_ID` is a Worker var** (plaintext in wrangler.jsonc, not a secret —
+  OAuth client IDs are public), so it deploys with the Worker; no `wrangler secret
+  put` needed for it.
 - **Deploying app changes is manual** (no git integration):
   `cd frontend && npm run build`, then `cd ../backend && npx wrangler deploy`.
   Pushing to GitHub alone does NOT update the live site.
@@ -100,9 +131,19 @@ cd frontend && npm run build
   word. "Commit" and "push" are distinct instructions — do only what was asked.
 - **Sharing is multi-app** (native sheet on phones; WhatsApp/Telegram/X/Instagram/Copy
   chooser on desktop) — do not revert to WhatsApp-only.
-- **No login system by design.** Blog authors are self-reported names or Anonymous.
-  A ratings feature was built and deliberately removed (July 2026) — don't
-  reintroduce visitor ratings unless explicitly asked.
+- **No login for browsing; Google sign-in gates writing only** (owner decision,
+  July 2026). Reading everything stays account-free. Sign-in is required to publish
+  or rate a blog post and to post/respond on the Adda; browsing, and all read
+  endpoints, never need it. While `GOOGLE_CLIENT_ID` is unset, anonymous posting
+  still works — keep that keyless fallback. Display names remain self-chosen (Google
+  name is the fallback). See the Auth and Adda architecture bullets for the flow.
+- **Blog-post ratings** (owner-requested, July 2026): 5 stars, sign-in required, one
+  rating per account (upsert), no self-rating. NB an earlier *movie* ratings feature
+  was deliberately removed — don't add ratings anywhere else unless asked.
+- **The Adda hosts nothing against any service's terms** (owner rule, July 2026): no
+  account/subscription sharing, tickets at face value only. The board deliberately
+  connects people only — no in-app payments or chat; contact reveal is mutual and
+  sign-in-gated. Keep the house-rules notice and the privacy/attribution pages.
 - The blog's falling letter-tile backdrop fades out on scroll on purpose (greet,
   then get out of the reader's way).
 

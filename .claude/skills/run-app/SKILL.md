@@ -15,8 +15,10 @@ Two dev servers, started independently (no root package.json):
    long-running). Serves http://localhost:5173 and calls the API on :4000, so start the
    backend first.
 
-Routes to verify: `/movies` (default; `/` redirects there), `/cricket`, and `/blog`
-(visitor posts; local store is `backend/cache/blog.json`).
+Routes to verify: `/movies` (default; `/` redirects there), `/cricket`, `/blog`
+(visitor posts; local store is `backend/cache/blog.json`), and a per-title detail
+page at `/movie/:id/:slug` (open any release's modal → "Full page", or fetch an id
+from GET `/api/title/<id>` — ids come from the release caches, e.g. `tmdb-…`/`ott-…`).
 
 ## Notes
 

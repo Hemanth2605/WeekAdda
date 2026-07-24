@@ -181,7 +181,7 @@ export default function Releases() {
               </>
             )}
           </span>
-          <h1>
+          <h1 className="sr-only">
             {windowTab === 'upcoming'
               ? upcomingSource === 'ott'
                 ? 'Coming Soon on OTT'

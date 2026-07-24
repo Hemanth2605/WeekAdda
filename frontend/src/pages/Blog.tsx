@@ -681,10 +681,10 @@ export default function Blog() {
       <LetterRain />
       <section className="community-hero">
         <div className="community-hero-text">
+          <h1 className="sr-only">The WeekAdda Blog</h1>
           <span className="hero-eyebrow">
             <Feather size={13} /> From the audience
           </span>
-          <h1>The WeekAdda Blog</h1>
           <p>
             Real takes from real viewers — what the week's movies and matches actually felt
             like. Every post is tagged to the title or match it talks about.

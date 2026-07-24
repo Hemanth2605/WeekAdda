@@ -146,6 +146,16 @@ cd frontend && npm run build
   sign-in-gated. Keep the house-rules notice and the privacy/attribution pages.
 - The blog's falling letter-tile backdrop fades out on scroll on purpose (greet,
   then get out of the reader's way).
+- **Big visible page headings (h1) are hidden** on Movies, Cricket, Blog and Adda
+  (owner decision, July 2026 — the nav tab already names each page, and on
+  Movies/Cricket the active tab + week label carry the context). The `<h1>` stays
+  in the DOM as `className="sr-only"` (defined in index.css) so SEO and screen
+  readers still get exactly one heading; the visible header is just the small
+  gold eyebrow + description. **To bring the visible headings back, remove
+  `className="sr-only"` from the `<h1>` in these four files:** `Releases.tsx`
+  (~L184), `Cricket.tsx` (~L167), `Blog.tsx` ("The WeekAdda Blog"), and
+  `Adda.tsx` ("The Adda"). Movies/Cricket use the `.opp-header` hero; Blog/Adda
+  use `.community-hero` (a compact hero with the CTA on the right).
 
 ## Gotchas
 

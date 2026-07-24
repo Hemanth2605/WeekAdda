@@ -294,6 +294,63 @@ function AddaComposer({
   )
 }
 
+/**
+ * A sample listing shown only when the board is empty — looks exactly like a
+ * real post so people see the format, but is clearly badged as an example and
+ * its "I'm interested" reveals an obvious placeholder (example@gmail.com), so
+ * no one mistakes it for a real ask.
+ */
+function ExampleCard({ onPost }: { onPost: () => void }) {
+  const [revealed, setRevealed] = useState(false)
+  return (
+    <article className="blog-card adda-card adda-example">
+      <span className="adda-example-chip">Example · this is how a post looks</span>
+      <div className="blog-card-meta">
+        <h2>One extra ticket — Chennai Love Story at PVR Nexus, Hyderabad</h2>
+        <span className="blog-card-byline">
+          Sample poster · just now · <Users size={12} /> 1 interested
+        </span>
+      </div>
+      <div className="blog-card-body">
+        <p>
+          I have one spare ticket for Saturday&apos;s 6pm show, selling at face value (no extra).
+          If you want it, click &quot;I&apos;m interested&quot; and I&apos;ll share the details.
+        </p>
+      </div>
+      <div className="adda-card-foot">
+        {revealed ? (
+          <div className="adda-contact">
+            <ShieldCheck size={14} />
+            <span>
+              Contact <b>Sample poster</b>:
+            </span>
+            <a href="/adda" onClick={(e) => e.preventDefault()}>
+              <Mail size={13} /> example@gmail.com
+            </a>
+          </div>
+        ) : (
+          <span className="adda-respond">
+            <button className="share-wa sm" onClick={() => setRevealed(true)}>
+              <HandHeart size={14} /> I&apos;m interested
+            </button>
+            <small>Try it — see what happens when someone responds</small>
+          </span>
+        )}
+      </div>
+      {revealed && (
+        <p className="adda-example-note">
+          ☝ This is just an example. On a <b>real</b> post, tapping &quot;I&apos;m interested&quot;
+          (after a Google sign-in) reveals the poster&apos;s actual email — and WhatsApp if they
+          added one — shared only between the two of you.{' '}
+          <button className="adda-example-post" onClick={onPost}>
+            Post your own →
+          </button>
+        </p>
+      )}
+    </article>
+  )
+}
+
 export default function Adda() {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
@@ -321,10 +378,10 @@ export default function Adda() {
     <main>
       <section className="community-hero">
         <div className="community-hero-text">
+          <h1 className="sr-only">The Adda</h1>
           <span className="hero-eyebrow">
             <HandHeart size={13} /> The community board
           </span>
-          <h1>The Adda</h1>
           <p>
             Ask, offer, find company — a spare ticket at face value, a movie plan that needs one
             more person, a question for fellow fans. Everyone can read; responding takes a Google
@@ -358,10 +415,11 @@ export default function Adda() {
             ))}
           </div>
         ) : visible.length === 0 ? (
-          <div className="empty-state">
-            <HandHeart size={54} />
-            <h3>The adda is quiet</h3>
-            <p>Be the first — post a question, an offer, or a plan that needs company.</p>
+          <div className="adda-empty-wrap">
+            <p className="adda-empty-lead">
+              No posts yet — here&apos;s how a listing looks. Post yours and it shows up right here.
+            </p>
+            <ExampleCard onPost={() => setComposerOpen(true)} />
           </div>
         ) : (
           <div className="blog-feed">

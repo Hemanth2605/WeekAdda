@@ -164,7 +164,9 @@ export default function Cricket() {
           <span className="hero-eyebrow">
             <Trophy size={13} /> From the pitch
           </span>
-          <h1>{windowTab === 'recent' ? `Cricket · ${weekTitle(week)}` : 'Today & This Week'}</h1>
+          <h1 className="sr-only">
+            {windowTab === 'recent' ? `Cricket · ${weekTitle(week)}` : 'Today & This Week'}
+          </h1>
           <p>
             Match results week by week and upcoming fixtures across every active series and
             league — swept daily by the WeekAdda agent, grouped series by series.

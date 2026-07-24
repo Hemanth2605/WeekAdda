@@ -48,9 +48,14 @@ export default function GoogleButton({ small, onError }: Props) {
   }
 
   return (
-    <button className={`google-btn${small ? ' sm' : ''}`} onClick={click} disabled={busy}>
+    <button
+      className={`google-btn${small ? ' sm' : ''}`}
+      onClick={click}
+      disabled={busy}
+      aria-label="Sign in with Google"
+    >
       <GoogleG size={small ? 15 : 18} />
-      {busy ? 'Signing in…' : 'Sign in with Google'}
+      <span className="google-btn-label">{busy ? 'Signing in…' : 'Sign in with Google'}</span>
     </button>
   )
 }

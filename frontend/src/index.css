@@ -1491,7 +1491,10 @@ input {
     transform: translateY(0) rotate(0deg);
   }
   to {
+    /* vh fallback, then lvh so the mobile address bar toggling on scroll
+       doesn't recompute the fall distance and jitter the whole backdrop */
     transform: translateY(125vh) rotate(var(--spin, 30deg));
+    transform: translateY(125lvh) rotate(var(--spin, 30deg));
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2230,14 +2233,68 @@ input {
 }
 
 
-/* Very narrow phones: nav links collapse to icons so the theme toggle
-   always stays on screen */
-@media (max-width: 400px) {
+/* Phones: the "Sign in with Google" text won't fit the navbar, so collapse the
+   navbar sign-in button to just the (official) G in a compact circle — the gold
+   ring still spins. The composer's full-width button keeps its label. */
+@media (max-width: 640px) {
+  .navbar .google-btn.sm {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .navbar .google-btn-label {
+    display: none;
+  }
+}
+
+/* Very narrow phones: nav links collapse to icons and everything tightens so
+   the whole navbar fits without clipping the sign-in / theme buttons */
+@media (max-width: 430px) {
+  .navbar {
+    padding: 12px 12px;
+    gap: 6px;
+  }
+  .nav-brand span {
+    font-size: 17px;
+  }
+  /* Inactive tabs are icons; the active tab keeps its label so you always
+     see which section you're in */
   .nav-link-label {
     display: none;
   }
+  .nav-link.active .nav-link-label {
+    display: inline;
+  }
+  .nav-links {
+    gap: 0;
+  }
   .nav-link {
-    padding: 8px 9px;
+    padding: 8px 7px;
+  }
+  .navbar .google-btn.sm {
+    width: 36px;
+    height: 36px;
+  }
+  .theme-toggle {
+    width: 34px;
+    height: 34px;
+  }
+  .nav-brand,
+  .nav-links,
+  .navbar .google-btn.sm,
+  .theme-toggle,
+  .nav-user {
+    flex-shrink: 0;
+  }
+}
+
+/* Narrowest phones: even the active label is dropped so the sign-in and theme
+   buttons never get pushed off-screen */
+@media (max-width: 380px) {
+  .nav-link.active .nav-link-label {
+    display: none;
   }
 }
 

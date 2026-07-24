@@ -34,24 +34,28 @@ export default function Navbar() {
       <nav className="nav-links" aria-label="Sections">
         <NavLink
           to="/movies"
+          aria-label="Movies"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           <Film size={16} /> <span className="nav-link-label">Movies</span>
         </NavLink>
         <NavLink
           to="/cricket"
+          aria-label="Cricket"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           <Trophy size={16} /> <span className="nav-link-label">Cricket</span>
         </NavLink>
         <NavLink
           to="/blog"
+          aria-label="Blog"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           <Feather size={16} /> <span className="nav-link-label">Blog</span>
         </NavLink>
         <NavLink
           to="/adda"
+          aria-label="Adda"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
           <HandHeart size={16} /> <span className="nav-link-label">Adda</span>

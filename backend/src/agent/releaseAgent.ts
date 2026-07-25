@@ -12,7 +12,7 @@ export { LANGUAGES, MAX_WEEKS }
 export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
-const SOURCES_VERSION = 5
+const SOURCES_VERSION = 6
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -22,7 +22,44 @@ export const OTT_PROVIDERS = [
   { id: 237, label: 'Sony LIV' },
   { id: 232, label: 'ZEE5' },
   { id: 532, label: 'Aha' },
+  { id: 309, label: 'Sun NXT' },
+  { id: 350, label: 'Apple TV' },
 ]
+
+/**
+ * Where TMDB writes a platform when JustWatch has not linked one: free text on
+ * the India digital release date — "ZEE5", "Zee5", "Streaming On Zee5". For the
+ * regional films that make up most of our OTT week that note is the only
+ * platform signal there is, so the spellings all have to fold together.
+ */
+const PLATFORM_ALIASES: Array<{ alias: string; label: string; exact?: boolean }> = [
+  { alias: 'netflix', label: 'Netflix' },
+  { alias: 'primevideo', label: 'Amazon Prime Video' },
+  { alias: 'amazonprime', label: 'Amazon Prime Video' },
+  { alias: 'jiohotstar', label: 'JioHotstar' },
+  { alias: 'hotstar', label: 'JioHotstar' },
+  { alias: 'sonyliv', label: 'Sony LIV' },
+  { alias: 'zee5', label: 'ZEE5' },
+  { alias: 'sunnxt', label: 'Sun NXT' },
+  { alias: 'appletv', label: 'Apple TV' },
+  // "aha" occurs inside ordinary words, so it only counts as the whole note
+  { alias: 'aha', label: 'Aha', exact: true },
+]
+
+/**
+ * The platform a release note names, or null. Notes are not a controlled
+ * field: alongside "ZEE5" they hold "upcoming", "(internet)" and whole
+ * paragraphs of synopsis, so a match has to be a name we recognise and
+ * ambiguous aliases have to match the note outright.
+ */
+function platformFromNote(note: string): string | null {
+  const n = note.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (!n) return null
+  for (const { alias, label, exact } of PLATFORM_ALIASES) {
+    if (exact ? n === alias : n.includes(alias)) return label
+  }
+  return null
+}
 
 const CACHE_DIR = path.join(__dirname, '..', '..', 'cache')
 const CACHE_FILE = path.join(CACHE_DIR, 'releases.json')
@@ -357,6 +394,49 @@ async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
   return [...merged.values()]
 }
 
+/**
+ * Name the platform for OTT titles TMDB never linked to a provider, by reading
+ * the note on their India digital release date. Costs one extra call per
+ * unlabelled film, in small batches to stay gentle on TMDB; anything that
+ * fails or names nothing we recognise simply stays "to be announced", which is
+ * the behaviour we already had. Series carry no release_dates, so only films
+ * with a numeric TMDB id are looked up.
+ */
+async function fillPlatformsFromNotes(apiKey: string, items: OttRelease[]): Promise<number> {
+  const pending = items.filter((i) => i.platforms.length === 0 && /^ott-\d+$/.test(i.id))
+  let filled = 0
+  for (let i = 0; i < pending.length; i += 10) {
+    await Promise.all(
+      pending.slice(i, i + 10).map(async (item) => {
+        try {
+          const res = await fetch(`${TMDB}/movie/${item.id.slice(4)}/release_dates?api_key=${apiKey}`)
+          if (!res.ok) return
+          const body = (await res.json()) as {
+            results?: Array<{
+              iso_3166_1: string
+              release_dates?: Array<{ type: number; note?: string }>
+            }>
+          }
+          const india = body.results?.find((r) => r.iso_3166_1 === 'IN')
+          for (const entry of india?.release_dates ?? []) {
+            // type 4 = digital; the theatrical entry's note is never a platform
+            if (entry.type !== 4 || !entry.note) continue
+            const label = platformFromNote(entry.note)
+            if (label) {
+              item.platforms = [label]
+              filled++
+              return
+            }
+          }
+        } catch {
+          // one lookup failing must never break the sweep
+        }
+      })
+    )
+  }
+  return filled
+}
+
 /** Sweep all providers × all weekly buckets, merging platforms per film. */
 async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
   const perProvider = await Promise.allSettled([
@@ -486,6 +566,13 @@ export async function syncReleases(): Promise<ReleaseCache> {
     } catch (err) {
       console.warn('⚠️  Watchmode sweep failed (continuing without it):', err)
     }
+
+    // TMDB links only the biggest services to a watch provider; for everything
+    // else the platform is buried in the release note, so recover it there
+    const named =
+      (await fillPlatformsFromNotes(apiKey, ott)) +
+      (await fillPlatformsFromNotes(apiKey, ottUpcoming))
+    if (named) console.log(`🤖 Release agent: named ${named} platform(s) from TMDB release notes`)
 
     cache = {
       fetchedAt: new Date().toISOString(),

@@ -203,7 +203,8 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
   // startsWith, not equality: /cricket/results is a cricket page too, and the
   // fall-through at the bottom would otherwise hand it the movies block
   if (pathname.startsWith('/cricket')) {
-    return buildCricketSeo(await loadCache(env, 'cricket', EMPTY_CRICKET))
+    const cricket = await loadCache(env, 'cricket', EMPTY_CRICKET)
+    return buildCricketSeo(cricket, pathname === '/cricket/results' ? 'results' : 'fixtures')
   }
   if (pathname === '/blog') {
     return buildBlogSeo((await loadPosts(env)).posts)

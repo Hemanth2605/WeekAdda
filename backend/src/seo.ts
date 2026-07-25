@@ -533,8 +533,19 @@ export function cricketMeta(data: CricketCache): { title: string; description: s
   return { title: esc(title), description: esc(description) }
 }
 
-export function buildCricketSeo(data: CricketCache): string {
-  const results = queryCricket(data, { window: 'recent', week: 0 }, { syncing: false }).matches.slice(0, 20)
+/**
+ * Which of the two cricket URLs is being rendered — same reasoning as
+ * MoviesFocus: /cricket and /cricket/results must not serve the same block, or
+ * Google picks one and drops the other. See SEO-PLAN.md.
+ */
+export type CricketFocus = 'fixtures' | 'results'
+
+export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtures'): string {
+  // The results page is about completed matches, so it lists several weeks
+  const resultWeeks = focus === 'results' ? [0, 1, 2] : [0]
+  const results = resultWeeks
+    .flatMap((week) => queryCricket(data, { window: 'recent', week }, { syncing: false }).matches)
+    .slice(0, focus === 'results' ? 40 : 20)
   const upcoming = queryCricket(data, { window: 'upcoming' }, { syncing: false }).matches
 
   const today = new Date().toISOString().slice(0, 10)
@@ -562,6 +573,32 @@ export function buildCricketSeo(data: CricketCache): string {
           })),
         })
 
+  const resultsSection = section(
+    focus === 'results' ? 'Cricket results — completed matches' : 'Cricket results this week',
+    results.map((m) => {
+      const winner = m.teams.find((t) => t.winner)
+      const line = winner ? `${winner.name} won` : m.statusDetail || 'Completed'
+      return `${esc(m.name)} — ${esc(line)} (${esc(m.series)}, ${day(m.date)})`
+    })
+  )
+
+  // /cricket/results — who won, not who plays next
+  if (focus === 'results') {
+    const indiaResults = results.filter(india)
+    return (
+      WRAP_OPEN +
+      '<h1>Cricket Results This Week — Scores &amp; Winners</h1>' +
+      '<p>Completed cricket match results in the last few weeks — internationals and leagues, with the winner, the series and the date. India results first. Updated every morning.</p>' +
+      section('India cricket results', indiaResults.map((m) => {
+        const winner = m.teams.find((t) => t.winner)
+        return `${esc(m.name)} — ${esc(winner ? `${winner.name} won` : m.statusDetail || 'Completed')} (${esc(m.series)}, ${day(m.date)})`
+      })) +
+      resultsSection +
+      NAV +
+      '</div>'
+    )
+  }
+
   const { todays, next } = fixturesPulse(data)
   const h1 =
     todays.length > 0
@@ -581,14 +618,7 @@ export function buildCricketSeo(data: CricketCache): string {
     section('India cricket match today', indiaToday.map((m) => fixtureLine(m))) +
     section('India cricket match tomorrow', indiaTomorrow.map((m) => fixtureLine(m))) +
     indiaSeriesSections(indiaUpcoming) +
-    section(
-      'Cricket results this week',
-      results.map((m) => {
-        const winner = m.teams.find((t) => t.winner)
-        const line = winner ? `${winner.name} won` : m.statusDetail || 'Completed'
-        return `${esc(m.name)} — ${esc(line)} (${esc(m.series)}, ${day(m.date)})`
-      })
-    ) +
+    resultsSection +
     section('Other upcoming international matches', others.map((m) => fixtureLine(m))) +
     NAV +
     ld +

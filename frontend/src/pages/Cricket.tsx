@@ -32,6 +32,18 @@ const TAB_PATH: Record<Window, string> = {
 }
 const WINDOW_FOR_TAB: Record<string, Window> = { results: 'recent' }
 
+/**
+ * Must stay identical to routeMeta['/cricket/results'] in backend/src/seo.ts —
+ * the Worker writes that into the HTML and this overwrites it on mount, so the
+ * two disagreeing means one URL advertising two titles. Not keyed on the week,
+ * which is not in the URL: /cricket/results is one page, not thirteen.
+ */
+const RESULTS_META = {
+  title: 'Cricket Results This Week — All Series & Leagues | WeekAdda',
+  description:
+    'Completed cricket match results week by week — internationals and leagues, with scores, venue and series, India first. Updated every morning.',
+}
+
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
   if (mins < 60) return mins < 1 ? 'just now' : `${mins} min ago`
@@ -91,13 +103,17 @@ export default function Cricket() {
   const todayIso = new Date().toISOString().slice(0, 10)
   const matchesToday =
     windowTab === 'upcoming' && matches.some((m) => m.date.slice(0, 10) === todayIso)
+  // The fixtures titles below are the same two strings cricketMeta picks
+  // between in seo.ts, so /cricket reads the same before and after mount
   usePageMeta(
     windowTab === 'recent'
-      ? `Cricket Results ${weekTitle(week)} — All Series & Leagues | WeekAdda`
+      ? RESULTS_META.title
       : matchesToday
         ? 'Cricket Matches Today — Time, Venue & Fixtures | WeekAdda'
         : 'Upcoming Cricket Fixtures & Results This Week | WeekAdda',
-    'Upcoming cricket fixtures with date, time and venue for every international series, plus results week by week — updated daily.'
+    windowTab === 'recent'
+      ? RESULTS_META.description
+      : 'Upcoming cricket fixtures with date, time and venue for every international series, plus results week by week — updated daily.'
   )
 
   function load() {

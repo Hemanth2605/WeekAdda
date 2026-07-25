@@ -39,6 +39,37 @@ const WINDOW_FOR_TAB: Record<string, Window> = {
   upcoming: 'upcoming',
 }
 
+/**
+ * One title and description per URL, and they must be the same strings
+ * routeMeta serves from backend/src/seo.ts.
+ *
+ * Two things set these tags: the Worker writes routeMeta into the HTML, which
+ * is what a social scraper and a non-rendering crawler read, and then
+ * usePageMeta overwrites them on mount, which is what Google's rendering pass
+ * reads. If the two disagree the same URL advertises two different titles.
+ *
+ * Keyed on the tab alone, deliberately — week and the theatres/OTT sub-toggle
+ * are not in the URL, so letting them change the title would give one address
+ * several titles depending on where the visitor had clicked.
+ */
+const PAGE_META: Record<Window, { title: string; description: string }> = {
+  ott: {
+    title: 'OTT & Theatre Movie Releases This Week India | WeekAdda',
+    description:
+      'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5, Sun NXT & Aha, plus theatre and upcoming release dates.',
+  },
+  released: {
+    title: 'New Movies in Theatres This Week India | WeekAdda',
+    description:
+      'Movies released in cinemas across India this week — Telugu, Hindi, Tamil, Malayalam, Kannada and English — plus the theatre release dates coming next.',
+  },
+  upcoming: {
+    title: 'Upcoming Movies & OTT Releases in India — Release Dates | WeekAdda',
+    description:
+      'Upcoming movie release dates in India — theatre releases and upcoming OTT releases & web series, with the streaming platform where confirmed. Updated daily.',
+  },
+}
+
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
   if (mins < 1) return 'just now'
@@ -81,22 +112,7 @@ export default function Releases() {
     setWeek(0)
   }, [windowTab])
 
-  usePageMeta(
-    windowTab === 'ott'
-      ? 'OTT Releases This Week India & New Theatre Movies | WeekAdda'
-      : windowTab === 'upcoming'
-        ? upcomingSource === 'ott'
-          ? 'Upcoming OTT Releases India — Digital Premiere Dates | WeekAdda'
-          : 'Upcoming Movies in India — Theatre Release Dates | WeekAdda'
-        : week === 0
-          ? 'Movie & OTT Releases This Week — Telugu, Hindi, Tamil | WeekAdda'
-          : `Movie & OTT Releases ${weekTitle(week)} by Language | WeekAdda`,
-    windowTab === 'ott'
-      ? 'Movies and web series that just arrived on Netflix, Prime Video, JioHotstar, ZEE5 and Aha in India — updated daily, browsable week by week.'
-      : windowTab === 'upcoming'
-        ? 'Upcoming movie and OTT release dates in India across every language — updated daily by the WeekAdda agent.'
-        : "This week's new movie releases and OTT arrivals in Telugu, Hindi, Tamil and more — on Netflix, Prime Video, JioHotstar & ZEE5, with 13 weeks of history."
-  )
+  usePageMeta(PAGE_META[windowTab].title, PAGE_META[windowTab].description)
 
   function load() {
     const params = new URLSearchParams({ window: windowTab })

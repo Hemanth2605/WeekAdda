@@ -91,7 +91,7 @@ Also deferred: splitting the Coming Soon sub-toggle (theatres vs OTT) into
 genuinely different queries, so this is worth revisiting — but only after
 `/movies/upcoming` shows it ranks at all.
 
-## Adding a route — the three-place coupling
+## Adding a route — the four-place coupling
 
 **A route added in only one place breaks silently.** Since the soft-404 change,
 an unknown path returns 404 at the edge, so a React route with no Worker entry is
@@ -102,6 +102,19 @@ invisible to everyone including Google.
    `SEO_PAGES` (else no pre-render)
 3. `backend/src/seo.ts` — `routeMeta` (title/description), the `seoBlockFor`
    branch in `worker.ts`, and the static list in `buildSitemap`
+4. The page's `usePageMeta` call — `PAGE_META` in `Releases.tsx`, `RESULTS_META`
+   in `Cricket.tsx`
+
+**Point 4 is the one that looks fine and is not.** Two systems set the meta
+tags: the Worker writes `routeMeta` into the HTML, which is what social
+scrapers and non-rendering crawlers read, and then `usePageMeta` overwrites
+them on mount, which is what Google's rendering pass reads. If the strings
+differ, one URL advertises two different titles depending on who is asking —
+and the React one usually wins in search results. Keep them byte-identical.
+
+For the same reason, never key a title on state that is not in the URL (the
+week, the theatres/OTT sub-toggle): the same address would then present several
+titles depending on where the visitor had clicked.
 
 ## Measuring whether it worked
 

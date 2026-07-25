@@ -223,6 +223,29 @@ function json(body: unknown, status = 200): Response {
  * leaking to a platform on an outbound click, or injected script reaching for
  * the camera. Invisible to crawlers, so ranking is unaffected.
  */
+/**
+ * The paths the SPA actually renders — mirrors the <Route> table in App.tsx.
+ * Anything else is not a page on this site, however plausible it looks, and
+ * has to say so with a 404 rather than quietly serving the shell.
+ */
+const SPA_ROUTES = new Set([
+  '/',
+  '/movies',
+  '/cricket',
+  '/blog',
+  '/about',
+  '/adda',
+  '/privacy',
+  '/stats',
+])
+
+/** Title pages carry an id and an optional slug: /movie/:id[/:slug]. */
+const MOVIE_ROUTE = /^\/movie\/[^/]+(\/[^/]*)?$/
+
+function isKnownRoute(pathname: string): boolean {
+  return SPA_ROUTES.has(pathname) || MOVIE_ROUTE.test(pathname)
+}
+
 const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -284,6 +307,18 @@ const routes = {
 
     if (!url.pathname.startsWith('/api/')) {
       const asset = await env.ASSETS.fetch(request)
+      // The SPA fallback hands the shell to *any* unmatched path, so bot probes
+      // like /wp-login.php came back 200 — a soft 404 that invites Google to
+      // index junk and spends crawl budget on it. Real files (assets, flags,
+      // robots.txt) are not HTML and never reach this branch, so keying off the
+      // content type is enough. The shell is still served, letting the app's
+      // catch-all route send a human on to /movies; only the status changes.
+      if (
+        !isKnownRoute(url.pathname) &&
+        (asset.headers.get('Content-Type') ?? '').includes('text/html')
+      ) {
+        return new Response(asset.body, { status: 404, headers: asset.headers })
+      }
       // The private owner dashboard is never pre-rendered and never indexed —
       // the header covers crawlers that ignore robots.txt or don't run JS.
       if (url.pathname === '/stats') {

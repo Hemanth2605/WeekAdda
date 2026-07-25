@@ -585,6 +585,14 @@ export default {
           if (clickToken && env.GOOGLE_CLIENT_ID) {
             const profile = await verifyGoogleToken(clickToken, env.GOOGLE_CLIENT_ID)
             userEmail = profile?.email ?? null
+            // Identity is best-effort and must never fail the click — but a
+            // rejected token has to be visible, or an expired sign-in looks
+            // exactly like a signed-out visitor. Never log the address itself.
+            if (!userEmail) console.warn('click: token sent but Google rejected it')
+          } else if (!clickToken) {
+            console.log('click: no Authorization header — anonymous visitor')
+          } else {
+            console.warn('click: token sent but GOOGLE_CLIENT_ID is unset on the Worker')
           }
           const row = {
             kind,
@@ -595,8 +603,15 @@ export default {
             visitor_id: visitorId ? String(visitorId).slice(0, 64) : null,
             user_email: userEmail,
           }
-          await sb(env, 'clicks', { method: 'POST', body: JSON.stringify(row) })
-        })().catch(() => {})
+          const ins = await sb(env, 'clicks', { method: 'POST', body: JSON.stringify(row) })
+          // Without this check the insert fails silently: a missing column or
+          // an RLS block leaves no trace and the dashboard just reads empty
+          if (!ins.ok) {
+            console.warn(`click insert failed (${ins.status}): ${(await ins.text()).slice(0, 300)}`)
+          } else {
+            console.log(`click stored: ${kind} — signed in: ${userEmail ? 'yes' : 'no'}`)
+          }
+        })().catch((err) => console.warn('click tracking threw:', err))
       )
       return new Response(null, { status: 204 })
     }

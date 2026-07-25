@@ -60,7 +60,42 @@ function jsonLd(obj: unknown): string {
 }
 
 const WRAP_OPEN =
-  '<div style="max-width:900px;margin:0 auto;padding:40px 24px;line-height:1.7">'
+  '<div id="wa-prerender" style="max-width:900px;margin:0 auto;padding:40px 24px;line-height:1.7">'
+
+/**
+ * What a human sees while the JS bundle boots.
+ *
+ * The pre-rendered block below is written for crawlers — headings and lists,
+ * no app styling — so on a slower phone it flashes as a bare text document for
+ * the few hundred milliseconds before React mounts and clears it. This skeleton
+ * is injected ahead of it and the inline script hides the text, so a browser
+ * shows shimmer instead. The classes are the app's own (.sk, index.css), which
+ * is already loaded by then, so it matches the loading state React renders a
+ * moment later.
+ *
+ * SEO is unaffected: React deletes the block on mount either way, so a
+ * rendering crawler never saw it, and a crawler that does not execute JS never
+ * runs the hiding script and gets the full copy.
+ */
+export const SKELETON =
+  '<div id="wa-skeleton" aria-hidden="true">' +
+  '<div class="wa-sk-nav"></div>' +
+  '<div class="wa-sk-pad"><div class="sk sk-line wa-sk-eyebrow"></div>' +
+  '<div class="sk sk-line wa-sk-title"></div></div>' +
+  '<div class="wa-sk-pad wa-sk-tabs">' +
+  '<div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line"></div></div>' +
+  [0, 1]
+    .map(
+      () =>
+        '<div class="wa-sk-pad"><div class="sk sk-line wa-sk-heading"></div>' +
+        '<div class="wa-sk-row">' +
+        '<div class="sk sk-poster"></div>'.repeat(6) +
+        '</div></div>'
+    )
+    .join('') +
+  '</div>' +
+  // Runs during parse, so the crawler copy is never painted for a human
+  '<script>var e=document.getElementById("wa-prerender");if(e)e.style.display="none"</script>'
 const NAV =
   '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/blog">Blog</a></p>'
 
@@ -83,6 +118,21 @@ export function routeMeta(pathname: string): { title: string; description: strin
       title: 'OTT & Theatre Movie Releases This Week India | WeekAdda',
       description:
         'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5, Sun NXT & Aha, plus theatre and upcoming release dates.',
+    },
+    '/movies/upcoming': {
+      title: 'Upcoming Movies & OTT Releases in India — Release Dates | WeekAdda',
+      description:
+        'Upcoming movie release dates in India — theatre releases and upcoming OTT releases & web series, with the streaming platform where confirmed. Updated daily.',
+    },
+    '/movies/theatres': {
+      title: 'New Movies in Theatres This Week India | WeekAdda',
+      description:
+        'Movies released in cinemas across India this week — Telugu, Hindi, Tamil, Malayalam, Kannada and English — plus the theatre release dates coming next.',
+    },
+    '/cricket/results': {
+      title: 'Cricket Results This Week — All Series & Leagues | WeekAdda',
+      description:
+        'Completed cricket match results week by week — internationals and leagues, with scores, venue and series, India first. Updated every morning.',
     },
     '/blog': {
       title: 'WeekAdda Blog — Audience Takes on Movies & Cricket',
@@ -140,17 +190,30 @@ function ottLine(r: OttRelease): string {
   return `${titleLink(r)}${kind}${where} — OTT release date ${day(r.releaseDate)}`
 }
 
-export function buildMoviesSeo(data: ReleaseCache): string {
+/**
+ * Which of the three /movies URLs is being rendered. They share a data source
+ * but must not share a block: three pages with identical content is duplication,
+ * and Google would pick one and drop the others. Each focus leads with the
+ * content its own URL is about. See SEO-PLAN.md.
+ */
+export type MoviesFocus = 'all' | 'theatres' | 'upcoming'
+
+export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): string {
   const extras = { syncing: false, liveConfigured: data.source === 'tmdb' }
   const released = queryReleases(data, { window: 'released' }, extras).releases
   // The ott window serves OttRelease entries, which carry platforms
   const ott = queryReleases(data, { window: 'ott' }, extras).releases as OttRelease[]
-  const upcoming = queryReleases(data, { window: 'upcoming' }, extras).releases.slice(0, 15)
+  // The dedicated upcoming page is the whole point of that URL, so it lists more
+  const upcomingLimit = focus === 'upcoming' ? 30 : 15
+  const upcoming = queryReleases(data, { window: 'upcoming' }, extras).releases.slice(
+    0,
+    upcomingLimit
+  )
   const upcomingOtt = queryReleases(
     data,
     { window: 'upcoming', source: 'ott' },
     extras
-  ).releases.slice(0, 15) as OttRelease[]
+  ).releases.slice(0, upcomingLimit) as OttRelease[]
 
   const weekFrom = day(new Date(Date.now() - 6 * 86_400_000).toISOString())
   const weekTo = day(new Date().toISOString())
@@ -175,18 +238,18 @@ export function buildMoviesSeo(data: ReleaseCache): string {
     )
     .join('')
 
-  const ld =
-    ott.length === 0
+  const itemListLd = (name: string, items: Array<Release | OttRelease>) =>
+    items.length === 0
       ? ''
       : jsonLd({
           '@context': 'https://schema.org',
           '@type': 'ItemList',
-          name: 'New OTT releases this week in India',
-          itemListElement: ott.slice(0, 20).map((r, i) => ({
+          name,
+          itemListElement: items.slice(0, 20).map((r, i) => ({
             '@type': 'ListItem',
             position: i + 1,
             item: {
-              '@type': r.contentType === 'series' ? 'TVSeries' : 'Movie',
+              '@type': (r as OttRelease).contentType === 'series' ? 'TVSeries' : 'Movie',
               name: r.title,
               ...(r.poster ? { image: r.poster } : {}),
               datePublished: r.releaseDate,
@@ -194,6 +257,49 @@ export function buildMoviesSeo(data: ReleaseCache): string {
             },
           })),
         })
+  const ld = itemListLd('New OTT releases this week in India', ott)
+
+  const upcomingTheatreSection = section(
+    'Upcoming movie release dates in theatres',
+    upcoming.map(
+      (r) => `${titleLink(r)} (${esc(r.languageLabel)}) releases in theatres on ${day(r.releaseDate)}`
+    )
+  )
+  const upcomingOttSection = section(
+    'Upcoming OTT release dates in India',
+    upcomingOtt.map(
+      (r) =>
+        `${titleLink(r)} (${esc(r.languageLabel)}) — OTT release date ${day(r.releaseDate)}${r.platforms?.length ? ` on ${esc(r.platforms.join(', '))}` : ''}`
+    )
+  )
+
+  // /movies/upcoming — release dates, nothing about this week
+  if (focus === 'upcoming') {
+    return (
+      WRAP_OPEN +
+      '<h1>Upcoming Movies &amp; OTT Releases in India — Release Dates</h1>' +
+      '<p>Announced release dates for upcoming movies in theatres and upcoming OTT releases and web series in India, across Telugu, Hindi, Tamil, Malayalam, Kannada and English — with the streaming platform wherever it has been confirmed. Updated every morning.</p>' +
+      upcomingTheatreSection +
+      upcomingOttSection +
+      NAV +
+      itemListLd('Upcoming OTT releases in India', upcomingOtt) +
+      '</div>'
+    )
+  }
+
+  // /movies/theatres — what is playing now, and what opens next
+  if (focus === 'theatres') {
+    return (
+      WRAP_OPEN +
+      '<h1>New Movies in Theatres This Week in India</h1>' +
+      `<p>Movies released in cinemas across India for the week of ${esc(weekFrom)} – ${esc(weekTo)}, by language — Telugu, Hindi, Tamil, Malayalam, Kannada and English — plus the theatre release dates coming next.</p>` +
+      theatreSections +
+      upcomingTheatreSection +
+      NAV +
+      itemListLd('New movies in theatres this week in India', released) +
+      '</div>'
+    )
+  }
 
   return (
     WRAP_OPEN +
@@ -210,19 +316,8 @@ export function buildMoviesSeo(data: ReleaseCache): string {
         )
     ) +
     theatreSections +
-    section(
-      'Upcoming movie release dates in theatres',
-      upcoming.map(
-        (r) => `${titleLink(r)} (${esc(r.languageLabel)}) releases in theatres on ${day(r.releaseDate)}`
-      )
-    ) +
-    section(
-      'Upcoming OTT release dates in India',
-      upcomingOtt.map(
-        (r) =>
-          `${titleLink(r)} (${esc(r.languageLabel)}) — OTT release date ${day(r.releaseDate)}${r.platforms?.length ? ` on ${esc(r.platforms.join(', '))}` : ''}`
-      )
-    ) +
+    upcomingTheatreSection +
+    upcomingOttSection +
     NAV +
     ld +
     '</div>'
@@ -336,7 +431,18 @@ export function buildSitemap(data: ReleaseCache): string {
   const base = 'https://weekadda.com'
   const lastmod = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt.slice(0, 10) : ''
   const mod = lastmod ? `<lastmod>${lastmod}</lastmod>` : ''
-  const urls = ['/', '/movies', '/cricket', '/blog', '/adda', '/about', '/privacy'].map(
+  const urls = [
+    '/',
+    '/movies',
+    '/movies/theatres',
+    '/movies/upcoming',
+    '/cricket',
+    '/cricket/results',
+    '/blog',
+    '/adda',
+    '/about',
+    '/privacy',
+  ].map(
     (p) => `<url><loc>${base}${p}</loc>${mod}<changefreq>daily</changefreq><priority>${p === '/' || p === '/movies' ? '1.0' : '0.8'}</priority></url>`
   )
   const seen = new Set<string>()

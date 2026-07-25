@@ -30,9 +30,15 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/movies" replace />} />
         <Route path="/movies" element={<Releases />} />
+        {/* Browse state lives in the URL, not in useState: each tab is its own
+            indexable page, and a shared link opens where the sender was.
+            Adding one here also needs SPA_ROUTES + SEO_PAGES in worker.ts and
+            routeMeta + buildSitemap in seo.ts — see SEO-PLAN.md */}
+        <Route path="/movies/:tab" element={<Releases />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
         <Route path="/movie/:id/:slug" element={<MovieDetail />} />
         <Route path="/cricket" element={<Cricket />} />
+        <Route path="/cricket/:tab" element={<Cricket />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/about" element={<About />} />
         <Route path="/adda" element={<Adda />} />

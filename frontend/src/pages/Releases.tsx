@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import {
   Search,
   Bot,
@@ -21,6 +22,23 @@ import { platformClass } from '../share'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
+/**
+ * Each tab is its own URL so it can rank for its own query — /movies is about
+ * this week, /movies/upcoming is about release dates, and Google can only tell
+ * them apart if they are separate pages. OTT is the default and deliberately
+ * has no /movies/ott alias: a second URL for the same content is duplication,
+ * not coverage. See SEO-PLAN.md.
+ */
+const TAB_PATH: Record<Window, string> = {
+  ott: '/movies',
+  released: '/movies/theatres',
+  upcoming: '/movies/upcoming',
+}
+const WINDOW_FOR_TAB: Record<string, Window> = {
+  theatres: 'released',
+  upcoming: 'upcoming',
+}
+
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
   if (mins < 1) return 'just now'
@@ -42,7 +60,8 @@ function weekTitle(index: number) {
 }
 
 export default function Releases() {
-  const [windowTab, setWindowTab] = useState<Window>('ott')
+  const { tab } = useParams<{ tab?: string }>()
+  const windowTab: Window = (tab && WINDOW_FOR_TAB[tab]) || 'ott'
   const [ottType, setOttType] = useState<'all' | 'movie' | 'series'>('all')
   const [upcomingSource, setUpcomingSource] = useState<'theatres' | 'ott'>('theatres')
   const [week, setWeek] = useState(0)
@@ -54,6 +73,13 @@ export default function Releases() {
   const [language, setLanguage] = useState('all')
   const [selected, setSelected] = useState<Release | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Each tab opens on its own most recent week — carrying "6 weeks ago" across
+  // from another tab is never what someone switching tabs means. The tab is now
+  // a URL, so this replaces the reset the old tab buttons did inline.
+  useEffect(() => {
+    setWeek(0)
+  }, [windowTab])
 
   usePageMeta(
     windowTab === 'ott'
@@ -213,30 +239,15 @@ export default function Releases() {
       </section>
 
       <div className="opp-tabs">
-        <button
-          className={windowTab === 'ott' ? 'active' : ''}
-          onClick={() => {
-            setWindowTab('ott')
-            setWeek(0)
-          }}
-        >
+        <Link to={TAB_PATH.ott} className={windowTab === 'ott' ? 'active' : ''}>
           <MonitorPlay size={15} /> OTT India
-        </button>
-        <button
-          className={windowTab === 'released' ? 'active' : ''}
-          onClick={() => {
-            setWindowTab('released')
-            setWeek(0)
-          }}
-        >
+        </Link>
+        <Link to={TAB_PATH.released} className={windowTab === 'released' ? 'active' : ''}>
           <Sparkles size={15} /> In Theatres
-        </button>
-        <button
-          className={windowTab === 'upcoming' ? 'active' : ''}
-          onClick={() => setWindowTab('upcoming')}
-        >
+        </Link>
+        <Link to={TAB_PATH.upcoming} className={windowTab === 'upcoming' ? 'active' : ''}>
           <CalendarClock size={15} /> Coming Soon
-        </button>
+        </Link>
       </div>
 
       {isWeekView && (

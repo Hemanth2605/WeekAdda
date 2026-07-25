@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 import {
   Search,
   Bot,
@@ -19,6 +20,17 @@ import { shareMatch } from '../share'
 import { countryFlag } from '../flags'
 
 type Window = 'recent' | 'upcoming'
+
+/**
+ * "cricket fixtures" and "cricket results this week" are different searches, so
+ * they need different URLs. Fixtures is the default and keeps /cricket — a
+ * /cricket/fixtures alias would just be a duplicate of it. See SEO-PLAN.md.
+ */
+const TAB_PATH: Record<Window, string> = {
+  upcoming: '/cricket',
+  recent: '/cricket/results',
+}
+const WINDOW_FOR_TAB: Record<string, Window> = { results: 'recent' }
 
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -59,7 +71,8 @@ function resultLine(m: CricketMatch): string {
 }
 
 export default function Cricket() {
-  const [windowTab, setWindowTab] = useState<Window>('upcoming')
+  const { tab } = useParams<{ tab?: string }>()
+  const windowTab: Window = (tab && WINDOW_FOR_TAB[tab]) || 'upcoming'
   const [matchType, setMatchType] = useState<'international' | 'league' | 'all'>('international')
   const [week, setWeek] = useState(0)
   const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null)
@@ -67,6 +80,12 @@ export default function Cricket() {
   const [meta, setMeta] = useState<CricketMeta | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+
+  // Results opens on the current week; the tab is a URL now, so this replaces
+  // the reset the old Results button did inline
+  useEffect(() => {
+    setWeek(0)
+  }, [windowTab])
 
   // Only claim "matches today" when cricket (any country) is actually on today
   const todayIso = new Date().toISOString().slice(0, 10)
@@ -187,21 +206,12 @@ export default function Cricket() {
       </section>
 
       <div className="opp-tabs">
-        <button
-          className={windowTab === 'upcoming' ? 'active' : ''}
-          onClick={() => setWindowTab('upcoming')}
-        >
+        <Link to={TAB_PATH.upcoming} className={windowTab === 'upcoming' ? 'active' : ''}>
           <CalendarClock size={15} /> Fixtures
-        </button>
-        <button
-          className={windowTab === 'recent' ? 'active' : ''}
-          onClick={() => {
-            setWindowTab('recent')
-            setWeek(0)
-          }}
-        >
+        </Link>
+        <Link to={TAB_PATH.recent} className={windowTab === 'recent' ? 'active' : ''}>
           <Sparkles size={15} /> Results
-        </button>
+        </Link>
       </div>
 
       {windowTab === 'recent' && (

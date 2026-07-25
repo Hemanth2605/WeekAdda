@@ -31,6 +31,7 @@ import {
   buildSitemap,
   routeMeta,
   cricketMeta,
+  SKELETON,
 } from './seo'
 
 /**
@@ -185,10 +186,23 @@ async function loadPosts(env: Env): Promise<{ posts: BlogPost[] }> {
 }
 
 /** Pages that get a pre-rendered content block inside <div id="root">. */
-const SEO_PAGES = new Set(['/', '/movies', '/cricket', '/blog', '/adda', '/about', '/privacy'])
+const SEO_PAGES = new Set([
+  '/',
+  '/movies',
+  '/movies/theatres',
+  '/movies/upcoming',
+  '/cricket',
+  '/cricket/results',
+  '/blog',
+  '/adda',
+  '/about',
+  '/privacy',
+])
 
 async function seoBlockFor(env: Env, pathname: string): Promise<string> {
-  if (pathname === '/cricket') {
+  // startsWith, not equality: /cricket/results is a cricket page too, and the
+  // fall-through at the bottom would otherwise hand it the movies block
+  if (pathname.startsWith('/cricket')) {
     return buildCricketSeo(await loadCache(env, 'cricket', EMPTY_CRICKET))
   }
   if (pathname === '/blog') {
@@ -204,7 +218,10 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
   if (pathname === '/privacy') {
     return buildPrivacySeo()
   }
-  return buildMoviesSeo(await loadCache(env, 'releases', EMPTY_RELEASES))
+  const data = await loadCache(env, 'releases', EMPTY_RELEASES)
+  if (pathname === '/movies/upcoming') return buildMoviesSeo(data, 'upcoming')
+  if (pathname === '/movies/theatres') return buildMoviesSeo(data, 'theatres')
+  return buildMoviesSeo(data)
 }
 
 const ROOT_SHELL = '<div id="root"></div>'
@@ -231,7 +248,10 @@ function json(body: unknown, status = 200): Response {
 const SPA_ROUTES = new Set([
   '/',
   '/movies',
+  '/movies/theatres',
+  '/movies/upcoming',
   '/cricket',
+  '/cricket/results',
   '/blog',
   '/about',
   '/adda',
@@ -365,8 +385,10 @@ const routes = {
           headers.delete('Content-Length')
           headers.delete('ETag')
           headers.set('Cache-Control', 'no-cache')
+          // Skeleton first so a phone paints shimmer, not the crawler copy,
+          // during the few hundred ms before the bundle mounts
           let out = html.includes(ROOT_SHELL)
-            ? html.replace(ROOT_SHELL, `<div id="root">${block}</div>`)
+            ? html.replace(ROOT_SHELL, `<div id="root">${SKELETON}${block}</div>`)
             : html
           if (meta) {
             const m = meta

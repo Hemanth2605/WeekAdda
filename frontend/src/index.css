@@ -527,7 +527,10 @@ input {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   margin: 0 0 4px;
 }
-.opp-tabs button {
+/* Tabs are real links so crawlers can follow them; buttons kept for any tab
+   that is still local state */
+.opp-tabs button,
+.opp-tabs a {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -538,12 +541,15 @@ input {
   font-size: 14px;
   font-weight: 500;
   padding: 10px 16px 14px;
+  text-decoration: none;
   transition: color 0.2s, border-color 0.2s;
 }
-.opp-tabs button:hover {
+.opp-tabs button:hover,
+.opp-tabs a:hover {
   color: var(--text);
 }
-.opp-tabs button.active {
+.opp-tabs button.active,
+.opp-tabs a.active {
   color: var(--gold);
   border-bottom-color: var(--gold);
 }
@@ -1421,6 +1427,61 @@ input {
   width: 320px;
   height: 158px;
   border-radius: 16px;
+}
+
+/* Pre-mount skeleton, injected by the Worker ahead of the crawler copy (see
+   SKELETON in backend/src/seo.ts). It stands in for the app for the few hundred
+   ms before the bundle boots, so a slow phone paints shimmer instead of an
+   unstyled text document. Mirrors the real layout's padding so nothing jumps
+   when React takes over. Removed with the rest of #root on mount. */
+.wa-sk-nav {
+  height: 60px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.wa-sk-pad {
+  padding: 26px 42px 0;
+}
+.wa-sk-eyebrow {
+  width: 190px;
+  height: 12px;
+}
+.wa-sk-title {
+  width: min(420px, 70%);
+  height: 30px;
+  margin-top: 16px;
+}
+.wa-sk-tabs {
+  display: flex;
+  gap: 8px;
+}
+.wa-sk-tabs .sk-line {
+  width: 104px;
+  height: 20px;
+}
+.wa-sk-heading {
+  width: 120px;
+}
+.wa-sk-row {
+  display: flex;
+  gap: 16px;
+  padding-top: 16px;
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  .wa-sk-pad {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .wa-sk-row {
+    gap: 13px;
+  }
+  .wa-sk-row .sk-poster {
+    flex-basis: 145px;
+    width: 145px;
+  }
+}
+:root[data-theme='light'] .wa-sk-nav {
+  border-bottom-color: rgba(0, 0, 0, 0.09);
 }
 
 /* ---------------- platform brand colours ---------------- */

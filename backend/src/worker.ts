@@ -36,9 +36,10 @@ import {
 /**
  * Cloudflare Worker entry: serves /api/* from the Supabase-stored caches that
  * the daily GitHub Actions sweep writes. All requests reach this code (see
- * wrangler.jsonc run_worker_first): the legacy workers.dev host is 301-redirected
- * to the canonical domain, /api/* is handled here, and everything else is
- * forwarded to the built frontend via the ASSETS binding (SPA fallback included).
+ * wrangler.jsonc run_worker_first): the legacy workers.dev host and the www
+ * host are redirected to the canonical domain, /api/* is handled here, and
+ * everything else is forwarded to the built frontend via the ASSETS binding
+ * (SPA fallback included).
  * Must stay free of Node-only imports.
  */
 
@@ -223,9 +224,17 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url)
 
-    if (url.hostname.endsWith('.workers.dev')) {
+    // Everything lives on the bare domain. The www host is not just a duplicate
+    // for crawlers: it is a separate origin, so Google refuses to issue a token
+    // there (origin_mismatch) and sessionStorage keeps its own empty bucket —
+    // which made signed-in clicks record anonymously. One origin, no such class
+    // of bug.
+    if (url.hostname.endsWith('.workers.dev') || url.hostname === `www.${CANONICAL_HOST}`) {
       url.hostname = CANONICAL_HOST
-      return Response.redirect(url.toString(), 301)
+      // 301 for navigations (crawlers fold the two hosts together), 308 for
+      // anything else — a 301 downgrades a POST to GET and drops its body
+      const permanent = request.method === 'GET' || request.method === 'HEAD' ? 301 : 308
+      return Response.redirect(url.toString(), permanent)
     }
 
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') {

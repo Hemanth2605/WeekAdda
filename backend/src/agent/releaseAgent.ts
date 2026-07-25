@@ -12,7 +12,7 @@ export { LANGUAGES, MAX_WEEKS }
 export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
-const SOURCES_VERSION = 6
+const SOURCES_VERSION = 7
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -60,6 +60,41 @@ function platformFromNote(note: string): string | null {
   }
   return null
 }
+
+/**
+ * Shortest thing we will call a film. The catch-all query asks TMDB for *any*
+ * India digital release with no platform attached, which is how regional films
+ * JustWatch never linked get in — and also how someone's two-minute upload gets
+ * in, since anyone can register one with a digital date.
+ *
+ * Deliberately not TMDB's own `with_runtime.gte`, which also excludes records
+ * whose runtime is simply unset — measured at roughly one title in sixty, and
+ * they are exactly the new regional films this catch-all exists to rescue.
+ * Filtering here instead means an unknown runtime is kept rather than guessed
+ * against, and it is free: the enrichment pass already fetches these records.
+ * A title a platform actually lists is never dropped, however short — being
+ * listed is itself the quality signal.
+ */
+const FEATURE_MINUTES = 40
+
+/** Scripts that name their own language — free, no API call. Devanagari covers
+ *  Hindi and Marathi, so it resolves to the far more common one. */
+const SCRIPT_LANGUAGES: Array<{ script: RegExp; code: string }> = [
+  { script: /[ఀ-౿]/, code: 'te' },
+  { script: /[ഀ-ൿ]/, code: 'ml' },
+  { script: /[஀-௿]/, code: 'ta' },
+  { script: /[ಀ-೿]/, code: 'kn' },
+  { script: /[ঀ-৿]/, code: 'bn' },
+  { script: /[਀-੿]/, code: 'pa' },
+  { script: /[઀-૿]/, code: 'gu' },
+  { script: /[଀-୿]/, code: 'or' },
+  { script: /[ऀ-ॿ]/, code: 'hi' },
+]
+
+const INDIAN_LANGUAGES = new Set(['te', 'ta', 'ml', 'kn', 'hi', 'bn', 'mr', 'pa', 'gu', 'or', 'ur'])
+
+const normalizeKey = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
 
 const CACHE_DIR = path.join(__dirname, '..', '..', 'cache')
 const CACHE_FILE = path.join(CACHE_DIR, 'releases.json')
@@ -402,22 +437,51 @@ async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
  * the behaviour we already had. Series carry no release_dates, so only films
  * with a numeric TMDB id are looked up.
  */
-async function fillPlatformsFromNotes(apiKey: string, items: OttRelease[]): Promise<number> {
-  const pending = items.filter((i) => i.platforms.length === 0 && /^ott-\d+$/.test(i.id))
+async function fillPlatformsFromNotes(
+  apiKey: string,
+  items: OttRelease[],
+  drop: Set<string>
+): Promise<number> {
+  // A title needs the round trip if it has no platform, or if it claims to be
+  // English — TMDB leaves original_language at its "en" default on plenty of
+  // new Indian records, so English is a claim worth checking rather than a fact
+  const pending = items.filter(
+    (i) => /^ott-\d+$/.test(i.id) && (i.platforms.length === 0 || i.language === 'en')
+  )
   let filled = 0
   for (let i = 0; i < pending.length; i += 10) {
     await Promise.all(
       pending.slice(i, i + 10).map(async (item) => {
         try {
-          const res = await fetch(`${TMDB}/movie/${item.id.slice(4)}/release_dates?api_key=${apiKey}`)
+          // Details and release dates in one request rather than two
+          const res = await fetch(
+            `${TMDB}/movie/${item.id.slice(4)}?api_key=${apiKey}&append_to_response=release_dates`
+          )
           if (!res.ok) return
           const body = (await res.json()) as {
-            results?: Array<{
-              iso_3166_1: string
-              release_dates?: Array<{ type: number; note?: string }>
-            }>
+            runtime?: number | null
+            spoken_languages?: Array<{ iso_639_1: string }>
+            release_dates?: {
+              results?: Array<{
+                iso_3166_1: string
+                release_dates?: Array<{ type: number; note?: string }>
+              }>
+            }
           }
-          const india = body.results?.find((r) => r.iso_3166_1 === 'IN')
+
+          // Believe spoken_languages over original_language, but only when it
+          // names exactly one language: "en, hi, sa" is a genuinely mixed film
+          // and guessing at it would trade one wrong label for another
+          if (item.language === 'en') {
+            const spoken = (body.spoken_languages ?? []).map((s) => s.iso_639_1)
+            if (spoken.length === 1 && INDIAN_LANGUAGES.has(spoken[0])) {
+              item.language = spoken[0]
+              item.languageLabel = labelForLanguage(spoken[0])
+            }
+          }
+
+          if (item.platforms.length > 0) return
+          const india = body.release_dates?.results?.find((r) => r.iso_3166_1 === 'IN')
           for (const entry of india?.release_dates ?? []) {
             // type 4 = digital; the theatrical entry's note is never a platform
             if (entry.type !== 4 || !entry.note) continue
@@ -428,6 +492,12 @@ async function fillPlatformsFromNotes(apiKey: string, items: OttRelease[]): Prom
               return
             }
           }
+
+          // Still nobody's listing it, and TMDB says it is shorter than a
+          // feature: someone's upload, not a release. A runtime of 0 means
+          // unknown, and unknown is never grounds for dropping a title.
+          const runtime = body.runtime ?? 0
+          if (runtime > 0 && runtime < FEATURE_MINUTES) drop.add(item.id)
         } catch {
           // one lookup failing must never break the sweep
         }
@@ -435,6 +505,76 @@ async function fillPlatformsFromNotes(apiKey: string, items: OttRelease[]): Prom
     )
   }
   return filled
+}
+
+/**
+ * A title written in its own script says what language it is, so this costs
+ * nothing and runs before any lookup. Only ever corrects "English", which is
+ * TMDB's default value rather than a considered one.
+ */
+function relabelFromScript(items: OttRelease[]): number {
+  let fixed = 0
+  for (const item of items) {
+    if (item.language !== 'en') continue
+    const hit = SCRIPT_LANGUAGES.find(({ script }) => script.test(item.originalTitle))
+    if (!hit) continue
+    item.language = hit.code
+    item.languageLabel = labelForLanguage(hit.code)
+    fixed++
+  }
+  return fixed
+}
+
+/**
+ * Wikipedia rows carry no TMDB id and often no language column, so they fall
+ * back to the page's default — and the Amazon pages are global lists that
+ * default to English, which mislabels every Indian title on them. TMDB usually
+ * knows these titles; find them by name and take the language from there.
+ * Requires an exact title match and the same year, since a loose match would
+ * relabel the wrong film.
+ */
+async function relabelWikiTitles(apiKey: string, items: OttRelease[]): Promise<number> {
+  const pending = items.filter((i) => i.language === 'en' && i.id.startsWith('wiki-'))
+  let fixed = 0
+  for (let i = 0; i < pending.length; i += 5) {
+    await Promise.all(
+      pending.slice(i, i + 5).map(async (item) => {
+        const year = item.releaseDate.slice(0, 4)
+        const key = normalizeKey(item.title)
+        for (const kind of ['movie', 'tv'] as const) {
+          try {
+            const res = await fetch(
+              `${TMDB}/search/${kind}?api_key=${apiKey}&query=${encodeURIComponent(item.title)}`
+            )
+            if (!res.ok) continue
+            const body = (await res.json()) as {
+              results?: Array<{
+                title?: string
+                name?: string
+                original_language?: string
+                release_date?: string
+                first_air_date?: string
+              }>
+            }
+            for (const r of body.results ?? []) {
+              const name = r.title ?? r.name ?? ''
+              const date = r.release_date ?? r.first_air_date ?? ''
+              const code = r.original_language ?? ''
+              if (normalizeKey(name) !== key || date.slice(0, 4) !== year) continue
+              if (!INDIAN_LANGUAGES.has(code)) continue
+              item.language = code
+              item.languageLabel = labelForLanguage(code)
+              fixed++
+              return
+            }
+          } catch {
+            // a failed search just leaves the title as it was
+          }
+        }
+      })
+    )
+  }
+  return fixed
 }
 
 /** Sweep all providers × all weekly buckets, merging platforms per film. */
@@ -567,12 +707,25 @@ export async function syncReleases(): Promise<ReleaseCache> {
       console.warn('⚠️  Watchmode sweep failed (continuing without it):', err)
     }
 
+    // Free pass first: a title in its own script needs no lookup
+    const byScript = relabelFromScript(ott) + relabelFromScript(ottUpcoming)
+
     // TMDB links only the biggest services to a watch provider; for everything
-    // else the platform is buried in the release note, so recover it there
+    // else the platform is buried in the release note, so recover it there —
+    // and check "English" against spoken_languages in the same request
+    const drop = new Set<string>()
     const named =
-      (await fillPlatformsFromNotes(apiKey, ott)) +
-      (await fillPlatformsFromNotes(apiKey, ottUpcoming))
+      (await fillPlatformsFromNotes(apiKey, ott, drop)) +
+      (await fillPlatformsFromNotes(apiKey, ottUpcoming, drop))
     if (named) console.log(`🤖 Release agent: named ${named} platform(s) from TMDB release notes`)
+    if (drop.size) console.log(`🤖 Release agent: dropped ${drop.size} short(s) nobody is streaming`)
+
+    // Wikipedia rows have no TMDB id, so they are looked up by name
+    const byName =
+      (await relabelWikiTitles(apiKey, ott)) + (await relabelWikiTitles(apiKey, ottUpcoming))
+    if (byScript || byName) {
+      console.log(`🤖 Release agent: corrected ${byScript + byName} mislabelled language(s)`)
+    }
 
     cache = {
       fetchedAt: new Date().toISOString(),
@@ -580,8 +733,8 @@ export async function syncReleases(): Promise<ReleaseCache> {
       rangeDays: PAST_DAYS,
       sourcesVersion: SOURCES_VERSION,
       releases: allReleases,
-      ott,
-      ottUpcoming,
+      ott: ott.filter((r) => !drop.has(r.id)),
+      ottUpcoming: ottUpcoming.filter((r) => !drop.has(r.id)),
     }
     fs.mkdirSync(CACHE_DIR, { recursive: true })
     fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2))

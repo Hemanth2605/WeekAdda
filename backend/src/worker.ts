@@ -216,8 +216,46 @@ function json(body: unknown, status = 200): Response {
   })
 }
 
+/**
+ * Site-wide defences that cost nothing to serve. None of these fix a hole the
+ * app has today; they close off whole classes of one — a mistyped Content-Type
+ * being executed, the site being framed for clickjacking, the full reading URL
+ * leaking to a platform on an outbound click, or injected script reaching for
+ * the camera. Invisible to crawlers, so ranking is unaffected.
+ */
+const SECURITY_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Frame-Options': 'DENY',
+  'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
+}
+
+/**
+ * Stamp the headers on the way out, once, rather than in each of the handlers.
+ * Asset and redirect responses arrive with immutable headers, so the response
+ * is rebuilt instead of mutated. A header a handler already set wins — notably
+ * the X-Robots-Tag that keeps /stats out of the index.
+ */
+function withSecurityHeaders(res: Response): Response {
+  const out = new Response(res.body, res)
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    if (!out.headers.has(name)) out.headers.set(name, value)
+  }
+  return out
+}
+
 export default {
   async fetch(
+    request: Request,
+    env: Env,
+    ctx: { waitUntil(promise: Promise<unknown>): void }
+  ): Promise<Response> {
+    return withSecurityHeaders(await routes.handle(request, env, ctx))
+  },
+}
+
+const routes = {
+  async handle(
     request: Request,
     env: Env,
     ctx: { waitUntil(promise: Promise<unknown>): void }

@@ -20,6 +20,8 @@ function mapPlatform(sourceName: string): string | null {
   if (n.includes('sony')) return 'Sony LIV'
   if (n === 'aha' || n.startsWith('aha ')) return 'Aha'
   if (n.includes('etv')) return 'ETV Win'
+  if (n.includes('sun nxt') || n.includes('sunnxt')) return 'Sun NXT'
+  if (n.includes('apple tv')) return 'Apple TV'
   return null
 }
 

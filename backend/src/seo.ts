@@ -82,7 +82,7 @@ export function routeMeta(pathname: string): { title: string; description: strin
     '/movies': {
       title: 'OTT & Theatre Movie Releases This Week India | WeekAdda',
       description:
-        'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5 & Aha, plus theatre releases and upcoming release dates.',
+        'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5, Sun NXT & Aha, plus theatre and upcoming release dates.',
     },
     '/blog': {
       title: 'WeekAdda Blog — Audience Takes on Movies & Cricket',
@@ -198,7 +198,7 @@ export function buildMoviesSeo(data: ReleaseCache): string {
   return (
     WRAP_OPEN +
     '<h1>OTT Releases This Week in India &amp; New Movies in Theatres</h1>' +
-    `<p>Updated for the week of ${esc(weekFrom)} – ${esc(weekTo)}: new OTT releases on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha, this week's theatre releases in every language, and upcoming OTT &amp; theatre release dates in India.</p>` +
+    `<p>Updated for the week of ${esc(weekFrom)} – ${esc(weekTo)}: new OTT releases on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5, Sun NXT, Apple TV and Aha, this week's theatre releases in every language, and upcoming OTT &amp; theatre release dates in India.</p>` +
     ottSections +
     section(
       'New web series on OTT this week',
@@ -499,7 +499,7 @@ export function buildAboutSeo(): string {
     '<p>WeekAdda — live since July 2026 — puts the week&#39;s entertainment in one clean place, free, no account needed, refreshed automatically every morning:</p>' +
     '<ul>' +
     '<li>New movie releases in Telugu, Hindi, Tamil, Malayalam, Kannada, English and 12+ languages, browsable week by week</li>' +
-    '<li>Daily OTT arrivals on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5 and Aha, plus upcoming theatre and OTT release dates</li>' +
+    '<li>Daily OTT arrivals on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5, Sun NXT, Apple TV and Aha, plus upcoming theatre and OTT release dates</li>' +
     '<li>Cricket fixtures with date, time and venue for every international series, and results week by week</li>' +
     '<li>A visitor blog with real takes and star ratings, each post tagged to the movie or match it talks about</li>' +
     '<li>The Adda — a community board to ask, offer and find company: spare tickets at face value, someone to watch a movie or match with, honest asks between fellow fans</li>' +

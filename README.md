@@ -11,8 +11,8 @@ fixtures. Built-in agents sweep public data sources daily; everything is browsab
   … up to 13 weeks back), segregated into horizontally-scrolling rows per language, with
   posters, ratings, and search.
 - 📺 **OTT India** (default tab) — movies **and web series** that just arrived on JioHotstar, Amazon Prime
-  Video, Netflix, Sony LIV, ZEE5, Aha and ETV Win — same weekly paging, platform badges,
-  Movies / Web Series filter.
+  Video, Netflix, Sony LIV, ZEE5, Sun NXT, Apple TV, Aha and ETV Win — same weekly paging,
+  platform badges, Movies / Web Series filter.
 - 🔜 **Coming Soon** — two views: **In Theatres** (next 90 days) and **On OTT** (announced
   digital premieres for India, platform-tagged where known).
 - 🏏 **Cricket** (`/cricket`) — lands on **Fixtures** banded **Today / This Week / Later**;

@@ -7,6 +7,7 @@ import Adda from './pages/Adda'
 import Privacy from './pages/Privacy'
 import Cricket from './pages/Cricket'
 import Blog from './pages/Blog'
+import Stats from './pages/Stats'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ShareSheet from './components/ShareSheet'
@@ -36,6 +37,9 @@ export default function App() {
         <Route path="/about" element={<About />} />
         <Route path="/adda" element={<Adda />} />
         <Route path="/privacy" element={<Privacy />} />
+        {/* Owner-only click dashboard: intentionally unlinked from the app and
+            gated server-side by OWNER_EMAIL — see pages/Stats.tsx */}
+        <Route path="/stats" element={<Stats />} />
         <Route path="*" element={<Navigate to="/movies" replace />} />
       </Routes>
       <Footer />

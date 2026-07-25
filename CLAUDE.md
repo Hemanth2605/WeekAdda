@@ -68,6 +68,29 @@ cd frontend && npm run build
   browser `visitorId` (localStorage UUID), plus the verified `userEmail` when signed
   in; stats report `uniqueVisitors`/`signedInClicks`. Emails never surface in the
   public stats endpoint.
+- **Three headcounts, and they overlap** — never add them. `uniqueVisitors` counts
+  browsers, `signedInVisitors`/`members` count accounts, and `uniquePeople` is the
+  stitched figure: because a signed-in click carries *both* ids, `aggregateClicks`
+  builds a `visitorId → email` map (first sign-in on a browser wins) and re-keys
+  every click through it, so one human across phone + laptop counts once and their
+  earlier signed-out clicks on those browsers fold in too. Someone who never signs
+  in is still one-per-browser — that's a floor, not a bug.
+- **Private owner dashboard** (`/stats`, `Stats.tsx`, added July 2026): click totals
+  overall and for today (clicks, unique visitors, signed-in accounts), **member
+  counts** (`countMembers` in `queries.ts` — there is no user table, so "members"
+  are the distinct verified emails unioned across clicks + `posts` + `post_ratings`
+  + `listings` + `listing_interests`; reports total / active today / new today and a
+  per-feature split), a 14-day bar chart and breakdowns by action/platform/language/
+  title. **Not part of the app** —
+  no navbar or footer link, absent from `buildSitemap` and the Worker's `SEO_PAGES`,
+  `Disallow`ed in robots.txt, and served with `X-Robots-Tag: noindex` by the Worker.
+  Access is enforced server-side, not by the unlisted URL: GET `/api/track/stats`
+  (Express + Worker) verifies the Google token and checks the email with
+  `isOwnerEmail` in `queries.ts` against `OWNER_EMAIL` (comma-separated list
+  allowed) — 401 unsigned, 403 for anyone else. It **fails closed**: no
+  `OWNER_EMAIL` means nobody gets in. `aggregateClicks` buckets days in **IST**
+  (`istDay`), since "today" must mean today in India. Counts only — no visitor
+  email is ever returned.
 - **Country flags are self-hosted**: `frontend/public/flags/*.png` + resolver
   `frontend/src/flags.ts` (team name → country, Women/U19 squads share the flag).
   Unknown teams fall back to the remote ESPN logo URL — keep that fallback.
@@ -103,6 +126,10 @@ cd frontend && npm run build
 - **`GOOGLE_CLIENT_ID` is a Worker var** (plaintext in wrangler.jsonc, not a secret —
   OAuth client IDs are public), so it deploys with the Worker; no `wrangler secret
   put` needed for it.
+- **`OWNER_EMAIL` is a Worker secret**, not a var — unlike the client id it's a
+  personal address and the repo is public. Set it once with
+  `npx wrangler secret put OWNER_EMAIL` (locally it lives in `backend/.env`).
+  Until it's set in production, `/stats` is closed to everyone, including the owner.
 - **Deploying app changes is manual** (no git integration):
   `cd frontend && npm run build`, then `cd ../backend && npx wrangler deploy`.
   Pushing to GitHub alone does NOT update the live site.
@@ -170,5 +197,10 @@ cd frontend && npm run build
   headings, "India cricket match today").
 - `frontend/dist/` is stale build output — don't read it as source of truth.
 - `backend/.env` exists and contains a real TMDB key — never print or commit it.
+- **`tsx watch` restarts on source edits only, not on `.env` edits.** After adding or
+  changing a variable (`OWNER_EMAIL`, `GOOGLE_CLIENT_ID`, …) restart the backend or
+  the running process keeps the old environment — which looks like a bug in the
+  feature, not a config problem. Boot logs `🔒 Private /stats open to: …` (or that
+  it's closed) so this is visible.
 - Dates everywhere are ISO strings compared lexicographically; week math uses
   `isoDaysAgo` helpers duplicated in both routes.

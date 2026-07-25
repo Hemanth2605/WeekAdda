@@ -84,6 +84,42 @@ export interface RatingSummary {
   mine?: number
 }
 
+/**
+ * Outbound-click rollup behind the private /stats page. Mirrors the backend's
+ * aggregateClicks return shape; "today" means today in IST, and only counts
+ * cross the wire — never a visitor's email.
+ */
+export interface ClickStats {
+  totalClicks: number
+  /** Distinct browsers — over-counts one person using several devices */
+  uniqueVisitors: number
+  /** Distinct humans — browsers folded into the account that signed in on them */
+  uniquePeople: number
+  signedInClicks: number
+  signedInVisitors: number
+  today: string
+  todayClicks: number
+  todayUniqueVisitors: number
+  todayUniquePeople: number
+  todaySignedInClicks: number
+  todaySignedInVisitors: number
+  byKind: Record<string, number>
+  byPlatform: Record<string, number>
+  byLanguage: Record<string, number>
+  byDay: Record<string, number>
+  todayByKind: Record<string, number>
+  todayByPlatform: Record<string, number>
+  topTitles: Array<{ title: string; clicks: number }>
+  todayTopTitles: Array<{ title: string; clicks: number }>
+  since: string | null
+  /** Distinct Google accounts that have ever signed in and done something */
+  members: number
+  membersToday: number
+  newMembersToday: number
+  /** Distinct accounts per feature; an account can appear in several */
+  membersBySource: { click: number; blog: number; rating: number; adda: number }
+}
+
 export interface CricketMeta {
   fetchedAt: string
   source: 'espn' | 'sample'

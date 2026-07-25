@@ -38,6 +38,14 @@ cron.schedule('0 6 * * *', () => {
 
 app.listen(PORT, () => {
   console.log(`🎬 WeekAdda API running at http://localhost:${PORT}`)
+  // .env is read once at boot and tsx watch doesn't restart on .env edits —
+  // say out loud whether /stats can let anyone in, so a missing OWNER_EMAIL
+  // isn't mistaken for "wrong account" at the browser
+  console.log(
+    process.env.OWNER_EMAIL
+      ? `🔒 Private /stats open to: ${process.env.OWNER_EMAIL}`
+      : '🔒 Private /stats is closed — set OWNER_EMAIL in backend/.env, then restart'
+  )
   syncIfStale()
   syncCricketIfStale()
 })

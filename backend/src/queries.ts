@@ -331,39 +331,205 @@ export interface Click {
   userEmail?: string
 }
 
-export function aggregateClicks(clicks: Click[]) {
+/**
+ * Calendar day (YYYY-MM-DD) of an ISO timestamp in IST. Clicks are stored in
+ * UTC, but the only reader of these numbers is in India — so "today" has to
+ * mean today in Indian time, or every stat before 5:30 AM IST lands on the
+ * wrong day. An unparseable timestamp falls back to its own date prefix.
+ */
+export function istDay(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return iso.slice(0, 10)
+  return new Date(t + 5.5 * 60 * 60_000).toISOString().slice(0, 10)
+}
+
+function topOf(counts: Map<string, number>, limit = 20) {
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([title, clicks]) => ({ title, clicks }))
+}
+
+/**
+ * Link each browser to the account that has signed in on it. Every click
+ * carries its browser's `visitorId`, and a signed-in one carries the verified
+ * email too — so those rows tell us the two ids belong to one person, which
+ * lets that browser's *signed-out* clicks be attributed to them as well.
+ *
+ * A shared browser with two accounts binds to whichever signed in first, so
+ * the mapping is deterministic rather than dependent on scan order.
+ */
+function linkVisitorsToAccounts(clicks: Click[]): Map<string, string> {
+  const link = new Map<string, string>()
+  for (const c of clicks) {
+    if (!c.visitorId || !c.userEmail) continue
+    if (!link.has(c.visitorId)) link.set(c.visitorId, c.userEmail.trim().toLowerCase())
+  }
+  return link
+}
+
+/**
+ * Who a click belongs to, best-effort: the account if we can name one (directly
+ * or through its browser), otherwise the browser itself. Returns null for the
+ * oldest rows that predate visitor ids — those are uncountable, not anonymous.
+ */
+function identityOf(c: Click, link: Map<string, string>): string | null {
+  if (c.userEmail) return `e:${c.userEmail.trim().toLowerCase()}`
+  if (c.visitorId) {
+    const email = link.get(c.visitorId)
+    return email ? `e:${email}` : `v:${c.visitorId}`
+  }
+  return null
+}
+
+/**
+ * Roll the raw click log up into the private owner dashboard's numbers.
+ * `now` is injectable so the "today" window is testable and so both runtimes
+ * agree. Counts only — no email ever leaves this function, even though the
+ * endpoint that serves it is owner-gated.
+ *
+ * Three different "how many people" numbers, deliberately: `uniqueVisitors`
+ * counts browsers, `signedInVisitors` counts accounts, and `uniquePeople`
+ * stitches the two so one human on a phone and a laptop counts once. They
+ * overlap — never add them together.
+ */
+export function aggregateClicks(clicks: Click[], now: Date = new Date()) {
+  const today = istDay(now.toISOString())
+  const link = linkVisitorsToAccounts(clicks)
   const stats = {
     totalClicks: 0,
+    /** Distinct browsers (localStorage ids) — over-counts one person on many devices */
     uniqueVisitors: 0,
+    /** Distinct humans: browsers folded into the account that signed in on them */
+    uniquePeople: 0,
     signedInClicks: 0,
+    /** Distinct verified accounts that clicked, all time */
+    signedInVisitors: 0,
+    /** The IST date every today* number below covers */
+    today,
+    todayClicks: 0,
+    todayUniqueVisitors: 0,
+    todayUniquePeople: 0,
+    todaySignedInClicks: 0,
+    /** Distinct verified accounts that clicked today */
+    todaySignedInVisitors: 0,
     byKind: {} as Record<string, number>,
     byPlatform: {} as Record<string, number>,
     byLanguage: {} as Record<string, number>,
+    /** Clicks per IST calendar day */
     byDay: {} as Record<string, number>,
+    todayByKind: {} as Record<string, number>,
+    todayByPlatform: {} as Record<string, number>,
     topTitles: [] as Array<{ title: string; clicks: number }>,
+    todayTopTitles: [] as Array<{ title: string; clicks: number }>,
     since: null as string | null,
   }
   const titleCounts = new Map<string, number>()
+  const todayTitleCounts = new Map<string, number>()
   const visitors = new Set<string>()
+  const accounts = new Set<string>()
+  const people = new Set<string>()
+  const todayVisitors = new Set<string>()
+  const todayAccounts = new Set<string>()
+  const todayPeople = new Set<string>()
   for (const c of clicks) {
+    const day = istDay(c.ts)
+    const isToday = day === today
+    const who = identityOf(c, link)
     stats.totalClicks++
-    if (!stats.since) stats.since = c.ts
+    if (!stats.since || c.ts < stats.since) stats.since = c.ts
     if (c.visitorId) visitors.add(c.visitorId)
-    if (c.userEmail) stats.signedInClicks++
+    if (who) people.add(who)
+    if (c.userEmail) {
+      stats.signedInClicks++
+      accounts.add(c.userEmail)
+    }
     stats.byKind[c.kind] = (stats.byKind[c.kind] ?? 0) + 1
     stats.byPlatform[c.platform] = (stats.byPlatform[c.platform] ?? 0) + 1
     if (c.language) stats.byLanguage[c.language] = (stats.byLanguage[c.language] ?? 0) + 1
-    const day = c.ts.slice(0, 10)
     stats.byDay[day] = (stats.byDay[day] ?? 0) + 1
     titleCounts.set(c.title, (titleCounts.get(c.title) ?? 0) + 1)
+    if (!isToday) continue
+    stats.todayClicks++
+    if (c.visitorId) todayVisitors.add(c.visitorId)
+    if (who) todayPeople.add(who)
+    if (c.userEmail) {
+      stats.todaySignedInClicks++
+      todayAccounts.add(c.userEmail)
+    }
+    stats.todayByKind[c.kind] = (stats.todayByKind[c.kind] ?? 0) + 1
+    stats.todayByPlatform[c.platform] = (stats.todayByPlatform[c.platform] ?? 0) + 1
+    todayTitleCounts.set(c.title, (todayTitleCounts.get(c.title) ?? 0) + 1)
   }
   stats.uniqueVisitors = visitors.size
-  stats.topTitles = [...titleCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
-    .map(([title, clicks]) => ({ title, clicks }))
+  stats.uniquePeople = people.size
+  stats.signedInVisitors = accounts.size
+  stats.todayUniqueVisitors = todayVisitors.size
+  stats.todayUniquePeople = todayPeople.size
+  stats.todaySignedInVisitors = todayAccounts.size
+  stats.topTitles = topOf(titleCounts)
+  stats.todayTopTitles = topOf(todayTitleCounts, 10)
   return stats
 }
+
+export type ClickStats = ReturnType<typeof aggregateClicks>
+
+/**
+ * One signed-in action by a verified account. WeekAdda has no user table —
+ * "members" are simply the Google accounts that have ever done something that
+ * needs sign-in, so they're derived by unioning the emails across every store.
+ */
+export interface MemberActivity {
+  email?: string | null
+  ts: string
+  source: 'click' | 'blog' | 'rating' | 'adda'
+}
+
+/**
+ * How many distinct Google accounts use the site. Emails are only ever hashed
+ * into Set membership here — the return value is counts, never addresses.
+ * `firstSeen` is derived from the earliest activity we hold, so an account that
+ * signed in before a store was introduced counts from its first surviving row.
+ */
+export function countMembers(activity: MemberActivity[], now: Date = new Date()) {
+  const today = istDay(now.toISOString())
+  const all = new Set<string>()
+  const activeToday = new Set<string>()
+  const firstSeen = new Map<string, string>()
+  const bySource: Record<MemberActivity['source'], Set<string>> = {
+    click: new Set(),
+    blog: new Set(),
+    rating: new Set(),
+    adda: new Set(),
+  }
+  for (const a of activity) {
+    const email = (a.email ?? '').trim().toLowerCase()
+    if (!email) continue
+    all.add(email)
+    bySource[a.source]?.add(email)
+    if (istDay(a.ts) === today) activeToday.add(email)
+    const prev = firstSeen.get(email)
+    if (!prev || a.ts < prev) firstSeen.set(email, a.ts)
+  }
+  let newToday = 0
+  for (const ts of firstSeen.values()) if (istDay(ts) === today) newToday++
+  return {
+    /** Distinct Google accounts that have ever signed in and done something */
+    members: all.size,
+    /** …of those, how many were active today (IST) */
+    membersToday: activeToday.size,
+    /** …and how many were seen for the first time today */
+    newMembersToday: newToday,
+    membersBySource: {
+      click: bySource.click.size,
+      blog: bySource.blog.size,
+      rating: bySource.rating.size,
+      adda: bySource.adda.size,
+    },
+  }
+}
+
+export type MemberStats = ReturnType<typeof countMembers>
 
 // ---------------------------------------------------------------- auth
 
@@ -410,6 +576,26 @@ export async function verifyGoogleToken(
   } catch {
     return null
   }
+}
+
+/**
+ * Is this verified Google email the site owner's? Guards the private /stats
+ * dashboard — the one surface that isn't for visitors. `ownerEmail` is the
+ * OWNER_EMAIL config value and may list several accounts, comma-separated.
+ *
+ * Fails closed on purpose: with OWNER_EMAIL unset nobody passes, so a deploy
+ * that forgot the variable locks the dashboard instead of opening it. The
+ * email compared here always comes from verifyGoogleToken, never from the
+ * request body — a client cannot claim to be the owner.
+ */
+export function isOwnerEmail(email: string | undefined, ownerEmail: string | undefined): boolean {
+  const who = (email ?? '').trim().toLowerCase()
+  if (!who) return false
+  return (ownerEmail ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(who)
 }
 
 // ---------------------------------------------------------------- adda (community board)

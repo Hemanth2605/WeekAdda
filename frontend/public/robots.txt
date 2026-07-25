@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+# Private owner dashboard — not part of the site
+Disallow: /stats
 
 Sitemap: https://weekadda.com/sitemap.xml

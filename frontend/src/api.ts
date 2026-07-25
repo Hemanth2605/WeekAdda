@@ -86,6 +86,13 @@ export function createPost(
   })
 }
 
+// ---------------------------------------------------------------- owner stats
+
+/** Click stats for the private /stats dashboard — owner account only (403 otherwise). */
+export function fetchStats(token: string): Promise<import('./types').ClickStats> {
+  return api('/track/stats', { headers: { Authorization: `Bearer ${token}` } })
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...options,

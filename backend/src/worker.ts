@@ -2,10 +2,13 @@ import {
   queryReleases,
   queryCricket,
   aggregateClicks,
+  countMembers,
+  MemberActivity,
   buildPost,
   findTitle,
   relatedTitles,
   verifyGoogleToken,
+  isOwnerEmail,
   sanitizeRating,
   summarizeRatings,
   buildListing,
@@ -46,6 +49,12 @@ interface Env {
   SUPABASE_SERVICE_KEY: string
   /** Google OAuth client id; when set, publishing a blog post requires sign-in */
   GOOGLE_CLIENT_ID?: string
+  /**
+   * Owner account(s) for the private /stats dashboard, comma-separated.
+   * A secret (`wrangler secret put OWNER_EMAIL`), not a var — unlike the client
+   * id this is a personal address and the repo is public. Unset = closed.
+   */
+  OWNER_EMAIL?: string
   ASSETS: { fetch(request: Request): Promise<Response> }
 }
 
@@ -228,6 +237,13 @@ export default {
 
     if (!url.pathname.startsWith('/api/')) {
       const asset = await env.ASSETS.fetch(request)
+      // The private owner dashboard is never pre-rendered and never indexed —
+      // the header covers crawlers that ignore robots.txt or don't run JS.
+      if (url.pathname === '/stats') {
+        const headers = new Headers(asset.headers)
+        headers.set('X-Robots-Tag', 'noindex, nofollow')
+        return new Response(asset.body, { status: asset.status, headers })
+      }
       const isMoviePage = /^\/movie\/[^/]+/.test(url.pathname)
       // Edge pre-render: inject real content into the SPA shell so crawlers
       // see this week's titles. Any hiccup falls back to the untouched page.
@@ -586,6 +602,23 @@ export default {
     }
 
     if (url.pathname === '/api/track/stats' && request.method === 'GET') {
+      // Private to the owner — the same check as the Express route
+      const statsAuthz = request.headers.get('Authorization') ?? ''
+      const statsToken = statsAuthz.startsWith('Bearer ') ? statsAuthz.slice(7) : ''
+      if (!env.GOOGLE_CLIENT_ID || !statsToken) {
+        return json({ error: 'Sign in with the owner account to view stats' }, 401)
+      }
+      const statsMe = await verifyGoogleToken(statsToken, env.GOOGLE_CLIENT_ID)
+      if (!statsMe) {
+        return json({ error: 'Your sign-in expired — please sign in again' }, 401)
+      }
+      if (!env.OWNER_EMAIL) {
+        return json({ error: 'Stats are not configured: OWNER_EMAIL is unset on the server' }, 403)
+      }
+      if (!isOwnerEmail(statsMe.email, env.OWNER_EMAIL)) {
+        return json({ error: 'This page is not available for your account' }, 403)
+      }
+
       const clicks: Click[] = []
       // PostgREST caps rows per response; page through up to 10k clicks
       for (let page = 0; page < 10; page++) {
@@ -618,7 +651,35 @@ export default {
         }
         if (rows.length < 1000) break
       }
-      return json(aggregateClicks(clicks))
+
+      // Members: the accounts behind every sign-in-gated action. Each table is
+      // read for (email, ts) only, and a table that fails is simply skipped —
+      // a partial member count beats a broken dashboard.
+      const activity: MemberActivity[] = clicks.map((c) => ({
+        email: c.userEmail,
+        ts: c.ts,
+        source: 'click' as const,
+      }))
+      const sources: Array<{ query: string; field: string; source: MemberActivity['source'] }> = [
+        { query: 'posts?select=author_email,ts', field: 'author_email', source: 'blog' },
+        { query: 'post_ratings?select=user_email,ts', field: 'user_email', source: 'rating' },
+        { query: 'listings?select=author_email,ts', field: 'author_email', source: 'adda' },
+        { query: 'listing_interests?select=user_email,ts', field: 'user_email', source: 'adda' },
+      ]
+      for (const s of sources) {
+        try {
+          const res = await sb(env, `${s.query}&limit=5000`)
+          if (!res.ok) continue
+          const rows = (await res.json()) as Array<Record<string, string | null>>
+          for (const r of rows) {
+            activity.push({ email: r[s.field], ts: r.ts ?? '', source: s.source })
+          }
+        } catch {
+          // one unreachable table must not break the whole dashboard
+        }
+      }
+
+      return json({ ...aggregateClicks(clicks), ...countMembers(activity) })
     }
 
     return json({ error: 'Not found' }, 404)

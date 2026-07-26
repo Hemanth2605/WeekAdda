@@ -3,6 +3,7 @@ import { NavLink, Link } from 'react-router-dom'
 import { CalendarRange, Film, Trophy, Feather, HandHeart, Sun, Moon, LogOut } from 'lucide-react'
 import { authEnabled, signOut, useGoogleUser } from '../auth'
 import GoogleButton from './GoogleButton'
+import NotifyBell from './NotifyBell'
 
 export default function Navbar() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() =>
@@ -79,6 +80,7 @@ export default function Navbar() {
         ) : (
           <GoogleButton small />
         ))}
+      <NotifyBell />
       <button
         className="theme-toggle"
         onClick={toggleTheme}

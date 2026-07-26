@@ -1484,6 +1484,299 @@ input {
   border-bottom-color: rgba(0, 0, 0, 0.09);
 }
 
+/* ---------------- release notifications ---------------- */
+
+/* Navbar bell: the permanent, low-key way in, and the only way back out for
+   someone who wants to switch notifications off */
+/* Gold, like everything else that wants attention here. Subscribed state is
+   carried by the fill and the icon swapping to a ringing bell, not by colour —
+   turning it grey once subscribed would read as "broken" rather than "done". */
+.notify-bell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(232, 179, 75, 0.3);
+  border-radius: 50%;
+  background: none;
+  color: var(--gold);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.notify-bell:hover {
+  color: var(--gold-bright, var(--gold));
+  border-color: var(--gold);
+  background: rgba(232, 179, 75, 0.1);
+}
+.notify-bell.on {
+  color: var(--gold);
+  border-color: rgba(232, 179, 75, 0.55);
+  background: rgba(232, 179, 75, 0.14);
+}
+
+/* The bell rings itself, briefly, every few seconds — a static bell in a busy
+   navbar is invisible. Mostly still: the swing occupies the last fifth of the
+   cycle, so it reads as an occasional nudge rather than a fidget. Subscribers
+   never see it; there is nothing left to ask them. */
+@keyframes bell-swing {
+  0%,
+  72%,
+  100% {
+    transform: rotate(0deg);
+  }
+  76% {
+    transform: rotate(13deg);
+  }
+  80% {
+    transform: rotate(-11deg);
+  }
+  84% {
+    transform: rotate(8deg);
+  }
+  88% {
+    transform: rotate(-6deg);
+  }
+  92% {
+    transform: rotate(3deg);
+  }
+  96% {
+    transform: rotate(-1deg);
+  }
+}
+.notify-bell:not(.on) svg,
+.notify-card-icon svg {
+  transform-origin: 50% 18%;
+  animation: bell-swing 5.5s ease-in-out infinite;
+}
+.notify-bell:hover svg {
+  animation-play-state: paused;
+}
+
+/* In-feed card: the ask that converts, sitting right after the first language
+   row the reader scrolled */
+.notify-card-inline {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 4px 42px 26px;
+  padding: 16px 18px;
+  border: 1px solid rgba(232, 179, 75, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(232, 179, 75, 0.07), transparent 70%);
+}
+.notify-card-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(232, 179, 75, 0.14);
+  color: var(--gold);
+}
+.notify-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.notify-card-text strong {
+  font-size: 14.5px;
+}
+.notify-card-text span {
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.notify-card-cta {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #171205;
+  font-size: 13px;
+  font-weight: 600;
+}
+.notify-card-dismiss {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px;
+}
+.notify-card-dismiss:hover {
+  color: var(--text);
+}
+
+/* Sheet */
+.notify-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(3px);
+}
+.notify-sheet {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 30px 28px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  background: var(--surface, #14141b);
+}
+.notify-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: rgba(232, 179, 75, 0.14);
+  color: var(--gold);
+}
+.notify-sheet h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.notify-sheet p {
+  margin: 0 0 20px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.notify-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px;
+}
+.notify-close:hover {
+  color: var(--text);
+}
+.notify-langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.notify-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+.notify-lang.picked {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: rgba(232, 179, 75, 0.1);
+}
+.notify-confirm {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--gold);
+  color: #171205;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.notify-confirm:disabled {
+  opacity: 0.4;
+}
+.notify-error {
+  margin: 0 0 14px !important;
+  color: #ff8f7a !important;
+  font-size: 12.5px !important;
+}
+.notify-done {
+  padding: 22px 0 14px;
+  text-align: center;
+  color: var(--gold);
+}
+.notify-done h3 {
+  margin: 12px 0 6px;
+}
+.notify-done p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  /* Bottom sheet: a centred dialog puts its confirm button where thumbs do not
+     reach, and sliding up from the bottom is what Android users expect */
+  .notify-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .notify-sheet {
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    border-bottom: none;
+    padding: 26px 20px calc(20px + env(safe-area-inset-bottom));
+    animation: notify-rise 0.22s ease-out;
+  }
+  .notify-lang {
+    min-height: 44px; /* touch target */
+    padding: 10px 16px;
+  }
+  .notify-card-inline {
+    flex-wrap: wrap;
+    margin: 4px 20px 24px;
+  }
+  .notify-card-text {
+    flex: 1 1 auto;
+  }
+  .notify-card-cta {
+    flex: 1 1 100%;
+    order: 3;
+    padding: 12px;
+    text-align: center;
+  }
+  .notify-card-dismiss {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .notify-card-inline {
+    position: relative;
+  }
+}
+
+@keyframes notify-rise {
+  from {
+    transform: translateY(14%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notify-sheet,
+  .notify-bell svg,
+  .notify-card-icon svg {
+    animation: none;
+  }
+}
+
+:root[data-theme='light'] .notify-sheet {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+:root[data-theme='light'] .notify-bell,
+:root[data-theme='light'] .notify-lang {
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
 /* ---------------- platform brand colours ---------------- */
 .release-flag.ott.pf-netflix { background: #e50914; color: #fff; border-color: transparent; }
 .release-flag.ott.pf-amazonprimevideo { background: #00a8e1; color: #04222d; border-color: transparent; }

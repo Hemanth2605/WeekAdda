@@ -4,8 +4,13 @@
 #
 # Manual sweep: repo → Actions → "Daily sweep" → Run workflow.
 #
+# It also sends the release notifications, because it is holding the fresh data
+# the moment it is written — see PUSH-PLAN.md.
+#
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   TMDB_API_KEY, WATCHMODE_API_KEY (optional), SUPABASE_URL, SUPABASE_SERVICE_KEY
+#   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (optional — no keys, no
+#   notifications, and the rest of the sweep is unaffected)
 name: Daily sweep
 
 on:
@@ -37,4 +42,7 @@ jobs:
           WATCHMODE_API_KEY: ${{ secrets.WATCHMODE_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: npm run sweep

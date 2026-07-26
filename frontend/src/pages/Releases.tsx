@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Search,
@@ -16,6 +16,7 @@ import { Star } from 'lucide-react'
 import { api } from '../api'
 import { usePageMeta } from '../seo'
 import { Release, ReleaseMeta, LanguageInfo, WeekInfo } from '../types'
+import NotifyCard from '../components/NotifyCard'
 import ReleaseCard, { coverGradient, formatDate } from '../components/ReleaseCard'
 import ReleaseModal from '../components/ReleaseModal'
 import { platformClass } from '../share'
@@ -101,7 +102,16 @@ export default function Releases() {
   const [meta, setMeta] = useState<ReleaseMeta | null>(null)
   const [languages, setLanguages] = useState<LanguageInfo[]>([])
   const [search, setSearch] = useState('')
-  const [language, setLanguage] = useState('all')
+  // Remembered across visits, and settable by a notification deep-link
+  // (/movies?language=te) so tapping one lands on what it was about
+  const [language, setLanguage] = useState(() => {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('language')
+      return fromUrl || localStorage.getItem('weekadda-language') || 'all'
+    } catch {
+      return 'all'
+    }
+  })
   const [selected, setSelected] = useState<Release | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -111,6 +121,16 @@ export default function Releases() {
   useEffect(() => {
     setWeek(0)
   }, [windowTab])
+
+  // Someone who filters to Telugu every visit should not have to say so again;
+  // it also pre-ticks the right box in the notification picker
+  useEffect(() => {
+    try {
+      localStorage.setItem('weekadda-language', language)
+    } catch {
+      // private mode — the filter just resets next visit
+    }
+  }, [language])
 
   usePageMeta(PAGE_META[windowTab].title, PAGE_META[windowTab].description)
 
@@ -475,23 +495,28 @@ export default function Releases() {
       ) : showRows ? (
         // Language-segregated rows
         <div className="lang-sections">
-          {sections.map((section) => (
-            <section key={section.code} className="lang-section">
-              <div className="lang-head">
-                <h2>{section.label}</h2>
-                <span className="count">
-                  {section.items.length} film{section.items.length === 1 ? '' : 's'}
-                </span>
-                <button className="lang-viewall" onClick={() => setLanguage(section.code)}>
-                  View all →
-                </button>
-              </div>
-              <div className="lang-row">
-                {section.items.map((r, i) => (
-                  <ReleaseCard key={r.id} release={r} index={i} onOpen={setSelected} />
-                ))}
-              </div>
-            </section>
+          {sections.map((section, si) => (
+            <Fragment key={section.code}>
+              <section className="lang-section">
+                <div className="lang-head">
+                  <h2>{section.label}</h2>
+                  <span className="count">
+                    {section.items.length} film{section.items.length === 1 ? '' : 's'}
+                  </span>
+                  <button className="lang-viewall" onClick={() => setLanguage(section.code)}>
+                    View all →
+                  </button>
+                </div>
+                <div className="lang-row">
+                  {section.items.map((r, i) => (
+                    <ReleaseCard key={r.id} release={r} index={i} onOpen={setSelected} />
+                  ))}
+                </div>
+              </section>
+              {/* After the first row, where the reader has just shown which
+                  language they care about — and named back to them */}
+              {si === 0 && <NotifyCard language={section.code} label={section.label} />}
+            </Fragment>
           ))}
         </div>
       ) : (

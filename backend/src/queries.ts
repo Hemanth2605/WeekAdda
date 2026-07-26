@@ -620,6 +620,84 @@ export interface AddaInterest {
   ts: string
 }
 
+// ---------------------------------------------------------------- push
+
+/**
+ * A browser's Web Push registration. Deliberately anonymous — the endpoint is
+ * issued by the browser vendor, so there is no account, email or visitor id
+ * here, and subscribing never requires signing in. See PUSH-PLAN.md.
+ */
+export interface PushSubscriptionRecord {
+  endpoint: string
+  p256dh: string
+  auth: string
+  languages: string[]
+}
+
+/**
+ * Validate what the browser posted. The endpoint and keys come from the Push
+ * API rather than from a form, so the checks are about rejecting junk and
+ * anything oversized, not about trusting a user.
+ *
+ * Languages are narrowed to the ones we actually publish: an unknown code would
+ * silently never match a release, leaving someone subscribed to nothing and
+ * wondering why they hear nothing. Returns null when there is nothing usable.
+ */
+export function buildPushSubscription(body: unknown): PushSubscriptionRecord | null {
+  const b = (body ?? {}) as Record<string, unknown>
+  const sub = (b.subscription ?? {}) as Record<string, unknown>
+  const keys = (sub.keys ?? {}) as Record<string, unknown>
+  const endpoint = typeof sub.endpoint === 'string' ? sub.endpoint.trim() : ''
+  const p256dh = typeof keys.p256dh === 'string' ? keys.p256dh : ''
+  const auth = typeof keys.auth === 'string' ? keys.auth : ''
+  if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth) return null
+
+  const known = new Set(LANGUAGES.map((l) => l.code))
+  const languages = Array.isArray(b.languages)
+    ? [...new Set(b.languages.filter((l): l is string => typeof l === 'string' && known.has(l)))]
+    : []
+  if (languages.length === 0) return null
+
+  return { endpoint, p256dh, auth, languages: languages.slice(0, 20) }
+}
+
+/**
+ * The titles arriving today, in IST, for one subscriber's languages — the whole
+ * question the send step asks. Empty means stay quiet, which is the feature:
+ * a notification on a day with nothing in your languages is the one that gets
+ * the whole thing switched off.
+ */
+export function todaysReleasesFor(
+  data: ReleaseCache,
+  languages: string[],
+  now: Date = new Date()
+): OttRelease[] {
+  const today = istDay(now.toISOString())
+  const wanted = new Set(languages)
+  return data.ott.filter((r) => r.releaseDate === today && wanted.has(r.language))
+}
+
+/** "3 new Telugu releases today" — plural, language-aware, no title list. */
+export function pushHeadline(items: OttRelease[]): string {
+  const labels = [...new Set(items.map((r) => r.languageLabel))]
+  const langs =
+    labels.length === 1
+      ? `${labels[0]} `
+      : labels.length === 2
+        ? `${labels[0]} & ${labels[1]} `
+        : ''
+  return `${items.length} new ${langs}release${items.length === 1 ? '' : 's'} today`
+}
+
+/** "Kingdom, Vaari and 2 more — on Netflix, ZEE5" */
+export function pushBody(items: OttRelease[]): string {
+  const names = items.slice(0, 2).map((r) => r.title)
+  const rest = items.length - names.length
+  const titles = rest > 0 ? `${names.join(', ')} and ${rest} more` : names.join(', ')
+  const platforms = [...new Set(items.flatMap((r) => r.platforms))].slice(0, 3)
+  return platforms.length ? `${titles} — on ${platforms.join(', ')}` : titles
+}
+
 export const ADDA_MAX_AGE_DAYS = 30
 
 /** Public shape: contact details stripped. */

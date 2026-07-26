@@ -12,6 +12,7 @@ import {
   sanitizeRating,
   summarizeRatings,
   buildListing,
+  buildPushSubscription,
   liveListings,
   publicListing,
   AddaListing,
@@ -663,6 +664,51 @@ const routes = {
       if (!insert.ok) return json({ error: 'Could not publish the post' }, 502)
       memory.delete('blog-list')
       return json(pub, 201)
+    }
+
+    // Release notifications: the Worker only stores and forgets registrations.
+    // Sending happens in the sweep, which has the VAPID private key and the
+    // Node crypto to use it — see PUSH-PLAN.md.
+    if (url.pathname === '/api/push/subscribe' && request.method === 'POST') {
+      let body: unknown = {}
+      try {
+        body = await request.json()
+      } catch {
+        // falls through to validation
+      }
+      const sub = buildPushSubscription(body)
+      if (!sub) return json({ error: 'Pick at least one language to hear about' }, 400)
+      const ins = await sb(env, 'push_subscriptions', {
+        method: 'POST',
+        // Re-subscribing, or changing languages, must update the row rather
+        // than collide: the endpoint is the browser's identity for this device
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify({
+          endpoint: sub.endpoint,
+          p256dh: sub.p256dh,
+          auth: sub.auth,
+          languages: sub.languages,
+        }),
+      })
+      if (!ins.ok) {
+        console.warn(`push subscribe failed (${ins.status}): ${(await ins.text()).slice(0, 200)}`)
+        return json({ error: 'Could not save your subscription' }, 502)
+      }
+      return json({ ok: true, languages: sub.languages }, 201)
+    }
+
+    if (url.pathname === '/api/push/unsubscribe' && request.method === 'POST') {
+      let endpoint = ''
+      try {
+        endpoint = String(((await request.json()) as { endpoint?: string })?.endpoint ?? '')
+      } catch {
+        // falls through
+      }
+      if (!endpoint) return json({ error: 'endpoint is required' }, 400)
+      await sb(env, `push_subscriptions?endpoint=eq.${encodeURIComponent(endpoint)}`, {
+        method: 'DELETE',
+      })
+      return json({ ok: true })
     }
 
     if (url.pathname === '/api/track/click' && request.method === 'POST') {

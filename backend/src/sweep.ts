@@ -3,6 +3,8 @@ import fs from 'fs'
 import path from 'path'
 import { syncReleases } from './agent/releaseAgent'
 import { syncCricket } from './agent/cricketAgent'
+import { sendReleaseNotifications } from './pushSender'
+import type { ReleaseCache } from './queries'
 
 /**
  * One full sweep, then push the caches to Supabase. This is what the daily
@@ -51,13 +53,15 @@ async function pushToSupabase(): Promise<void> {
 
 async function main() {
   const failures: string[] = []
+  let releases: ReleaseCache | null = null
 
   for (const [name, sync] of [
     ['releases', syncReleases],
     ['cricket', syncCricket],
   ] as const) {
     try {
-      await sync()
+      const result = await sync()
+      if (name === 'releases') releases = result as ReleaseCache
     } catch (err) {
       failures.push(name)
       console.error(`❌ ${name} sweep failed:`, err instanceof Error ? err.message : err)
@@ -67,6 +71,16 @@ async function main() {
   // Push whatever we have — if one sweep failed, the other (and the previous
   // run's data for the failed one) still reaches production.
   await pushToSupabase()
+
+  // Notify last, and never let it matter: subscribers hearing nothing is a far
+  // smaller problem than a sweep that reports failure over it
+  if (releases) {
+    try {
+      await sendReleaseNotifications(releases)
+    } catch (err) {
+      console.warn('⚠️  Release notifications failed:', err instanceof Error ? err.message : err)
+    }
+  }
 
   if (failures.length > 0) {
     console.error(`Sweep finished with failures: ${failures.join(', ')}`)

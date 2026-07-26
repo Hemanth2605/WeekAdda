@@ -11,6 +11,7 @@ import Stats from './pages/Stats'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ShareSheet from './components/ShareSheet'
+import NotifySheet from './components/NotifySheet'
 
 /** Start every page from the top when the route changes (SPA keeps scroll otherwise). */
 function ScrollToTop() {
@@ -27,6 +28,7 @@ export default function App() {
       <ScrollToTop />
       <Navbar />
       <ShareSheet />
+      <NotifySheet />
       <Routes>
         <Route path="/" element={<Navigate to="/movies" replace />} />
         <Route path="/movies" element={<Releases />} />

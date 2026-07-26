@@ -78,9 +78,23 @@ create table if not exists listing_interests (
   primary key (listing_id, user_email)
 );
 
+-- Web Push subscribers (July 2026). Anonymous by construction: the endpoint is
+-- issued by the browser vendor, not by us, and there is no email, account or
+-- visitor id here. A subscriber hears from us only on days something arrives in
+-- one of their languages, at most once a day — see PUSH-PLAN.md.
+create table if not exists push_subscriptions (
+  endpoint text primary key,     -- browser push URL: identity and dedupe key
+  p256dh text not null,          -- client public key, for payload encryption
+  auth text not null,            -- client auth secret
+  languages text[] not null,     -- e.g. {te,ml} — what they asked to hear about
+  created_at timestamptz not null default now(),
+  last_sent_on date              -- IST day, so at most one notification daily
+);
+
 alter table caches enable row level security;
 alter table clicks enable row level security;
 alter table posts enable row level security;
 alter table post_ratings enable row level security;
 alter table listings enable row level security;
 alter table listing_interests enable row level security;
+alter table push_subscriptions enable row level security;

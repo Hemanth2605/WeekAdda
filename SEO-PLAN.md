@@ -138,9 +138,46 @@ Data lags 2–3 days; nothing shows same-day.
 
 ## Status
 
-- [x] **Tier 1** — tab URLs, pre-render, meta, sitemap
+Shipped 25–26 July 2026, all live and verified:
+
+- [x] **Tier 1** — tab URLs, per-URL pre-render blocks, meta, sitemap
+- [x] One host, one scheme — `www`, workers.dev and `http` all 301 to the apex
+- [x] Real 404s for paths the app does not have
+- [x] `/blog` → `/reviews`, 301 in place, sitemap swapped
+- [x] Reviews on `/movie/:id/:slug` with `Review` schema, rendered as well as
+      pre-rendered
+- [x] Event fields on cricket fixtures, and the two invalid ones removed again
+- [x] JSON-LD lifted into `<head>` — see the Gotchas in CLAUDE.md, this one
+      silently voided every schema block on the site
+
+Not started:
+
 - [ ] **Tier 2** — `/ott/<platform>` hubs + threshold gating
 - [ ] **Tier 3** — `/movies/<language>` hubs
 - [ ] **Tier 4** — cross products (only if 2 and 3 earn impressions)
-- [ ] Submit the updated sitemap and request indexing for the Tier 1 URLs
-- [ ] Add a Search Console **Domain property** so `www`/http history is included
+- [ ] Per-review URLs (`/reviews/:id/:slug`) — worth it once there are enough
+      reviews that individual pages are not thin
+- [ ] A verdict-out-of-five field in the review composer, which is what would
+      make `reviewRating` honest and unlock star snippets
+
+### Owner actions still outstanding
+
+1. Purge the Cloudflare cache (required after any HTML-changing deploy)
+2. Search Console: resubmit `sitemap.xml`; Request Indexing for `/reviews`,
+   `/movies/upcoming`, `/movies/theatres`, `/cricket/results`
+3. Search Console → Enhancements → Events → **Validate Fix on "image" and
+   "address" only**. Not `performer`, `organizer` or `offers` — all three are
+   deliberate absences now and validation would fail
+4. Bing Webmaster Tools: same sitemap and URLs
+5. Re-subscribe to notifications on a phone so the timezone is recorded
+
+`/blog` showing as "URL is on Google" is expected until Google re-crawls; it
+moves to *Page with redirect* on its own in 1–3 weeks. Do not use the Removals
+tool — it hides the URL for months and passes no signal to `/reviews`.
+
+### When to judge it
+
+Nothing before **2–4 weeks**, and then on Performance → filter by page →
+**QUERIES**, not on the overview. Head terms like "movie reviews" are not
+winnable and were never the target; `"<title> review"` and `"<title> OTT release
+date"` are.

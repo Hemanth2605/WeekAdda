@@ -1484,6 +1484,58 @@ input {
   border-bottom-color: rgba(0, 0, 0, 0.09);
 }
 
+/* ---------------- reviews on a title page ----------------
+   The pre-rendered page shows these to crawlers along with Review schema, so
+   the rendered page has to show them too — otherwise someone arriving from a
+   "<title> review" search finds nothing, and the markup is unsupported by
+   anything visible. */
+.movie-reviews {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 42px 44px;
+}
+.movie-review {
+  padding: 18px 20px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.movie-review h3 {
+  margin: 0 0 8px;
+  font-size: 15.5px;
+}
+.movie-review p {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.movie-review-by {
+  color: var(--gold);
+  font-size: 12.5px;
+  font-style: italic;
+}
+.movie-review-all {
+  align-self: flex-start;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-decoration: none;
+}
+.movie-review-all:hover {
+  color: var(--gold);
+}
+@media (max-width: 640px) {
+  .movie-reviews {
+    padding: 0 20px 36px;
+  }
+}
+:root[data-theme='light'] .movie-review {
+  border-color: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+}
+
 /* ---------------- release notifications ---------------- */
 
 /* Navbar bell: the permanent, low-key way in, and the only way back out for

@@ -11,8 +11,8 @@ import {
   Ticket,
   Users,
 } from 'lucide-react'
-import { Release } from '../types'
-import { api, trackClick } from '../api'
+import { BlogPost, Release } from '../types'
+import { api, fetchPosts, trackClick } from '../api'
 import { usePageMeta, titlePath } from '../seo'
 import ReleaseCard, { coverGradient, formatDate, daysUntil } from '../components/ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
@@ -31,6 +31,7 @@ export default function MovieDetail() {
   const navigate = useNavigate()
   const [data, setData] = useState<TitleResponse | null>(null)
   const [missing, setMissing] = useState(false)
+  const [reviews, setReviews] = useState<BlogPost[]>([])
 
   useEffect(() => {
     setData(null)
@@ -38,6 +39,24 @@ export default function MovieDetail() {
     api<TitleResponse>(`/title/${encodeURIComponent(id ?? '')}`)
       .then(setData)
       .catch(() => setMissing(true))
+  }, [id])
+
+  // The pre-rendered version of this page carries any reviews of the title,
+  // along with Review schema. React clears that block on mount, so without
+  // this the page a person sees would be missing what the crawler was shown —
+  // which strands anyone arriving from a "<title> review" search, and leaves
+  // the markup unsupported by visible content.
+  useEffect(() => {
+    if (!id) return
+    let cancelled = false
+    fetchPosts()
+      .then(({ posts }) => {
+        if (!cancelled) setReviews(posts.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === id))
+      })
+      .catch(() => setReviews([]))
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   const r = data?.release
@@ -199,6 +218,31 @@ export default function MovieDetail() {
           </button>
         </div>
       </div>
+
+      {reviews.length > 0 && (
+        <>
+          <div className="section-head movie-related-head">
+            <h2>
+              {r.title} review — what viewers said
+            </h2>
+            <span className="count">
+              {reviews.length} review{reviews.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="movie-reviews">
+            {reviews.map((p) => (
+              <article key={p.id} className="movie-review">
+                <h3>{p.title}</h3>
+                <p>{p.body}</p>
+                <span className="movie-review-by">— {p.author}</span>
+              </article>
+            ))}
+            <Link to="/reviews" className="movie-review-all">
+              All reviews on WeekAdda →
+            </Link>
+          </div>
+        </>
+      )}
 
       {data.related.length > 0 && (
         <>

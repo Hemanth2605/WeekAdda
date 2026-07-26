@@ -635,19 +635,26 @@ export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtu
             },
           }
         : {}),
-      // Both, deliberately: competitor is the accurate term for a fixture,
-      // performer is the one Google's Event validator looks for
+      // competitor only. `performer` was added to answer Search Console's
+      // "missing performer" warning and made every event *invalid*: Google
+      // accepts only Person or PerformingGroup there, and a SportsTeam is
+      // neither. A warning on a valid item beats a silenced warning on an
+      // invalid one.
       competitor: m.teams.map((t) => ({ '@type': 'SportsTeam', name: t.name })),
-      performer: m.teams.map((t) => ({ '@type': 'SportsTeam', name: t.name })),
     }
   }
 
+  // Only fixtures we can describe validly. Google requires a physical Event to
+  // carry location.address, and ESPN venues do not all name a city — "Harare
+  // Sports Club" gives nothing to put there. Nine valid events beat nine valid
+  // ones plus a tenth that is permanently ineligible and permanently reported.
+  const markupReady = indiaUpcoming.filter((m) => m.venue.includes(','))
   const ld =
-    indiaUpcoming.length === 0
+    markupReady.length === 0
       ? ''
       : jsonLd({
           '@context': 'https://schema.org',
-          '@graph': indiaUpcoming.slice(0, 10).map(eventLd),
+          '@graph': markupReady.slice(0, 10).map(eventLd),
         })
 
   const resultsSection = section(

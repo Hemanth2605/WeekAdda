@@ -194,7 +194,7 @@ const SEO_PAGES = new Set([
   '/movies/upcoming',
   '/cricket',
   '/cricket/results',
-  '/blog',
+  '/reviews',
   '/adda',
   '/about',
   '/privacy',
@@ -207,7 +207,7 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
     const cricket = await loadCache(env, 'cricket', EMPTY_CRICKET)
     return buildCricketSeo(cricket, pathname === '/cricket/results' ? 'results' : 'fixtures')
   }
-  if (pathname === '/blog') {
+  if (pathname === '/reviews') {
     return buildBlogSeo((await loadPosts(env)).posts)
   }
   if (pathname === '/about') {
@@ -254,7 +254,7 @@ const SPA_ROUTES = new Set([
   '/movies/upcoming',
   '/cricket',
   '/cricket/results',
-  '/blog',
+  '/reviews',
   '/about',
   '/adda',
   '/privacy',
@@ -320,6 +320,14 @@ const routes = {
       return Response.redirect(url.toString(), permanent)
     }
 
+    // /blog became /reviews in July 2026 — the content was always reviews, and
+    // "review" is what people search. A 301 keeps whatever the old path had
+    // earned and stops the two competing as duplicates.
+    if (url.pathname === '/blog') {
+      url.pathname = '/reviews'
+      return Response.redirect(url.toString(), 301)
+    }
+
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') {
       const data = await loadCache(env, 'releases', EMPTY_RELEASES)
       return new Response(buildSitemap(data), {
@@ -366,7 +374,14 @@ const routes = {
           let canonical: string
           if (isMoviePage) {
             const id = decodeURIComponent(url.pathname.split('/')[2] ?? '')
-            const page = buildTitlePage(await loadCache(env, 'releases', EMPTY_RELEASES), id)
+            // Reviews of this title go on this page, not just the hub: "<film>
+            // review" is a query we can win, and this is the page already
+            // indexed for that film. Both reads are memory-cached per isolate.
+            const [releases, { posts }] = await Promise.all([
+              loadCache(env, 'releases', EMPTY_RELEASES),
+              loadPosts(env),
+            ])
+            const page = buildTitlePage(releases, id, posts)
             if (!page) return asset
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }

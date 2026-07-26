@@ -47,9 +47,9 @@ export default function About() {
           <li>
             <Feather size={16} />
             <span>
-              <b>The blog</b> — real takes from real viewers, each post tagged to the movie or
-              match it talks about, with star ratings. Anyone can read; writing or rating needs
-              just a Google sign-in.
+              <b>Reviews</b> — honest verdicts from people who actually watched, each tagged to
+              the film or match it is about and rated out of five. Anyone can read; writing or
+              rating needs just a Google sign-in.
             </span>
           </li>
           <li>

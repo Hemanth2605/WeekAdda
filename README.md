@@ -27,7 +27,7 @@ link opens where the sender was.
   gets its own shareable page: poster, release dates, platforms with Watch/Book links,
   rating, and more releases in the same language. Reached from each release's modal
   ("Full page") and crawled by search engines via the sitemap.
-- ✍️ **Blog** (`/blog`) — visitors write their own takes and **tag the movie or match**
+- ✍️ **Reviews** (`/reviews`) — visitors write their own reviews and **tag the movie or match**
   they're talking about (poster or team flags shown on the card), each with a 5-star
   **rating**. The full take opens in a modal. Reading is open to all; **publishing or
   rating needs a one-click Google sign-in** (keeps it spam-free — display names stay
@@ -175,7 +175,7 @@ backend/
   cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json
 frontend/
   src/
-    pages/                 # Releases, Cricket, Blog, MovieDetail, Adda, About, Privacy, Stats
+    pages/                 # Releases, Cricket, Reviews, MovieDetail, Adda, About, Privacy, Stats
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton
     auth.ts                # Google sign-in (token flow) + app-wide user state
     seo.ts                 # usePageMeta — must mirror the Worker's routeMeta strings
@@ -268,10 +268,10 @@ free tiers plus the domain:
 - IndexNow pings after each sweep so Bing indexes new title pages the same day
 - Per-series cricket pages (`/cricket/india-vs-australia`) on the movie-page pattern
 - Hard 404 status for expired `/movie/…` URLs (currently a soft 404 shell)
-- Per-post blog URLs (`/blog/:id`) with their own meta tags + AggregateRating schema,
+- Per-review URLs (`/reviews/:id/:slug`) with their own meta tags + AggregateRating schema,
   so individual takes (and their star ratings) can rank in search and be shared directly
 - Email notification to an Adda poster when someone responds (built then removed —
   revisit with a transactional-email key when the board sees real usage)
 - A second daily sweep in the evening so cricket results land the same night
-- Blog/Adda moderation tools as traffic warrants it
+- Review/Adda moderation tools as traffic warrants it
 - More sports beyond cricket (the weekly-results pattern generalizes)

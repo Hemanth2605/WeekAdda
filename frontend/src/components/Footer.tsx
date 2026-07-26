@@ -19,7 +19,7 @@ export default function Footer() {
       <nav aria-label="Footer">
         <Link to="/movies">Movies</Link>
         <Link to="/cricket">Cricket</Link>
-        <Link to="/blog">Blog</Link>
+        <Link to="/reviews">Reviews</Link>
         <Link to="/adda">Adda</Link>
         <Link to="/about">About</Link>
         <Link to="/privacy">Privacy</Link>

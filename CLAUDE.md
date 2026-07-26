@@ -38,12 +38,16 @@ cd frontend && npm run build
 - **Frontend** is React 18 + Vite. Pages: `Releases.tsx` (defaults to the OTT India
   tab; tabs OTT/theatres/upcoming), a per-title detail page `MovieDetail.tsx` at
   /movie/:id/:slug fed by GET `/api/title/:id`, `Cricket.tsx` (defaults to Fixtures,
-  banded Today / This Week / Later; Results is the second tab), `Blog.tsx` (visitor
+  banded Today / This Week / Later; Results is the second tab), `Reviews.tsx` (visitor
   posts tagged to a movie or match + 5-star ratings), `Adda.tsx` (community board,
   see below), plus `About.tsx` and `Privacy.tsx`. `App.tsx` has a `ScrollToTop` that
   resets scroll on every route change. Shared week-paging pattern: week 0 = last 7
   days, up to 13 weeks back. All API calls are relative `/api/...`.
-- **Blog**: `/api/blog` GET/POST (+ `/mine`, `/rate`, `/ratings`), shared `buildPost`
+- **Reviews** (page `/reviews`, renamed from `/blog` July 2026 — the content was
+  always reviews and "review" is what people search; the Worker 301s the old path,
+  and the **API, table, cache file and `.blog-*` CSS keep the old name on purpose**
+  — renaming those is churn no visitor would ever see):
+  `/api/blog` GET/POST (+ `/mine`, `/rate`, `/ratings`), shared `buildPost`
   sanitizer in `queries.ts`; local store `backend/cache/blog.json` (+ `ratings.json`),
   production Supabase `posts` / `post_ratings` tables.
 - **Auth is Google-only, and only for writing** (added July 2026). Browsing everything
@@ -96,7 +100,9 @@ cd frontend && npm run build
   Unknown teams fall back to the remote ESPN logo URL — keep that fallback.
 - **Edge pre-render (SEO)**: the Worker injects search-phrased HTML (built by
   `backend/src/seo.ts` from the same caches) inside `<div id="root">` for
-  /, /movies, /cricket, /blog, /adda, /about, /privacy, and every /movie/:id/:slug.
+  /, /movies, /movies/theatres, /movies/upcoming, /cricket, /cricket/results,
+  /reviews, /adda, /about, /privacy, and every /movie/:id/:slug — which also
+  carries any reviews of that title, plus `Review` JSON-LD.
   It also stamps per-route `<title>`/description/canonical **and Open Graph + Twitter
   tags** (movie pages get the poster as `og:image`) so shared links preview correctly.
   React clears the injected block on mount; on any error the Worker serves the
@@ -171,17 +177,18 @@ cd frontend && npm run build
   account/subscription sharing, tickets at face value only. The board deliberately
   connects people only — no in-app payments or chat; contact reveal is mutual and
   sign-in-gated. Keep the house-rules notice and the privacy/attribution pages.
-- The blog's falling letter-tile backdrop fades out on scroll on purpose (greet,
+- The Reviews page's falling letter-tile backdrop fades out on scroll on purpose (greet,
   then get out of the reader's way).
-- **Big visible page headings (h1) are hidden** on Movies, Cricket, Blog and Adda
+- **Big visible page headings (h1) are hidden** on Movies, Cricket, Reviews and Adda
   (owner decision, July 2026 — the nav tab already names each page, and on
   Movies/Cricket the active tab + week label carry the context). The `<h1>` stays
   in the DOM as `className="sr-only"` (defined in index.css) so SEO and screen
   readers still get exactly one heading; the visible header is just the small
   gold eyebrow + description. **To bring the visible headings back, remove
   `className="sr-only"` from the `<h1>` in these four files:** `Releases.tsx`
-  (~L184), `Cricket.tsx` (~L167), `Blog.tsx` ("The WeekAdda Blog"), and
-  `Adda.tsx` ("The Adda"). Movies/Cricket use the `.opp-header` hero; Blog/Adda
+  (~L184), `Cricket.tsx` (~L167), `Reviews.tsx` ("Movie & Cricket Reviews by
+  Real Viewers"), and `Adda.tsx` ("The Adda"). Movies/Cricket use the
+  `.opp-header` hero; Reviews/Adda
   use `.community-hero` (a compact hero with the CTA on the right).
 
 ## Gotchas

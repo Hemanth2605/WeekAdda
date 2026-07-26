@@ -97,7 +97,7 @@ export const SKELETON =
   // Runs during parse, so the crawler copy is never painted for a human
   '<script>var e=document.getElementById("wa-prerender");if(e)e.style.display="none"</script>'
 const NAV =
-  '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/blog">Blog</a></p>'
+  '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/reviews">Reviews</a></p>'
 
 function section(title: string, items: string[]): string {
   if (items.length === 0) return ''
@@ -134,10 +134,10 @@ export function routeMeta(pathname: string): { title: string; description: strin
       description:
         'Completed cricket match results week by week — internationals and leagues, with scores, venue and series, India first. Updated every morning.',
     },
-    '/blog': {
-      title: 'WeekAdda Blog — Audience Takes on Movies & Cricket',
+    '/reviews': {
+      title: 'Movie & Cricket Reviews by Real Viewers | WeekAdda',
       description:
-        'Real audience blogs about this week\u2019s movies, OTT releases and cricket matches — written by WeekAdda visitors, tagged to the title or match they talk about.',
+        'Honest reviews of this week\u2019s movies, OTT releases and cricket matches — written and rated out of five by the people who actually watched them.',
     },
     '/about': {
       title: 'About WeekAdda — Built by Hemanth Mareedu',
@@ -332,7 +332,8 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
  */
 export function buildTitlePage(
   data: ReleaseCache,
-  id: string
+  id: string,
+  reviews: BlogPost[] = []
 ): { block: string; title: string; description: string; canonical: string; image?: string } | null {
   const found = findTitle(data, id)
   if (!found) return null
@@ -366,6 +367,17 @@ export function buildTitlePage(
     ...(r.rating > 0 ? [`Rating: ${r.rating.toFixed(1)} / 10 (${r.votes} votes)`] : []),
   ]
 
+  // Reviews of *this* title. "Oh Sukumari review" is a query WeekAdda can
+  // realistically win — the head term belongs to IMDb — and the page that
+  // should answer it is the one already indexed for the film, not the reviews
+  // hub. Body text is trimmed: enough to be a real excerpt, not the whole
+  // review, which still lives on /reviews.
+  const ownReviews = reviews.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === r.id)
+  const excerpt = (body: string) => {
+    const flat = body.replace(/\s+/g, ' ').trim()
+    return flat.length > 240 ? `${flat.slice(0, 237).replace(/\s+\S*$/, '')}…` : flat
+  }
+
   const ld = jsonLd({
     '@context': 'https://schema.org',
     '@type': r.contentType === 'series' ? 'TVSeries' : 'Movie',
@@ -385,6 +397,22 @@ export function buildTitlePage(
           },
         }
       : {}),
+    // Deliberately no reviewRating on these. The five stars on a WeekAdda
+    // review measure how useful readers found the *review*, not what the writer
+    // thought of the film — claiming otherwise would be inaccurate markup, and
+    // Google treats that harshly. Star snippets would need the composer to ask
+    // for a verdict out of five, which it does not.
+    ...(ownReviews.length > 0
+      ? {
+          review: ownReviews.slice(0, 10).map((p) => ({
+            '@type': 'Review',
+            name: p.title,
+            reviewBody: excerpt(p.body),
+            datePublished: p.ts,
+            author: { '@type': 'Person', name: p.author },
+          })),
+        }
+      : {}),
   })
 
   const block =
@@ -393,6 +421,15 @@ export function buildTitlePage(
     `<p><strong>${esc(answer)}</strong></p>` +
     (r.overview ? `<p>${esc(r.overview)}</p>` : '') +
     `<ul>${facts.map((f) => `<li>${f}</li>`).join('')}</ul>` +
+    section(
+      `${r.title} review — what viewers said`,
+      ownReviews
+        .slice(0, 10)
+        .map(
+          (p) =>
+            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(p.author)}</em>`
+        )
+    ) +
     section(
       `More ${lang} releases on WeekAdda`,
       related.map((t) => `${titleLink(t)} — ${day(t.releaseDate)}`)
@@ -405,13 +442,19 @@ export function buildTitlePage(
   // stays within engines' display budget; the full name lives in the H1
   const shortName =
     r.title.length > 45 ? `${r.title.slice(0, 42).replace(/\s+\S*$/, '')}…` : r.title
-  const metaTitle = `${shortName} ${lang} ${
-    found.status === 'in-theatres' || found.status === 'upcoming-theatre'
-      ? 'Movie Release Date'
-      : 'OTT Release Date & Platform'
-  } | WeekAdda`
+  // A title someone has reviewed leads with the word they searched for
+  const metaTitle = ownReviews.length
+    ? `${shortName} ${lang} ${kind === 'web series' ? 'Web Series' : 'Movie'} Review & Release Date | WeekAdda`
+    : `${shortName} ${lang} ${
+        found.status === 'in-theatres' || found.status === 'upcoming-theatre'
+          ? 'Movie Release Date'
+          : 'OTT Release Date & Platform'
+      } | WeekAdda`
   // ≤160 chars, cut at a word boundary, so engines show this text verbatim
-  const full = `${answer}${r.overview ? ` ${r.overview}` : ''}`
+  const reviewNote = ownReviews.length
+    ? ` ${ownReviews.length} review${ownReviews.length === 1 ? '' : 's'} from viewers who watched it.`
+    : ''
+  const full = `${answer}${reviewNote}${r.overview ? ` ${r.overview}` : ''}`
   const description =
     full.length <= 160 ? full : `${full.slice(0, 157).replace(/\s+\S*$/, '')}…`
 
@@ -438,7 +481,7 @@ export function buildSitemap(data: ReleaseCache): string {
     '/movies/upcoming',
     '/cricket',
     '/cricket/results',
-    '/blog',
+    '/reviews',
     '/adda',
     '/about',
     '/privacy',
@@ -637,7 +680,7 @@ export function buildAboutSeo(): string {
     '<li>New movie releases in Telugu, Hindi, Tamil, Malayalam, Kannada, English and 12+ languages, browsable week by week</li>' +
     '<li>Daily OTT arrivals on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5, Sun NXT, Apple TV and Aha, plus upcoming theatre and OTT release dates</li>' +
     '<li>Cricket fixtures with date, time and venue for every international series, and results week by week</li>' +
-    '<li>A visitor blog with real takes and star ratings, each post tagged to the movie or match it talks about</li>' +
+    '<li>Reviews from people who actually watched, rated out of five and tagged to the film or match they are about</li>' +
     '<li>The Adda — a community board to ask, offer and find company: spare tickets at face value, someone to watch a movie or match with, honest asks between fellow fans</li>' +
     '</ul>' +
     '<h2>Founder</h2>' +
@@ -680,23 +723,24 @@ export function buildPrivacySeo(): string {
   return (
     WRAP_OPEN +
     '<h1>WeekAdda Privacy Policy</h1>' +
-    '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish blog posts, rate posts, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
+    '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish a review, rate one, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
     NAV +
     '</div>'
   )
 }
 
-// ---------------- /blog ----------------
+// ---------------- /reviews ----------------
 
 export function buildBlogSeo(posts: BlogPost[]): string {
   return (
     WRAP_OPEN +
-    '<h1>The WeekAdda Blog — Audience Takes on Movies &amp; Cricket</h1>' +
+    '<h1>Movie &amp; Cricket Reviews by Real Viewers</h1>' +
+    '<p>What people who actually watched thought of this week&#39;s films, OTT releases and cricket matches — each review tagged to the title or match it is about, and rated out of five.</p>' +
     section(
-      'Latest posts',
+      'Latest reviews',
       posts
         .slice(0, 20)
-        .map((p) => `${esc(p.title)} — about ${esc(p.tag.label)}, by ${esc(p.author)}`)
+        .map((p) => `${esc(p.title)} — a review of ${esc(p.tag.label)}, by ${esc(p.author)}`)
     ) +
     NAV +
     '</div>'

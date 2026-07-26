@@ -657,9 +657,12 @@ export default function Blog() {
 
   const mineIds = useMemo(() => new Set((myPosts ?? []).map((p) => p.id)), [myPosts])
 
+  // Must stay identical to routeMeta['/reviews'] in backend/src/seo.ts — the
+  // Worker writes those tags into the HTML and this overwrites them on mount,
+  // so the two disagreeing means one URL advertising two titles
   usePageMeta(
-    'WeekAdda Blog — Audience Takes on Movies & Cricket',
-    'Real audience blogs about this week’s movies, OTT releases and cricket matches — written by WeekAdda visitors, tagged to the title or match they talk about.'
+    'Movie & Cricket Reviews by Real Viewers | WeekAdda',
+    'Honest reviews of this week’s movies, OTT releases and cricket matches — written and rated out of five by the people who actually watched them.'
   )
 
   useEffect(() => {
@@ -681,18 +684,19 @@ export default function Blog() {
       <LetterRain />
       <section className="community-hero">
         <div className="community-hero-text">
-          <h1 className="sr-only">The WeekAdda Blog</h1>
+          <h1 className="sr-only">Movie &amp; Cricket Reviews by Real Viewers</h1>
           <span className="hero-eyebrow">
             <Feather size={13} /> From the audience
           </span>
           <p>
-            Real takes from real viewers — what the week's movies and matches actually felt
-            like. Every post is tagged to the title or match it talks about.
+            Honest reviews from people who actually watched — was it worth the ticket, worth the
+            data, worth staying up for? Every review is tagged to the film or match it is about,
+            and rated out of five.
           </p>
         </div>
         {!composerOpen && (
           <button className="community-cta" onClick={() => setComposerOpen(true)}>
-            <PenLine size={18} /> Write your take
+            <PenLine size={18} /> Write a review
           </button>
         )}
       </section>
@@ -710,7 +714,7 @@ export default function Blog() {
         <div className="genre-row blog-filter">
           {(
             [
-              ['all', 'All posts'],
+              ['all', 'All reviews'],
               ['movie', 'Movies'],
               ['match', 'Cricket'],
             ] as const
@@ -728,7 +732,7 @@ export default function Blog() {
               className={`genre-chip mine${filter === 'mine' ? ' active' : ''}`}
               onClick={() => setFilter('mine')}
             >
-              My takes{myPosts.length > 0 && <span className="mine-count">{myPosts.length}</span>}
+              My reviews{myPosts.length > 0 && <span className="mine-count">{myPosts.length}</span>}
             </button>
           )}
         </div>
@@ -749,18 +753,39 @@ export default function Blog() {
         ) : visible.length === 0 ? (
           <div className="empty-state">
             <Feather size={54} />
+            {/* An empty page should say what belongs here and why it is worth
+                adding, rather than only reporting that nothing is here */}
             {filter === 'mine' ? (
               <>
-                <h3>No takes from you yet</h3>
+                <h3>You haven’t reviewed anything yet</h3>
                 <p>
-                  Write your first — hit “Write your take” above and it will show up here under
-                  your name.
+                  Pick something you’ve watched this week, rate it out of five and say what you
+                  actually thought. Everything you write shows up here under your name.
+                </p>
+              </>
+            ) : filter === 'movie' ? (
+              <>
+                <h3>No film reviews yet</h3>
+                <p>
+                  Seen something on OTT or in a theatre this week? Tell everyone whether it was
+                  worth it — a couple of lines and a rating is plenty.
+                </p>
+              </>
+            ) : filter === 'match' ? (
+              <>
+                <h3>No match reviews yet</h3>
+                <p>
+                  Watched a game worth talking about? Say what turned it — a couple of lines and a
+                  rating is plenty.
                 </p>
               </>
             ) : (
               <>
-                <h3>No posts yet</h3>
-                <p>Be the first — hit “Write your take” and tell everyone about something you watched.</p>
+                <h3>Nobody has reviewed anything yet</h3>
+                <p>
+                  Yours would be the first. Someone deciding what to watch tonight will read it —
+                  that is the whole point of this page.
+                </p>
               </>
             )}
           </div>

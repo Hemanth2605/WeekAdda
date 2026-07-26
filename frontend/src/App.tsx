@@ -6,7 +6,7 @@ import About from './pages/About'
 import Adda from './pages/Adda'
 import Privacy from './pages/Privacy'
 import Cricket from './pages/Cricket'
-import Blog from './pages/Blog'
+import Reviews from './pages/Reviews'
 import Stats from './pages/Stats'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -41,7 +41,11 @@ export default function App() {
         <Route path="/movie/:id/:slug" element={<MovieDetail />} />
         <Route path="/cricket" element={<Cricket />} />
         <Route path="/cricket/:tab" element={<Cricket />} />
-        <Route path="/blog" element={<Blog />} />
+        <Route path="/reviews" element={<Reviews />} />
+        {/* Renamed from /blog in July 2026 — the content was always reviews,
+            and "review" is what people search. The Worker 301s the old path;
+            this covers any in-app link still pointing at it. */}
+        <Route path="/blog" element={<Navigate to="/reviews" replace />} />
         <Route path="/about" element={<About />} />
         <Route path="/adda" element={<Adda />} />
         <Route path="/privacy" element={<Privacy />} />

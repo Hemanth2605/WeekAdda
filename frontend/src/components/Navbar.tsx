@@ -48,11 +48,11 @@ export default function Navbar() {
           <Trophy size={16} /> <span className="nav-link-label">Cricket</span>
         </NavLink>
         <NavLink
-          to="/blog"
-          aria-label="Blog"
+          to="/reviews"
+          aria-label="Reviews"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Feather size={16} /> <span className="nav-link-label">Blog</span>
+          <Feather size={16} /> <span className="nav-link-label">Reviews</span>
         </NavLink>
         <NavLink
           to="/adda"

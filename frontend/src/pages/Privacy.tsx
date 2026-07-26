@@ -41,7 +41,7 @@ export default function Privacy() {
         <h2>What we store, and why</h2>
         <ul>
           <li>
-            <b>Blog posts &amp; ratings</b> — stored with your email so posts are accountable and
+            <b>Reviews &amp; ratings</b> — stored with your email so reviews are accountable and
             each account rates once. Readers see only your chosen display name, never your email.
           </li>
           <li>

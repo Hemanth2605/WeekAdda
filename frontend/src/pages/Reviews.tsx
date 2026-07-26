@@ -29,7 +29,7 @@ function timeAgo(iso: string) {
 }
 
 // Tiny letter tiles drifting down behind the page — pure decoration
-const RAIN_GLYPHS = 'సినిమాక్రికెట్వారంఅడ్డాCINEMAOTTCRICKETBLOG★🎬🏏'
+const RAIN_GLYPHS = 'సినిమాక్రికెట్వారంఅడ్డాCINEMAOTTCRICKETREVIEW★🎬🏏'
 
 function LetterRain() {
   // Greet, then get out of the way: fully visible at the top of the page,
@@ -226,7 +226,7 @@ function Composer({
   const publish = () => {
     if (sending) return
     if (!tag) return setError(`Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`)
-    if (!title.trim()) return setError('Give your blog a title')
+    if (!title.trim()) return setError('Give your review a title')
     if (body.trim().length < 20) return setError('Write a little more — at least a few sentences')
     let token: string | undefined
     if (authEnabled) {
@@ -352,7 +352,7 @@ function Composer({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={120}
-        placeholder="Blog title — e.g. “This one deserves a second week in theatres”"
+        placeholder="Review title — e.g. “This one deserves a second week in theatres”"
       />
       <textarea
         className="blog-textarea"
@@ -383,7 +383,7 @@ function Composer({
       </div>
       {needsSignIn && (
         <p className="blog-signin-hint">
-          Sign in with Google to publish — only used to keep the blog spam-free; your post shows
+          Sign in with Google to publish — only used to keep reviews spam-free; your review shows
           the display name you choose.
         </p>
       )}
@@ -625,7 +625,7 @@ function PostCard({
   )
 }
 
-export default function Blog() {
+export default function Reviews() {
   const [posts, setPosts] = useState<BlogPost[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'movie' | 'match' | 'mine'>('all')
@@ -739,8 +739,8 @@ export default function Blog() {
 
         {filter === 'mine' && myPosts !== null && myPosts.length > 0 && (
           <p className="mine-summary">
-            You&apos;ve contributed {myPosts.length} take{myPosts.length === 1 ? '' : 's'} to the
-            WeekAdda blog — thanks for writing!
+            You&apos;ve written {myPosts.length} review{myPosts.length === 1 ? '' : 's'} on
+            WeekAdda — thanks for helping people decide.
           </p>
         )}
 

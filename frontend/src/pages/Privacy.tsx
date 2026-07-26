@@ -23,7 +23,7 @@ export default function Privacy() {
 
         <h2>Browsing needs nothing</h2>
         <p>
-          You can read everything on WeekAdda — movies, OTT arrivals, cricket, the blog, the Adda
+          You can read everything on WeekAdda — movies, OTT arrivals, cricket, reviews, the Adda
           — without an account. We don&apos;t use tracking cookies or ad trackers. To count
           visitors, your browser stores one random id (a meaningless string) in its own local
           storage; it contains nothing about you and you can clear it anytime from your browser
@@ -32,7 +32,7 @@ export default function Privacy() {
 
         <h2>What Google sign-in shares with us</h2>
         <p>
-          Signing in with Google is needed only to publish a blog post, rate a post, or post /
+          Signing in with Google is needed only to publish a review, rate one, or post /
           respond on the Adda. Google shares your <b>name, email address and profile photo</b> —
           nothing else. We verify every action with Google directly, and we never see your
           password.

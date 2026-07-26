@@ -260,7 +260,7 @@ export default function Stats() {
             <p className="stat-note">
               WeekAdda has no sign-up — an account exists once it does something that needs
               sign-in. Counted across all of them: {stats.membersBySource.click} clicked while
-              signed in, {stats.membersBySource.blog} wrote a blog post,{' '}
+              signed in, {stats.membersBySource.blog} wrote a review,{' '}
               {stats.membersBySource.rating} rated one, {stats.membersBySource.adda} used the
               Adda. One person can appear in more than one.
             </p>

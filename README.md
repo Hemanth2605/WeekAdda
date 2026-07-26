@@ -49,6 +49,16 @@ link opens where the sender was.
   anonymous per-browser visitor id (and the signed-in account when present); the
   aggregated stats endpoint reports unique visitors and popular titles. Emails never
   leave the server.
+- 🔔 **Release notifications** — tap **Keep me posted**, pick your languages, and get a
+  browser notification **at 9 AM your own time, only on days something actually arrives
+  in one of them**. Silence on quiet days is the feature, not a fault — arrivals cluster,
+  and a daily digest regardless of content is the fastest way to be switched off.
+  **Anonymous**: a push endpoint is issued by the browser vendor, so there is no account,
+  no email and no visitor id — browsing stays as account-free as everything else. The
+  browser reports its timezone at subscribe time, so Hyderabad and New Jersey each hear at
+  their own breakfast. iPhones only receive Web Push once the site is added to the Home
+  Screen, so the button feature-detects itself away there rather than promising something
+  that cannot work. Design and rules in `PUSH-PLAN.md`.
 - 🔒 **Owner dashboard** (`/stats`) — a private view of those clicks: totals and today
   (clicks, unique visitors, signed-in accounts), member counts, a 14-day chart and
   breakdowns by action, platform, language and title. Days bucket in **IST**, since
@@ -130,6 +140,9 @@ Then open **http://localhost:5173** — no sign-up, it lands straight on this we
 | `WATCHMODE_API_KEY` | No       | OTT catalog additions (source skipped without it)  |
 | `GOOGLE_CLIENT_ID`  | No       | Google sign-in for blog/Adda writes (anonymous without it); frontend needs the same value as `VITE_GOOGLE_CLIENT_ID` in `frontend/.env` |
 | `OWNER_EMAIL`       | No       | Who may open `/stats` (comma-separated list allowed). Unset = closed to everyone |
+| `VAPID_PUBLIC_KEY`  | No       | Web Push. Also needed by the frontend as `VITE_VAPID_PUBLIC_KEY` — public by design |
+| `VAPID_PRIVATE_KEY` | No       | Signs push messages. **Secret** — a GitHub Actions secret in production, never in the frontend |
+| `VAPID_SUBJECT`     | No       | `mailto:` contact the push services use to reach you. Unset keys = no button, no sending |
 | `PORT`              | No       | API port, defaults to `4000`                       |
 
 `tsx watch` restarts on source edits, **not** on `.env` edits — after adding a variable,
@@ -158,6 +171,8 @@ Cricket needs no key.
 | POST   | `/api/adda`             | Post a listing (Bearer required): `{ title, details, author?, whatsapp? }` |
 | POST   | `/api/adda/:id/interest`| Express interest (Bearer required) — returns the poster's contact |
 | POST   | `/api/adda/:id/close`   | Close your own listing (Bearer required) |
+| POST   | `/api/push/subscribe`   | Store a browser's release-notification registration: `{ subscription, languages[], timezone? }`. No account, no email |
+| POST   | `/api/push/unsubscribe` | Forget it: `{ endpoint }` |
 | GET    | `/api/health`           | Liveness check |
 
 ## Project structure
@@ -166,24 +181,33 @@ Cricket needs no key.
 backend/
   src/
     index.ts               # Express app, cron schedule, boot syncs
-    routes/                # releases, cricket, track, blog, adda
+    routes/                # releases, cricket, track, blog, adda, push
     agent/                 # releaseAgent, cricketAgent + data sources
     data/                  # built-in sample data (no-key fallback)
     worker.ts              # Cloudflare Worker: API + static assets + pre-render
     seo.ts                 # edge pre-render + per-route meta/OG (crawler-facing)
     queries.ts             # shared filter/sort/sanitize/auth logic (Express + Worker)
+    sweep.ts               # the daily gather (GitHub Actions)
+    notify.ts              # the hourly send, separate from the sweep
+    pushSender.ts          # Web Push via VAPID; 9 AM in each subscriber's zone
   cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json
 frontend/
   src/
     pages/                 # Releases, Cricket, Reviews, MovieDetail, Adda, About, Privacy, Stats
-    components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton
+    components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
+                           #   NotifyBell / NotifyCard / NotifySheet
     auth.ts                # Google sign-in (token flow) + app-wide user state
+    push.ts                # subscribe/unsubscribe + browser support detection
     seo.ts                 # usePageMeta — must mirror the Worker's routeMeta strings
     flags.ts               # team name → self-hosted country flag (ESPN fallback)
     watchLinks.ts          # outbound platform deep-links
+  public/sw.js             # service worker: notifications only, deliberately no caching
   public/flags/            # 69 bundled country flags served from our own domain
-supabase/schema.sql        # caches, clicks, posts, post_ratings, listings, listing_interests
+.github/workflows/         # sweep.yml (daily) + notify.yml (9 AM per timezone)
+supabase/schema.sql        # caches, clicks, posts, post_ratings, listings, listing_interests,
+                           #   push_subscriptions
 SEO-PLAN.md                # URL taxonomy roadmap + the four-place route coupling
+PUSH-PLAN.md               # notification design, send rules and deploy order
 ```
 
 ## SEO
@@ -226,6 +250,13 @@ SEO-PLAN.md                # URL taxonomy roadmap + the four-place route couplin
   being what social scrapers read and React's what Google's rendering pass reads, so
   they must match exactly or one URL advertises two titles. Nothing is keyed on state
   that isn't in the URL. Titles stay within ~65 chars, descriptions within 160.
+- **Structured data lives in `<head>`, never inside `<div id="root">`** — React empties
+  the root on mount, so schema injected there exists in the raw HTML and is gone the
+  moment the bundle boots, while Google's *rendering* pass is what decides rich results.
+  The Worker lifts every `ld+json` tag out of the injected block. Related rule: never add
+  a schema field just to answer a Search Console warning — `performer` and `superEvent`
+  each turned a harmless suggestion into a validation error, and `organizer`/`offers`
+  stay unanswered because we don't know the board and don't sell tickets.
 - Full meta set in `frontend/index.html` (OTT-first): description, keywords, Open
   Graph, Twitter cards, robots directives, JSON-LD `WebSite` + `SearchAction`
 - `public/robots.txt`; real favicons in `public/` for search results and home-screen icons
@@ -240,6 +271,13 @@ free tiers plus the domain:
 - **Daily sweep**: GitHub Actions (`.github/workflows/sweep.yml`) at 6 AM IST runs the
   agents and pushes both caches to Supabase (manual run: Actions → Daily sweep →
   Run workflow)
+- **Release notifications**: a separate workflow (`notify.yml`) because 6 AM is when the
+  sources settle, not when anyone wants waking. It runs the hours India and the US need —
+  03:30 UTC, then 13:00–19:00, a union that covers both daylight and standard time so
+  nothing changes twice a year — and sends only to subscribers whose own clock reads 9.
+  Anyone elsewhere takes the first of those runs landing in their daytime. A guard checks
+  Supabase before installing anything, so runs with nobody to serve exit in seconds.
+  GitHub's scheduler is not punctual, so the sender accepts a two-hour window
 - **Serving**: a Cloudflare Worker (`backend/src/worker.ts`) reads the Supabase caches,
   serves the built frontend as static assets, pre-renders crawler content into the HTML,
   redirects the `www` and legacy workers.dev hosts to weekadda.com, and sets security

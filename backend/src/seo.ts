@@ -601,19 +601,53 @@ export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtu
   const indiaTomorrow = indiaUpcoming.filter((m) => m.date.slice(0, 10) === tomorrow)
   const others = upcoming.filter((m) => !india(m)).slice(0, 15)
 
+  /**
+   * Fills in the Event fields Search Console asks for — but only the ones we
+   * genuinely know.
+   *
+   * `organizer` and `offers` stay absent on purpose. We do not know which board
+   * runs a fixture, and we neither sell tickets nor hold a ticket URL; inventing
+   * either would be a lie told in machine-readable form, and `offers` in
+   * particular asserts that something is purchasable here. Two non-critical
+   * warnings are a far better outcome than markup that misleads.
+   *
+   * ESPN venues arrive as "Ground Name" or "Ground Name, City", so a city is
+   * only claimed when the string actually carries one.
+   */
+  const eventLd = (m: CricketMatch) => {
+    const [ground, city] = m.venue.split(',').map((s) => s.trim())
+    const logos = m.teams.map((t) => t.logo).filter((l): l is string => Boolean(l))
+    return {
+      '@type': 'SportsEvent',
+      name: m.name,
+      sport: 'Cricket',
+      startDate: m.date,
+      eventStatus: 'https://schema.org/EventScheduled',
+      eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+      ...(m.series ? { superEvent: { '@type': 'SportsEvent', name: m.series } } : {}),
+      ...(logos.length ? { image: logos } : {}),
+      ...(m.venue
+        ? {
+            location: {
+              '@type': 'Place',
+              name: ground,
+              ...(city ? { address: { '@type': 'PostalAddress', addressLocality: city } } : {}),
+            },
+          }
+        : {}),
+      // Both, deliberately: competitor is the accurate term for a fixture,
+      // performer is the one Google's Event validator looks for
+      competitor: m.teams.map((t) => ({ '@type': 'SportsTeam', name: t.name })),
+      performer: m.teams.map((t) => ({ '@type': 'SportsTeam', name: t.name })),
+    }
+  }
+
   const ld =
     indiaUpcoming.length === 0
       ? ''
       : jsonLd({
           '@context': 'https://schema.org',
-          '@graph': indiaUpcoming.slice(0, 10).map((m) => ({
-            '@type': 'SportsEvent',
-            name: m.name,
-            sport: 'Cricket',
-            startDate: m.date,
-            ...(m.venue ? { location: { '@type': 'Place', name: m.venue } } : {}),
-            competitor: m.teams.map((t) => ({ '@type': 'SportsTeam', name: t.name })),
-          })),
+          '@graph': indiaUpcoming.slice(0, 10).map(eventLd),
         })
 
   const resultsSection = section(

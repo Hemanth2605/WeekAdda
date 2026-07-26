@@ -624,7 +624,11 @@ export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtu
       startDate: m.date,
       eventStatus: 'https://schema.org/EventScheduled',
       eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-      ...(m.series ? { superEvent: { '@type': 'SportsEvent', name: m.series } } : {}),
+      // No superEvent. Naming the series as a nested SportsEvent looked like
+      // better data, but Google parses nested events as items in their own
+      // right — and a series has no single start time or venue to give one, so
+      // each fixture silently shipped a second, invalid Event alongside it.
+      // Ten valid fixtures were reported as "20 items, some invalid".
       ...(logos.length ? { image: logos } : {}),
       ...(m.venue
         ? {

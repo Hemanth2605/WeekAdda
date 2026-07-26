@@ -402,11 +402,29 @@ const routes = {
           headers.delete('Content-Length')
           headers.delete('ETag')
           headers.set('Cache-Control', 'no-cache')
+          // Structured data has to leave the block before it is injected.
+          // React clears #root on mount, so JSON-LD left inside it exists only
+          // until the bundle boots — the raw HTML has it, the rendered page
+          // does not, and Google's renderer is what decides rich results. Lift
+          // it into <head>, where nothing can remove it.
+          const jsonLd: string[] = []
+          const visible = block.replace(
+            /<script type="application\/ld\+json">[\s\S]*?<\/script>/g,
+            (tag) => {
+              jsonLd.push(tag)
+              return ''
+            }
+          )
+
           // Skeleton first so a phone paints shimmer, not the crawler copy,
           // during the few hundred ms before the bundle mounts
           let out = html.includes(ROOT_SHELL)
-            ? html.replace(ROOT_SHELL, `<div id="root">${SKELETON}${block}</div>`)
+            ? html.replace(ROOT_SHELL, `<div id="root">${SKELETON}${visible}</div>`)
             : html
+          if (jsonLd.length) {
+            // Function replacement: a $ inside a title must not be read as $1
+            out = out.replace('</head>', () => `${jsonLd.join('')}</head>`)
+          }
           if (meta) {
             const m = meta
             // Function replacements so a literal $ in any title/overview can't

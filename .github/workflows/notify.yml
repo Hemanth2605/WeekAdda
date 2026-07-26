@@ -1,0 +1,141 @@
+# Release notifications, sent at 9 AM in each subscriber's own timezone.
+#
+# Separate from the sweep on purpose: the sweep runs at 6 AM IST because that is
+# when the sources have settled, which is not when anyone wants waking.
+#
+# Only the hours India and the USA need, rather than all 24 — those are the two
+# audiences whose timing has to be right. The union below covers both daylight
+# and standard time, so nothing needs changing twice a year:
+#
+#   03:30  09:00 IST                    (India never shifts)
+#   13:00  09:00 EDT
+#   14:00  09:00 EST / CDT
+#   15:00  09:00 CST / MDT
+#   16:00  09:00 MST / PDT / Arizona
+#   17:00  09:00 PST / AKDT
+#   18:00  09:00 AKST
+#   19:00  09:00 HST                    (Hawaii never shifts)
+#
+# Anyone outside those zones takes the first of these runs that lands in their
+# own daytime — see isNotifyTime in queries.ts. An afternoon notification beats
+# being woken at 3 AM, which is what "just use the India run" would have meant
+# for London.
+#
+# GitHub's scheduler is not punctual — runs are queued and often start 5–20
+# minutes late — so the sender accepts a two-hour window, not 9:00 exactly.
+#
+# Required repo secrets: SUPABASE_URL, SUPABASE_SERVICE_KEY,
+#   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (optional).
+# Without the VAPID keys this does nothing at all.
+name: Release notifications
+
+on:
+  schedule:
+    - cron: '30 3 * * *' # 09:00 IST — India, and the fallback for everyone else
+    - cron: '0 13-19 * * *' # 09:00 across every US timezone, both DST states
+  workflow_dispatch: # manual run, for testing
+
+# A slow run must never overlap the next one's
+concurrency:
+  group: notify
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Don't check out a repo and install packages to discover there is nobody
+      # to notify. Plain HTTP, no dependencies, before anything else runs.
+      #
+      # Two questions. Is anyone subscribed at all — if not, every run stops
+      # here. And on the US-hour runs, is anyone actually in the Americas — if
+      # not, those stop too, because they exist only to serve that audience.
+      #
+      # The danger in the second question is that it re-states a rule which
+      # really lives in isNotifyTime, in YAML where nothing typechecks it. A
+      # filter that is subtly wrong would return no rows, and every US run would
+      # skip silently, forever, with nothing to notice. So the filter is checked
+      # against a canary first: a `like` that must match whenever the table has
+      # rows. If the canary comes back empty, the syntax is broken rather than
+      # the audience being absent, and the run proceeds.
+      #
+      # Fails open throughout: manual runs, unreachable Supabase, and anything
+      # that is not a JSON array all proceed. Sending nothing is a silent
+      # failure, and silent failure is worse than wasted CI.
+      - name: Is there anyone this run can serve?
+        id: check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          proceed() { echo "$1"; echo "any=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          stop()    { echo "$1"; echo "any=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          if [ "${{ github.event_name }}" != "schedule" ] || [ -z "$SUPABASE_URL" ]; then
+            proceed "Manual run or Supabase not configured — proceeding."
+          fi
+
+          ask() {
+            curl -s --max-time 20 \
+              -H "apikey: $SUPABASE_SERVICE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+              "$SUPABASE_URL/rest/v1/push_subscriptions?select=endpoint&limit=1$1"
+          }
+
+          ANY=$(ask "") || proceed "Supabase unreachable — proceeding."
+          case "$ANY" in
+            '[]') stop "Nobody is subscribed." ;;
+            '['*) : ;;
+            *)    proceed "Unexpected reply from Supabase — proceeding." ;;
+          esac
+
+          # The 03:30 run serves India and every zone outside the US schedule,
+          # so any subscriber at all justifies it
+          if [ "$(date -u +%H)" = "03" ]; then
+            proceed "India run, and subscribers exist."
+          fi
+
+          # Canary: every endpoint starts with https://, so this must match when
+          # the table has rows. Empty means the syntax is broken rather than the
+          # audience being absent. It carries a slash on purpose — the real
+          # filter matches "America/..." and a slash is exactly the character an
+          # encoding mistake would break.
+          CANARY=$(ask "&endpoint=like.https://*")
+          case "$CANARY" in
+            '[{'*) : ;;
+            *)     proceed "Filter canary returned nothing — syntax suspect, proceeding." ;;
+          esac
+
+          US=$(ask "&or=(timezone.like.America/*,timezone.eq.Pacific/Honolulu)")
+          case "$US" in
+            '[]') stop "No subscriber in the Americas — this hour is theirs alone." ;;
+            '['*) proceed "American subscribers exist." ;;
+            *)    proceed "Region filter errored — proceeding." ;;
+          esac
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.any == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.any == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        if: steps.check.outputs.any == 'true'
+        working-directory: backend
+        run: npm ci
+
+      - name: Send due notifications
+        if: steps.check.outputs.any == 'true'
+        working-directory: backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: npm run notify

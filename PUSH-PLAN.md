@@ -8,15 +8,19 @@ silent** when its key is missing.
 
 ## What it does
 
-A visitor taps **Notify me about new releases**, picks the languages they care
-about, and gets a browser notification **only on days when something actually
-arrives in one of those languages**. No account, no email, no app.
+A visitor taps **Keep me posted**, picks the languages they care about, and gets
+a browser notification **at 9 AM their own time, only on days when something
+actually arrives in one of those languages**. No account, no email, no app.
 
 - **Anonymous.** A push subscription is a browser endpoint, not a person. We
   never learn who they are, and sign-in is never required.
 - **Not a daily digest.** Silence on a day with nothing in their languages is
   the point — it is what stops the notification being revoked.
 - **At most one per day** per subscription, however many titles land.
+- **9 AM where they are.** The browser reports its IANA timezone at subscribe
+  time, so Hyderabad hears at breakfast and New Jersey hears at breakfast, both
+  about the same day's Indian releases. India is ahead of both, so the data is
+  always ready.
 
 ## Why Web Push rather than email or Telegram
 
@@ -39,25 +43,39 @@ covered, but it is not everyone.
 ## Shape
 
 ```
-Browser                     Worker                    Supabase           Sweep (Actions)
-────────                    ──────                    ────────           ───────────────
-tap Subscribe
+Browser                  Worker              Supabase          Actions
+────────                 ──────              ────────          ───────
+tap Keep me posted
 pick languages
 permission prompt
 PushManager.subscribe()
-   └─ POST /api/push/subscribe ──> push_subscriptions
-                                                          ▲
-                                   today's releases ───────┘
-                                   per language, once a day
-   <────────────── encrypted push ──────────────────────── web-push (VAPID)
+  └ POST /api/push/subscribe ─> push_subscriptions
+    (+ Intl timezone)                  ▲   ▲
+                                       │   │  sweep.yml   06:00 IST — gathers only
+                                       │   └─ notify.yml  hourly — sends to whoever
+                                       │                  is at 9 AM right now
+  <──────── encrypted push ────────────┘   web-push (VAPID)
 service worker shows it
 tap → /movies?language=te
 ```
 
-**The sender runs in the sweep, not the Worker.** `worker.ts` must stay free of
+**Sending runs in Node, not the Worker.** `worker.ts` must stay free of
 Node-only imports, and Web Push needs VAPID signing and payload encryption that
-the `web-push` package does in Node. The sweep already holds the fresh data the
-moment it is written, which is exactly when a notification is due.
+the `web-push` package handles.
+
+**And in its own workflow, not the sweep.** The sweep runs at 6 AM IST because
+that is when the sources have settled — not a time to wake anyone. `notify.yml`
+runs hourly and sends only to subscribers whose own clock currently reads 9. It
+reads the cache Supabase already holds rather than sweeping again, so no source
+is troubled 24 times a day.
+
+Hourly rather than a few fixed UTC times because the US alone spans four zones
+plus daylight saving, and hardcoded offsets break twice a year. `localClock`
+asks `Intl` instead, which gets offsets, DST and 45-minute zones right for free.
+
+**GitHub's scheduler is not punctual** — runs are queued and often start 5–20
+minutes late. So this targets the 9 o'clock *hour*, never 9:00 exactly. Anyone
+needing precision would have to leave free infrastructure behind.
 
 ## Pieces
 
@@ -68,7 +86,9 @@ moment it is written, which is exactly when a notification is due.
 | Register / permission / subscribe | `frontend/src/push.ts` |
 | `POST /api/push/subscribe` + `/unsubscribe` | `worker.ts` and `routes/push.ts` |
 | Table | `supabase/schema.sql` → `push_subscriptions` |
-| Sender | `backend/src/pushSender.ts`, called from `sweep.ts` |
+| Sender | `backend/src/pushSender.ts` |
+| Hourly entry point | `backend/src/notify.ts` (`npm run notify`) |
+| Schedule | `.github/workflows/notify.yml` |
 
 ### Table
 
@@ -78,13 +98,18 @@ create table if not exists push_subscriptions (
   p256dh text not null,             -- client public key, for payload encryption
   auth text not null,               -- client auth secret
   languages text[] not null,        -- ['te','ml'] — what they asked for
+  timezone text,                    -- IANA zone; null means Asia/Kolkata
   created_at timestamptz not null default now(),
-  last_sent_on date                 -- IST day, so at most one notification a day
+  last_sent_on date                 -- their OWN local day, not ours
 );
 ```
 
 No user id, no email, no visitor id. The endpoint is the only identifier and it
-is issued by the browser vendor, not by us.
+is issued by the browser vendor, not by us. A timezone is not an identity — it
+is roughly the granularity of a continent.
+
+`last_sent_on` is stored in the subscriber's local day on purpose. Counting in
+ours would let someone hear twice as the date rolled over somewhere else.
 
 ### Keys
 
@@ -102,14 +127,18 @@ no send step, everything else works untouched.
 
 ## Rules the send step follows
 
-1. **Only today's arrivals.** A title counts if its release date is today in
-   **IST** — the same `istDay` reasoning as the stats dashboard.
-2. **Only their languages.** No match, no send. This is the whole feature.
-3. **One a day.** `last_sent_on` is checked and set in the same pass.
-4. **410 and 404 mean gone.** A browser returns those for an expired
+1. **Only at 9 in their morning.** `localClock` reads the hour in their zone;
+   anything else is skipped until the next hourly run.
+2. **Only today's arrivals.** A title counts if its release date is today in
+   **IST** — these are Indian release dates, and India leads every market we
+   send to, so the day's list is settled before anyone's 9 AM.
+3. **Only their languages.** No match, no send. This is the whole feature.
+4. **One a day**, counted in their day. `last_sent_on` is checked and set in the
+   same pass.
+5. **410 and 404 mean gone.** A browser returns those for an expired
    subscription; delete the row rather than retrying it forever.
-5. **A failed send never fails the sweep.** Notifications are the least
-   important thing the sweep does.
+6. **A failed run never fails red.** `notify.ts` exits 0 on error — a missed
+   notification is not worth a broken build, and the next hour tries again.
 
 Copy: `3 new Telugu releases today` / `Kingdom, Vaari, Anaganaga — on Netflix
 and ZEE5`. Tapping opens `/movies?language=te`.
@@ -125,13 +154,16 @@ language picker, so consent is given twice before the browser ever asks.
 
 Schema first, always — the Worker 500s on a table that does not exist yet.
 
-1. Run the `push_subscriptions` block in the Supabase SQL Editor
+1. Run the `push_subscriptions` block in the Supabase SQL Editor, including the
+   `add column if not exists timezone` migration
 2. `npx wrangler secret put VAPID_PRIVATE_KEY` is **not** needed — the Worker
    only stores subscriptions, it never sends
-3. Add `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` as **GitHub repo secrets** (the
-   sweep sends), and `VITE_VAPID_PUBLIC_KEY` to `frontend/.env` before building
+3. Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` as **GitHub
+   repo secrets** (the notify workflow sends), and `VITE_VAPID_PUBLIC_KEY` to
+   `frontend/.env` before building
 4. Build the frontend, deploy the Worker
-5. Subscribe on a real Android phone and wait for a sweep
+5. Subscribe on a real Android phone, then run **Actions → Release
+   notifications → Run workflow** to test without waiting for 9 AM
 
 ## Status
 

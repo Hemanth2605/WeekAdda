@@ -87,9 +87,13 @@ create table if not exists push_subscriptions (
   p256dh text not null,          -- client public key, for payload encryption
   auth text not null,            -- client auth secret
   languages text[] not null,     -- e.g. {te,ml} — what they asked to hear about
+  timezone text,                 -- IANA zone from the browser; null = Asia/Kolkata
   created_at timestamptz not null default now(),
-  last_sent_on date              -- IST day, so at most one notification daily
+  last_sent_on date              -- the subscriber's OWN local day, not ours
 );
+
+-- Migration for tables created before per-subscriber send times (July 2026):
+alter table push_subscriptions add column if not exists timezone text;
 
 alter table caches enable row level security;
 alter table clicks enable row level security;

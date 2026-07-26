@@ -3,8 +3,6 @@ import fs from 'fs'
 import path from 'path'
 import { syncReleases } from './agent/releaseAgent'
 import { syncCricket } from './agent/cricketAgent'
-import { sendReleaseNotifications } from './pushSender'
-import type { ReleaseCache } from './queries'
 
 /**
  * One full sweep, then push the caches to Supabase. This is what the daily
@@ -53,15 +51,13 @@ async function pushToSupabase(): Promise<void> {
 
 async function main() {
   const failures: string[] = []
-  let releases: ReleaseCache | null = null
 
   for (const [name, sync] of [
     ['releases', syncReleases],
     ['cricket', syncCricket],
   ] as const) {
     try {
-      const result = await sync()
-      if (name === 'releases') releases = result as ReleaseCache
+      await sync()
     } catch (err) {
       failures.push(name)
       console.error(`❌ ${name} sweep failed:`, err instanceof Error ? err.message : err)
@@ -72,15 +68,9 @@ async function main() {
   // run's data for the failed one) still reaches production.
   await pushToSupabase()
 
-  // Notify last, and never let it matter: subscribers hearing nothing is a far
-  // smaller problem than a sweep that reports failure over it
-  if (releases) {
-    try {
-      await sendReleaseNotifications(releases)
-    } catch (err) {
-      console.warn('⚠️  Release notifications failed:', err instanceof Error ? err.message : err)
-    }
-  }
+  // Notifications are deliberately not sent here. This runs at 6 AM IST, which
+  // is when the sources have settled, not when anyone wants waking — see
+  // notify.ts and .github/workflows/notify.yml.
 
   if (failures.length > 0) {
     console.error(`Sweep finished with failures: ${failures.join(', ')}`)

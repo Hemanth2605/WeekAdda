@@ -688,6 +688,7 @@ const routes = {
           p256dh: sub.p256dh,
           auth: sub.auth,
           languages: sub.languages,
+          timezone: sub.timezone ?? null,
         }),
       })
       if (!ins.ok) {

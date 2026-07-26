@@ -632,6 +632,84 @@ export interface PushSubscriptionRecord {
   p256dh: string
   auth: string
   languages: string[]
+  /** IANA zone the browser reported, so we notify at breakfast where they are. */
+  timezone?: string
+}
+
+/** When we notify, in the subscriber's own clock. */
+export const NOTIFY_HOUR = 9
+
+/**
+ * How many hours after that still count. Scheduled runs are queued and often
+ * start late, so insisting on exactly 9 would silently skip a whole day for
+ * everyone in that zone. Ten o'clock is a perfectly good time to hear about a
+ * film; a missed day is not.
+ */
+export const NOTIFY_WINDOW = 2
+
+/** Hours we are willing to make somebody's phone buzz, in their own time. */
+const CIVIL_FROM = 8
+const CIVIL_UNTIL = 20
+
+/**
+ * Is it notification time where this subscriber lives?
+ *
+ * India and the USA get 9 AM exactly, because the schedule runs the hours those
+ * two need. Nobody else would ever see their own 9 AM come round, so they take
+ * the first scheduled run that lands in their daytime instead — the caller's
+ * once-a-day guard then keeps it to that one.
+ *
+ * Daytime, not simply "the India run": that run is 3 AM in London. Being woken
+ * at 3 AM is how a person turns notifications off for good, and a notification
+ * that arrives in the afternoon is worth far more than one that arrives at all
+ * costs.
+ */
+export function isNotifyTime(
+  timezone: string | null | undefined,
+  _utcHour: number,
+  now: Date = new Date()
+): boolean {
+  const { hour } = localClock(timezone, now)
+  if (hour >= NOTIFY_HOUR && hour < NOTIFY_HOUR + NOTIFY_WINDOW) return true
+
+  const zone = timezone || 'Asia/Kolkata'
+  const onSchedule =
+    zone.startsWith('America/') ||
+    zone.startsWith('Asia/Kolkata') ||
+    zone.startsWith('Asia/Calcutta') ||
+    zone.startsWith('Pacific/Honolulu')
+  return !onSchedule && hour >= CIVIL_FROM && hour <= CIVIL_UNTIL
+}
+
+/**
+ * The hour and calendar day it currently is somewhere. Intl does the whole job
+ * — offsets, half-hour zones and daylight saving all come for free, which is
+ * the reason not to store a UTC offset and do the arithmetic ourselves.
+ * An unrecognised zone falls back to India, since that is who this is for.
+ */
+export function localClock(
+  timezone: string | null | undefined,
+  now: Date = new Date()
+): { hour: number; day: string } {
+  const zone = timezone || 'Asia/Kolkata'
+  const read = (tz: string) => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+    }).formatToParts(now)
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
+    // en-CA gives ISO-ordered parts, and hour "24" means midnight
+    return { hour: Number(get('hour')) % 24, day: `${get('year')}-${get('month')}-${get('day')}` }
+  }
+  try {
+    return read(zone)
+  } catch {
+    return read('Asia/Kolkata')
+  }
 }
 
 /**
@@ -658,7 +736,19 @@ export function buildPushSubscription(body: unknown): PushSubscriptionRecord | n
     : []
   if (languages.length === 0) return null
 
-  return { endpoint, p256dh, auth, languages: languages.slice(0, 20) }
+  // Validated by asking Intl to use it: a made-up zone throws, and anything
+  // that survives is a zone we can actually schedule against
+  let timezone: string | undefined
+  if (typeof b.timezone === 'string' && b.timezone.length <= 64) {
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone: b.timezone })
+      timezone = b.timezone
+    } catch {
+      timezone = undefined
+    }
+  }
+
+  return { endpoint, p256dh, auth, languages: languages.slice(0, 20), timezone }
 }
 
 /**

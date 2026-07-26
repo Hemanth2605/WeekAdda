@@ -2603,54 +2603,89 @@ input {
   }
 }
 
-/* Very narrow phones: nav links collapse to icons and everything tightens so
-   the whole navbar fits without clipping the sign-in / theme buttons */
+/* Phones: two rows instead of one.
+   Brand left, the controls (sign-in, bell, theme) right, and the four sections
+   on their own full-width row underneath. Everything used to fight for one
+   line, which is why the labels had to be hidden below 430px — with a row of
+   their own they fit, and a tab that reads "Cricket" beats a tab that is a
+   trophy someone has to decode. */
+@media (max-width: 640px) {
+  .navbar {
+    flex-wrap: wrap;
+    padding: 10px 16px 0;
+    gap: 8px;
+  }
+  .nav-brand {
+    flex: 1 1 auto;
+    order: 1;
+  }
+  .nav-user,
+  .navbar .google-btn.sm,
+  .notify-bell,
+  .theme-toggle {
+    order: 2;
+  }
+  .nav-links {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 2px;
+    margin-top: 4px;
+    padding: 2px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .nav-link {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 4px;
+    font-size: 12px;
+    gap: 5px;
+  }
+}
+
+:root[data-theme='light'] .nav-links {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Very narrow phones: tighten spacing, but keep the labels — they have their
+   own row now */
 @media (max-width: 430px) {
   .navbar {
-    padding: 12px 12px;
+    padding: 10px 12px 0;
     gap: 6px;
   }
   .nav-brand span {
     font-size: 17px;
   }
-  /* Inactive tabs are icons; the active tab keeps its label so you always
-     see which section you're in */
-  .nav-link-label {
-    display: none;
-  }
-  .nav-link.active .nav-link-label {
-    display: inline;
-  }
-  .nav-links {
-    gap: 0;
-  }
   .nav-link {
-    padding: 8px 7px;
+    padding: 10px 2px;
+    font-size: 11.5px;
+    gap: 4px;
   }
   .navbar .google-btn.sm {
     width: 36px;
     height: 36px;
+  }
+  .notify-bell {
+    width: 34px;
+    height: 34px;
   }
   .theme-toggle {
     width: 34px;
     height: 34px;
   }
   .nav-brand,
-  .nav-links,
   .navbar .google-btn.sm,
+  .notify-bell,
   .theme-toggle,
   .nav-user {
     flex-shrink: 0;
   }
 }
 
-/* Narrowest phones: even the active label is dropped so the sign-in and theme
-   buttons never get pushed off-screen */
-@media (max-width: 380px) {
-  .nav-link.active .nav-link-label {
-    display: none;
-  }
-}
+/* The narrowest phones used to drop the active tab's label too, back when the
+   sections shared a line with the sign-in and theme buttons. They have their
+   own row now, so four labels fit even at 320px and the rule is gone. */
 
 /* ---------------- per-title page (/movie/:id/:slug) ---------------- */
 .movie-page {

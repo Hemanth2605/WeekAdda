@@ -76,10 +76,19 @@ export async function subscribe(languages: string[]): Promise<void> {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     }))
 
+  // Their timezone decides *when* they hear from us — 9 in the morning where
+  // they are, rather than 9 in the morning where the server is
+  let timezone: string | undefined
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    timezone = undefined // server falls back to India
+  }
+
   const res = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: sub.toJSON(), languages }),
+    body: JSON.stringify({ subscription: sub.toJSON(), languages, timezone }),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }

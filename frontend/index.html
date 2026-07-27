@@ -59,11 +59,46 @@
           "url": "https://weekadda.com/about",
           "sameAs": ["https://www.linkedin.com/in/hemanth-mareedu-a69271116/"]
         },
+        "publisher": { "@id": "https://weekadda.com/#organization" },
         "potentialAction": {
           "@type": "SearchAction",
           "target": "https://weekadda.com/movies?search={search_term_string}",
           "query-input": "required name=search_term_string"
         }
+      }
+    </script>
+
+    <!--
+      The entity behind the site. Indexing is not recognition: Google can serve
+      our pages and still have no idea what "WeekAdda" is, which is why a bare
+      domain search returns nothing about us. This is the machine-readable
+      claim that the brand exists, and sameAs is the part that carries weight —
+      it only does real work once there are official profiles to point at.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://weekadda.com/#organization",
+        "name": "WeekAdda",
+        "alternateName": "WeekAdda Entertainment",
+        "url": "https://weekadda.com/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://weekadda.com/favicon-512.png",
+          "width": 512,
+          "height": 512
+        },
+        "image": "https://weekadda.com/og-cover.png",
+        "description": "Weekly entertainment portal for India: OTT arrivals on Netflix, Prime Video, JioHotstar, ZEE5, Sony LIV and Aha, new movie releases by language, and cricket fixtures and results.",
+        "foundingDate": "2026-07",
+        "founder": {
+          "@type": "Person",
+          "name": "Hemanth Mareedu",
+          "url": "https://weekadda.com/about"
+        },
+        "areaServed": { "@type": "Country", "name": "India" },
+        "sameAs": ["https://www.youtube.com/channel/UCfBLAj6HDdkOKHlOJZ6wUig"]
       }
     </script>
 

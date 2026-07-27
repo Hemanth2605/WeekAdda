@@ -768,7 +768,7 @@ export function buildPrivacySeo(): string {
   return (
     WRAP_OPEN +
     '<h1>WeekAdda Privacy Policy</h1>' +
-    '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish a review, rate one, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
+    '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish a review, rate one, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Release notifications are anonymous: no account and no email are stored, only the browser&rsquo;s own delivery address, your chosen languages and timezone, and they stop the moment you turn the bell off. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
     NAV +
     '</div>'
   )

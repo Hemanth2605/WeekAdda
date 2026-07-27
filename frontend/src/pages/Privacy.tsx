@@ -19,7 +19,7 @@ export default function Privacy() {
           <ShieldCheck size={13} /> Privacy policy
         </span>
         <h1>Your data on WeekAdda, in plain language</h1>
-        <p className="privacy-updated">Effective 25 July 2026</p>
+        <p className="privacy-updated">Effective 27 July 2026</p>
 
         <h2>Browsing needs nothing</h2>
         <p>
@@ -55,6 +55,25 @@ export default function Privacy() {
           </li>
         </ul>
 
+        <h2>Release notifications</h2>
+        <p>
+          If you turn on notifications, we store <b>no account and no email address</b> — not even
+          if you happen to be signed in. What we keep is the delivery address your own browser
+          issues for this one browser (a long random string, and the only thing it can do is show
+          a notification here), the languages you ticked, your timezone, and the date we last sent
+          you something. The timezone is there so &quot;9 in the morning&quot; means 9 in
+          <i>your</i> morning, and the date so you never hear from us twice in a day.
+        </p>
+        <p>
+          None of it is linked to you as a person, so a subscription on your phone and one on your
+          laptop are simply two browsers to us. Delivery goes through your browser maker&apos;s
+          push service — Google, Mozilla or Apple, depending on your browser — which is how web
+          notifications work everywhere; they carry the message, and it is encrypted so only your
+          browser can read it. Turn it off with the bell in the navbar (or in your browser&apos;s
+          site settings) and the record is deleted; we also drop it automatically once your
+          browser reports the address is dead.
+        </p>
+
         <h2>Who can see your details</h2>
         <p>
           Your email is <b>never shown publicly</b> anywhere on the site or its APIs. The single
@@ -74,8 +93,8 @@ export default function Privacy() {
 
         <h2>Your choices</h2>
         <p>
-          Sign out anytime from the navbar. Adda listings leave the board when you close them or
-          after 30 days. To have a post, rating, listing or your account data removed, contact
+          Sign out anytime from the navbar, and turn notifications off with the bell beside it.
+          Adda listings leave the board when you close them or after 30 days. To have a post, rating, listing or your account data removed, contact
           the maintainer via the <Link to="/about">About page</Link> and it will be deleted.
         </p>
 

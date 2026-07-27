@@ -442,10 +442,17 @@ const routes = {
             swap(/(name="twitter:title" content=")[^"]*(")/, m.title)
             swap(/(name="twitter:description"\s+content=")[\s\S]*?("\s*\/?>)/, m.description)
             if (m.image) {
+              // Replace the default card rather than adding a second one: a
+              // crawler takes the first og:image it meets, so an appended
+              // poster would lose to the site-wide default sitting above it.
+              // The dimensions and alt text go too — they describe the 1200x630
+              // default card, and a poster is neither that shape nor that thing.
               const img = m.image.replace(/"/g, '&quot;')
+              swap(/(property="og:image" content=")[^"]*(")/, img)
+              swap(/(name="twitter:image" content=")[^"]*(")/, img)
               out = out.replace(
-                '</head>',
-                `<meta property="og:image" content="${img}" /><meta name="twitter:image" content="${img}" /></head>`
+                /<meta property="og:image:(?:width|height|alt)" content="[^"]*"\s*\/?>\s*/g,
+                ''
               )
             }
           }

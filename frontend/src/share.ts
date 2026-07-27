@@ -1,5 +1,6 @@
 import { Release, CricketMatch } from './types'
 import { trackClick } from './api'
+import { titlePath } from './seo'
 
 /** CSS class carrying a platform's brand colour, e.g. 'pf-netflix'. */
 export function platformClass(platform: string) {
@@ -63,8 +64,8 @@ export function shareRelease(r: Release) {
       ? `in theatres from ${date}`
       : 'in theatres now'
   share({
-    body: `🎬 *${r.title}* (${r.languageLabel}) — ${status}\n\nThis week's movies, OTT & cricket on WeekAdda:`,
-    url: siteUrl('/movies'),
+    body: `🎬 *${r.title}* (${r.languageLabel}) — ${status}\n\nCast, trailer & where to watch on WeekAdda:`,
+    url: siteUrl(titlePath(r)),
     titleId: r.id,
     title: r.title,
     language: r.languageLabel,

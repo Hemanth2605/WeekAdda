@@ -238,6 +238,28 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
     )
     .join('')
 
+  /**
+   * When the page itself was last refreshed.
+   *
+   * Every other date in this markup belongs to a film, and with nothing saying
+   * otherwise Google dated the page from those: a homepage swept this morning
+   * was being shown as "4 days ago", which is the one thing a weekly listings
+   * site cannot afford to look like. A visible <time> plus dateModified is how
+   * you say "the page, not the films".
+   */
+  const updated = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt : ''
+  const updatedLine = updated
+    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 6 AM IST.</p>`
+    : ''
+  const pageLd = updated
+    ? jsonLd({
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: 'WeekAdda — OTT & theatre releases this week in India',
+        dateModified: updated,
+      })
+    : ''
+
   const itemListLd = (name: string, items: Array<Release | OttRelease>) =>
     items.length === 0
       ? ''
@@ -279,9 +301,11 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
       WRAP_OPEN +
       '<h1>Upcoming Movies &amp; OTT Releases in India — Release Dates</h1>' +
       '<p>Announced release dates for upcoming movies in theatres and upcoming OTT releases and web series in India, across Telugu, Hindi, Tamil, Malayalam, Kannada and English — with the streaming platform wherever it has been confirmed. Updated every morning.</p>' +
+      updatedLine +
       upcomingTheatreSection +
       upcomingOttSection +
       NAV +
+      pageLd +
       itemListLd('Upcoming OTT releases in India', upcomingOtt) +
       '</div>'
     )
@@ -293,9 +317,11 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
       WRAP_OPEN +
       '<h1>New Movies in Theatres This Week in India</h1>' +
       `<p>Movies released in cinemas across India for the week of ${esc(weekFrom)} – ${esc(weekTo)}, by language — Telugu, Hindi, Tamil, Malayalam, Kannada and English — plus the theatre release dates coming next.</p>` +
+      updatedLine +
       theatreSections +
       upcomingTheatreSection +
       NAV +
+      pageLd +
       itemListLd('New movies in theatres this week in India', released) +
       '</div>'
     )
@@ -305,6 +331,7 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
     WRAP_OPEN +
     '<h1>OTT Releases This Week in India &amp; New Movies in Theatres</h1>' +
     `<p>Updated for the week of ${esc(weekFrom)} – ${esc(weekTo)}: new OTT releases on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5, Sun NXT, Apple TV and Aha, this week's theatre releases in every language, and upcoming OTT &amp; theatre release dates in India.</p>` +
+    updatedLine +
     ottSections +
     section(
       'New web series on OTT this week',
@@ -319,6 +346,7 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
     upcomingTheatreSection +
     upcomingOttSection +
     NAV +
+    pageLd +
     ld +
     '</div>'
   )

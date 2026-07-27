@@ -211,11 +211,19 @@ export default function Cricket() {
           <div className={`agent-chip${meta?.source === 'sample' ? ' sample' : ''}`}>
             <Bot size={15} />
             <span>
-              {meta
-                ? meta.source === 'espn'
-                  ? `Agent synced ${timeAgo(meta.fetchedAt)} · ${meta.total} matches · daily at 6 AM`
-                  : 'Sample data · agent will sync matches shortly'
-                : 'Agent status…'}
+              {meta ? (
+                meta.source === 'espn' ? (
+                  <>
+                    {/* Machine-readable freshness, same as Releases — see the note there */}
+                    Agent synced <time dateTime={meta.fetchedAt}>{timeAgo(meta.fetchedAt)}</time> ·{' '}
+                    {meta.total} matches · daily at 6 AM
+                  </>
+                ) : (
+                  'Sample data · agent will sync matches shortly'
+                )
+              ) : (
+                'Agent status…'
+              )}
             </span>
           </div>
         </div>

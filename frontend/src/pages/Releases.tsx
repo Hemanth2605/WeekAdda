@@ -264,11 +264,23 @@ export default function Releases() {
           <div className={`agent-chip${meta?.source === 'sample' ? ' sample' : ''}`}>
             <Bot size={15} />
             <span>
-              {meta
-                ? meta.source === 'tmdb'
-                  ? `Agent synced ${timeAgo(meta.fetchedAt)} · ${meta.total} films · daily at 6 AM`
-                  : 'Sample data · add a free TMDB key for live daily releases'
-                : 'Agent status…'}
+              {meta ? (
+                meta.source === 'tmdb' ? (
+                  <>
+                    {/* The relative wording is for people; the dateTime attribute is
+                        the only unambiguous "this page is from today" on the page.
+                        Without it Google dated the homepage from the film release
+                        dates in the markup and showed "4 days ago" on a site whose
+                        whole pitch is being current. */}
+                    Agent synced <time dateTime={meta.fetchedAt}>{timeAgo(meta.fetchedAt)}</time> ·{' '}
+                    {meta.total} films · daily at 6 AM
+                  </>
+                ) : (
+                  'Sample data · add a free TMDB key for live daily releases'
+                )
+              ) : (
+                'Agent status…'
+              )}
             </span>
           </div>
         </div>

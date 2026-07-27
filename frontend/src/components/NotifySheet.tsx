@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, Check, X } from 'lucide-react'
 import { LanguageInfo } from '../types'
-import { NOTIFY_EVENT, NotifyPayload } from '../notify'
+import { NOTIFY_EVENT, NotifyPayload, notifyChanged } from '../notify'
 import { PushDenied, pushSupported, subscribe } from '../push'
 import { api } from '../api'
 
@@ -61,6 +61,7 @@ export default function NotifySheet() {
     setError('')
     try {
       await subscribe(picked)
+      notifyChanged()
       setDone(true)
       setTimeout(() => setOpen(false), 1400)
     } catch (err) {

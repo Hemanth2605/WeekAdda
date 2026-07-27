@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellRing } from 'lucide-react'
-import { openNotify } from '../notify'
+import { NOTIFY_CHANGED, notifyChanged, openNotify } from '../notify'
 import { currentSubscription, pushSupported, unsubscribe } from '../push'
 
 /**
@@ -13,7 +13,11 @@ export default function NotifyBell() {
   const [on, setOn] = useState(false)
 
   useEffect(() => {
-    currentSubscription().then((sub) => setOn(Boolean(sub)))
+    const sync = () => currentSubscription().then((sub) => setOn(Boolean(sub)))
+    sync()
+    // Subscribing happens in the sheet, which cannot reach this state directly
+    window.addEventListener(NOTIFY_CHANGED, sync)
+    return () => window.removeEventListener(NOTIFY_CHANGED, sync)
   }, [])
 
   if (!pushSupported) return null
@@ -22,6 +26,7 @@ export default function NotifyBell() {
     if (!on) return openNotify()
     await unsubscribe()
     setOn(false)
+    notifyChanged()
   }
 
   return (

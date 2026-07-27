@@ -17,6 +17,19 @@ export function openNotify(languages: string[] = []) {
   window.dispatchEvent(new CustomEvent<NotifyPayload>(NOTIFY_EVENT, { detail: { languages } }))
 }
 
+/**
+ * Raised whenever this browser's subscription starts or stops existing.
+ *
+ * The bell lives in the navbar, which is mounted once outside the routes and so
+ * never remounts — without this it would keep showing the unsubscribed icon,
+ * still swinging for attention, until a full page reload.
+ */
+export const NOTIFY_CHANGED = 'weekadda:notify-changed'
+
+export function notifyChanged() {
+  window.dispatchEvent(new Event(NOTIFY_CHANGED))
+}
+
 const DISMISSED_KEY = 'weekadda-notify-dismissed'
 
 /** A card dismissed once stays dismissed — asking twice is how you get blocked. */

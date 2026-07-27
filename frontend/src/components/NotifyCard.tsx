@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, X } from 'lucide-react'
-import { cardDismissed, dismissCard, openNotify } from '../notify'
+import { NOTIFY_CHANGED, cardDismissed, dismissCard, openNotify } from '../notify'
 import { currentSubscription, pushSupported } from '../push'
 
 /**
@@ -18,6 +18,16 @@ export default function NotifyCard({ language, label }: { language: string; labe
     if (!pushSupported || cardDismissed()) return
     // Never ask someone who has already said yes
     currentSubscription().then((sub) => setHidden(Boolean(sub)))
+
+    // Saying yes from the navbar bell should retire the card that is still
+    // sitting in the feed. One-way on purpose: turning notifications back off
+    // must not put the ask in front of them again.
+    const onChange = () =>
+      currentSubscription().then((sub) => {
+        if (sub) setHidden(true)
+      })
+    window.addEventListener(NOTIFY_CHANGED, onChange)
+    return () => window.removeEventListener(NOTIFY_CHANGED, onChange)
   }, [])
 
   if (hidden || !pushSupported || cardDismissed()) return null

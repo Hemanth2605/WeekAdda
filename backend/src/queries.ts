@@ -24,6 +24,12 @@ export interface OttRelease extends Release {
   platforms: string[] // e.g. ['Netflix', 'ZEE5']
   week: number // which weekly bucket (0 = this week) the digital release fell into
   contentType: 'movie' | 'series'
+  /**
+   * Which country's release record supplied the date ('IN' | 'US'). Sweep-time
+   * provenance only, used to prefer India's date when both know a film; the
+   * agent strips it before writing the cache, so it never reaches the app.
+   */
+  dateRegion?: string
 }
 
 export interface ReleaseCache {

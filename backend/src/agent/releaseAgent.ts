@@ -12,7 +12,7 @@ export { LANGUAGES, MAX_WEEKS }
 export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
-const SOURCES_VERSION = 7
+const SOURCES_VERSION = 8
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -218,24 +218,39 @@ async function fetchLanguageWindow(
 }
 
 /**
- * One provider × one weekly bucket of digital (OTT) releases in India.
- * release_type=4 = digital; the query window itself defines the week bucket.
+ * Which country's release-date record supplies the digital date.
+ *
+ * IN is the right answer when TMDB has it. But plenty of films reach Prime or
+ * Netflix India through a worldwide deal that nobody records against India —
+ * TMDB carries only the US digital date, and an India-only query cannot see
+ * them at all. The Sheep Detectives was the case that surfaced this: on Prime
+ * Video India, digital date 24 June 2026 filed under US, invisible to us for a
+ * month while sitting in the theatrical list under its April cinema date.
+ *
+ * Both passes keep watch_region/with_watch_providers pinned to India, so
+ * everything returned is genuinely streaming here; the region decides only
+ * where the *date* comes from.
  */
-async function fetchOttWeek(
+const OTT_DATE_REGIONS = ['IN', 'US'] as const
+
+async function fetchOttWeekIn(
   apiKey: string,
   provider: { id: number; label: string },
-  week: number
+  week: number,
+  dateRegion: string
 ): Promise<OttRelease[]> {
   const from = isoDate(-(week * 7 + 6))
   const to = isoDate(-(week * 7))
   const url =
     `${TMDB}/discover/movie?api_key=${apiKey}` +
     `&watch_region=IN&with_watch_providers=${provider.id}` +
-    `&region=IN&with_release_type=4` +
+    `&region=${dateRegion}&with_release_type=4` +
     `&release_date.gte=${from}&release_date.lte=${to}` +
     `&sort_by=popularity.desc&include_adult=false&page=1`
   const res = await fetch(url)
-  if (!res.ok) throw new Error(`TMDB ${res.status} for ${provider.label} week ${week}`)
+  if (!res.ok) {
+    throw new Error(`TMDB ${res.status} for ${provider.label} week ${week} (${dateRegion})`)
+  }
   const body = (await res.json()) as { results: TmdbMovie[] }
   return (body.results ?? [])
     .filter((m) => m.release_date)
@@ -245,7 +260,34 @@ async function fetchOttWeek(
       platforms: [provider.label],
       week,
       contentType: 'movie' as const,
+      dateRegion,
     }))
+}
+
+/**
+ * One provider × one weekly bucket of digital (OTT) releases in India.
+ * release_type=4 = digital; the query window itself defines the week bucket.
+ * A film found by both passes is merged in sweepOtt, India's date winning.
+ */
+async function fetchOttWeek(
+  apiKey: string,
+  provider: { id: number; label: string },
+  week: number
+): Promise<OttRelease[]> {
+  const out: OttRelease[] = []
+  let failures = 0
+  for (const region of OTT_DATE_REGIONS) {
+    try {
+      out.push(...(await fetchOttWeekIn(apiKey, provider, week, region)))
+    } catch {
+      failures++
+    }
+  }
+  // Only a total failure is worth reporting — one region still covers the week
+  if (failures === OTT_DATE_REGIONS.length) {
+    throw new Error(`TMDB failed for ${provider.label} week ${week}`)
+  }
+  return out
 }
 
 /**
@@ -347,26 +389,30 @@ async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
   const tasks: Array<Promise<void>> = []
 
   for (const provider of OTT_PROVIDERS) {
-    // Platform-tagged upcoming movies
+    // Platform-tagged upcoming movies. Both date regions, for the same reason
+    // the past sweep uses both — and India first, because `add` keeps the date
+    // it saw first and India's is the one that describes what happens here.
     tasks.push(
       (async () => {
-        const url =
-          `${TMDB}/discover/movie?api_key=${apiKey}` +
-          `&watch_region=IN&with_watch_providers=${provider.id}` +
-          `&region=IN&with_release_type=4` +
-          `&release_date.gte=${from}&release_date.lte=${to}` +
-          `&sort_by=popularity.desc&include_adult=false&page=1`
-        const res = await fetch(url)
-        if (!res.ok) return
-        const body = (await res.json()) as { results: TmdbMovie[] }
-        for (const m of (body.results ?? []).filter((m) => m.release_date)) {
-          add({
-            ...toRelease(m, { code: m.original_language, label: labelForLanguage(m.original_language) }),
-            id: `ott-${m.id}`,
-            platforms: [provider.label],
-            week: -1,
-            contentType: 'movie',
-          })
+        for (const dateRegion of OTT_DATE_REGIONS) {
+          const url =
+            `${TMDB}/discover/movie?api_key=${apiKey}` +
+            `&watch_region=IN&with_watch_providers=${provider.id}` +
+            `&region=${dateRegion}&with_release_type=4` +
+            `&release_date.gte=${from}&release_date.lte=${to}` +
+            `&sort_by=popularity.desc&include_adult=false&page=1`
+          const res = await fetch(url)
+          if (!res.ok) continue
+          const body = (await res.json()) as { results: TmdbMovie[] }
+          for (const m of (body.results ?? []).filter((m) => m.release_date)) {
+            add({
+              ...toRelease(m, { code: m.original_language, label: labelForLanguage(m.original_language) }),
+              id: `ott-${m.id}`,
+              platforms: [provider.label],
+              week: -1,
+              contentType: 'movie',
+            })
+          }
         }
       })().catch(() => {})
     )
@@ -620,13 +666,26 @@ async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
         for (const p of item.platforms) {
           if (!existing.platforms.includes(p)) existing.platforms.push(p)
         }
-        existing.week = Math.min(existing.week, item.week)
+        // A film both passes found: India knows when it actually landed here,
+        // so its date and week displace the US stand-in. Without this the
+        // Math.min below would quietly prefer whichever date was earlier,
+        // which for a worldwide drop is nearly always the American one.
+        if (existing.dateRegion === 'US' && item.dateRegion === 'IN') {
+          existing.releaseDate = item.releaseDate
+          existing.week = item.week
+          existing.dateRegion = 'IN'
+        } else if (existing.dateRegion === 'IN' && item.dateRegion === 'US') {
+          // keep what we have
+        } else {
+          existing.week = Math.min(existing.week, item.week)
+        }
       } else {
         merged.set(item.id, item)
       }
     }
   }
-  return [...merged.values()]
+  // Provenance was for the merge alone; the app has no use for it
+  return [...merged.values()].map(({ dateRegion: _r, ...rest }) => rest)
 }
 
 /** The daily agent: sweeps every language for fresh + upcoming releases. */

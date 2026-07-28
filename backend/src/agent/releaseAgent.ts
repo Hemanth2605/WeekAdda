@@ -4,6 +4,8 @@ import { sampleReleases, sampleOtt, sampleOttUpcoming } from '../data/sampleRele
 import { sweepWikipedia } from './wikipediaSource'
 import { sweepWikipediaOtt } from './wikipediaOttSource'
 import { sweepWatchmode } from './watchmodeSource'
+import { panIndiaLanguages } from '../data/panIndia'
+import { sweepPanIndia, PanIndiaMatch } from './panIndiaSource'
 import { LANGUAGES, MAX_WEEKS, Release, OttRelease, ReleaseCache } from '../queries'
 
 // Cache shapes, LANGUAGES and MAX_WEEKS live in ../queries (shared with the
@@ -623,6 +625,132 @@ async function relabelWikiTitles(apiKey: string, items: OttRelease[]): Promise<n
   return fixed
 }
 
+/**
+ * Give Wikipedia-sourced theatrical films their poster.
+ *
+ * These rows exist precisely because the discover sweep could not see the film:
+ * it filters on primary_release_date, so a title TMDB holds with no date yet
+ * ("In Production") never comes back — even when TMDB has the artwork. Wikipedia
+ * rescues the title but carries no image, so the film shows as a bare gradient
+ * tile. Search by name and take the poster only.
+ *
+ * The match has to be strict, since a wrong poster is worse than none: same
+ * original language as the Wikipedia list the row came from, and the same year
+ * — or no TMDB date at all, which is the case this exists to catch.
+ *
+ * Titles differ either side of a colon, and in both directions: Wikipedia says
+ * "KJQ: King Jackie Queen" where TMDB says "KJQ", and "Mirzapur" where TMDB says
+ * "Mirzapur: The Movie". So the subtitle-stripped head counts as a match, and
+ * gets its own search — TMDB returns nothing at all for the full KJQ string.
+ * That is loose enough to catch a wrong film on a short head, so anything but
+ * an exact full-title match is only accepted when it is the *sole* candidate
+ * clearing every other test; ambiguity leaves the film without a poster.
+ *
+ * The id stays the Wikipedia one: it keys the /movie/:id URL and the sitemap.
+ */
+async function fillWikiPosters(apiKey: string, items: Release[]): Promise<number> {
+  const pending = items.filter((i) => i.id.startsWith('wiki-') && !i.poster)
+  let filled = 0
+
+  // A title and its subtitle-stripped head, for matching either way round
+  const keysFor = (title: string) => {
+    const keys = new Set([normalizeKey(title)])
+    const head = title.split(/[:–—-]/)[0]
+    if (head && head !== title) keys.add(normalizeKey(head))
+    return keys
+  }
+
+  for (let i = 0; i < pending.length; i += 5) {
+    await Promise.all(
+      pending.slice(i, i + 5).map(async (item) => {
+        const year = item.releaseDate.slice(0, 4)
+        const fullKey = normalizeKey(item.title)
+        const ours = keysFor(item.title)
+        const head = item.title.split(/[:–—-]/)[0].trim()
+        const queries = head && head !== item.title ? [item.title, head] : [item.title]
+
+        for (const query of queries) {
+          try {
+            const res = await fetch(
+              `${TMDB}/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}`
+            )
+            if (!res.ok) continue
+            const body = (await res.json()) as {
+              results?: Array<{
+                title?: string
+                original_title?: string
+                original_language?: string
+                release_date?: string
+                poster_path?: string | null
+              }>
+            }
+
+            const candidates = (body.results ?? []).filter((r) => {
+              if (!r.poster_path) return false
+              if (r.original_language !== item.language) return false
+              // An undated record is the very thing discover could not return
+              const date = r.release_date ?? ''
+              if (date && date.slice(0, 4) !== year) return false
+              const theirs = new Set([...keysFor(r.title ?? ''), ...keysFor(r.original_title ?? '')])
+              return [...ours].some((k) => k && theirs.has(k))
+            })
+
+            const named = candidates.find(
+              (r) =>
+                normalizeKey(r.title ?? '') === fullKey ||
+                normalizeKey(r.original_title ?? '') === fullKey
+            )
+            const pick = named ?? (candidates.length === 1 ? candidates[0] : undefined)
+            if (!pick) continue
+            item.poster = `https://image.tmdb.org/t/p/w342${pick.poster_path}`
+            filled++
+            return
+          } catch {
+            // A failed search just leaves the film without a poster, as before
+          }
+        }
+      })
+    )
+  }
+  return filled
+}
+
+/**
+ * Stamp films that released in more than one language.
+ *
+ * Two sources, in order: the hand-curated list wins, then whatever the
+ * Wikipedia article scan found. Curated first because it exists precisely for
+ * the films worth overriding — a wrong or missing detection is fixed by adding
+ * one line there rather than by tuning prose matching.
+ *
+ * Runs over theatrical and OTT alike: the same film reaches us as `tmdb-…` in
+ * one pool and `ott-…` in the other, so matching on id would miss half of it,
+ * and both sources are keyed by title instead.
+ *
+ * A film is only stamped when its own language is among the ones found. If they
+ * disagree, the entry is about a different film — or our language is one of the
+ * mislabels the sweep already corrects elsewhere — and either way inventing a
+ * language set for it would be worse than leaving it alone. The order is then
+ * ours-first, since the app labels the first entry as the original.
+ */
+function applyPanIndia(items: Release[], detected: Map<string, PanIndiaMatch>): number {
+  let stamped = 0
+  for (const item of items) {
+    const curated = panIndiaLanguages(item.title, item.originalTitle, item.releaseDate)
+    const auto =
+      detected.get(normalizeKey(item.title)) ?? detected.get(normalizeKey(item.originalTitle))
+    // A remake shares its title with the original; keep them apart by year,
+    // allowing a year of drift for a film whose OTT date crosses new year
+    const autoFits = auto && Math.abs(Number(auto.year) - Number(item.releaseDate.slice(0, 4))) <= 1
+    const languages = curated ?? (autoFits ? auto!.languages : null)
+
+    if (!languages || !languages.includes(item.language)) continue
+    item.languages = [item.language, ...languages.filter((l) => l !== item.language)]
+    stamped++
+  }
+  return stamped
+}
+
 /** Sweep all providers × all weekly buckets, merging platforms per film. */
 async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
   const perProvider = await Promise.allSettled([
@@ -734,6 +862,15 @@ export async function syncReleases(): Promise<ReleaseCache> {
     }
     const allReleases = [...unique, ...wikiExtra]
 
+    // TMDB often has artwork for these films even though discover could not
+    // return them; without this they render as bare gradient tiles
+    if (wikiExtra.length) {
+      const posters = await fillWikiPosters(apiKey, wikiExtra)
+      if (posters) {
+        console.log(`🤖 Release agent: found posters for ${posters}/${wikiExtra.length} Wikipedia film(s)`)
+      }
+    }
+
     console.log('🤖 Release agent: sweeping OTT platforms across India…')
     const ott = await sweepOtt(apiKey)
     const ottUpcoming = await sweepOttUpcoming(apiKey)
@@ -785,6 +922,21 @@ export async function syncReleases(): Promise<ReleaseCache> {
     if (byScript || byName) {
       console.log(`🤖 Release agent: corrected ${byScript + byName} mislabelled language(s)`)
     }
+
+    // Multi-language releases, so the language filter can surface a Telugu
+    // original to someone watching in Hindi. Reading article prose is the
+    // loosest thing the sweep does, so a failure here costs the badges only.
+    let detected = new Map<string, PanIndiaMatch>()
+    try {
+      detected = await sweepPanIndia(from, to)
+    } catch (err) {
+      console.warn('⚠️  Pan-India scan failed (continuing without it):', err)
+    }
+    const panIndia =
+      applyPanIndia(allReleases, detected) +
+      applyPanIndia(ott, detected) +
+      applyPanIndia(ottUpcoming, detected)
+    if (panIndia) console.log(`🤖 Release agent: marked ${panIndia} pan-India release(s)`)
 
     cache = {
       fetchedAt: new Date().toISOString(),

@@ -30,7 +30,7 @@ cd frontend && npm run build
   holds real (or seeded test) posts and does NOT regenerate.
 - **Two daily agents**: `releaseAgent.ts` (TMDB + Wikipedia film lists + Wikipedia OTT
   originals + optional Watchmode) and `cricketAgent.ts` (ESPN public scoreboard JSON,
-  accumulating cache). Locally node-cron runs them at 6 AM (`backend/src/index.ts`);
+  accumulating cache). Locally node-cron runs them at 4 AM (`backend/src/index.ts`);
   each keeps a POST `/refresh` route for dev convenience (no UI button).
 - **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
   and the cache types, used by both the Express routes and the Worker. Change behaviour
@@ -68,6 +68,22 @@ cd frontend && npm run build
   sees responders, responder sees poster — that reveal is the only place emails leave
   the server. Poster can close a listing; anything >30 days auto-expires. Supabase
   `listings` / `listing_interests`, local `cache/adda.json`.
+- **Pan-India films appear in every language they released in** (July 2026). A
+  `Release` may carry `languages: string[]` (release languages, original first);
+  read it via `releaseLanguages`/`isPanIndia` in `queries.ts`, never directly —
+  it is absent on single-language films and on any older cache. The language
+  filter matches *any* of them (plus `PAN_INDIA_CODE` = `pan` for the
+  "Pan-India" chip), and `Releases.tsx` lists such a film in each language row,
+  badged so the repeat reads as information. **No API knows this**: TMDB has one
+  record per film under its shooting language, no dubbed records, and budget is
+  not a proxy. It is read from the films' own Wikipedia articles by
+  `agent/panIndiaSource.ts` (italic links only — following every link in a list
+  row picks up actor pages; sentences about songs/title disputes/merely
+  *planned* dubs are rejected; the original language comes from the infobox).
+  The curated list in `data/panIndia.ts` **overrides** detection — add a line
+  there to pin or correct a film rather than tuning the prose matching.
+  Booking links take the language the viewer found the film under, so a
+  Telugu original opens Hindi tickets from the Hindi row.
 - **Click tracking carries identity**: each outbound click sends an anonymous per-
   browser `visitorId` (localStorage UUID), plus the verified `userEmail` when signed
   in; stats report `uniqueVisitors`/`signedInClicks`. Emails never surface in the
@@ -114,8 +130,8 @@ cd frontend && npm run build
 
 - **Live URL**: https://weekadda.com (domain on Cloudflare Registrar; the old
   weekadda.hemanth-mareedu8.workers.dev host 301-redirects to it via worker.ts)
-- **Sweep**: GitHub Actions (`.github/workflows/sweep.yml`) daily at 00:30 UTC
-  (6 AM IST) runs `npm run sweep` (`backend/src/sweep.ts`) — the unchanged Node agents,
+- **Sweep**: GitHub Actions (`.github/workflows/sweep.yml`) daily at 22:30 UTC
+  (4 AM IST) runs `npm run sweep` (`backend/src/sweep.ts`) — the unchanged Node agents,
   then pushes caches to Supabase. Repo secrets: `TMDB_API_KEY`, `WATCHMODE_API_KEY`,
   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`. Manual sweep = Actions → "Daily sweep" →
   Run workflow (owner-only Sync button).

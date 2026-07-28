@@ -33,10 +33,22 @@ export function watchUrl(platform: string, title: string): string {
   }
 }
 
-/** Ticket-booking links for films running in theatres (India). */
-export function bookingUrls(title: string) {
+/**
+ * Ticket-booking links for films running in theatres (India).
+ *
+ * `language` is for pan-India films only, and is the language the viewer found
+ * the film under: a Telugu-original playing in Hindi should open the Hindi
+ * listing, not send someone to a show they cannot follow. Both sites list each
+ * language separately, so naming it in the query is what picks the right page.
+ *
+ * Pass it only when it is genuinely meaningful. On a single-language film the
+ * word adds nothing to a search that already resolves, and every extra term is
+ * a chance for the redirect to land somewhere worse.
+ */
+export function bookingUrls(title: string, language?: string) {
+  const lang = language ? ` ${language}` : ''
   return [
-    { label: 'BookMyShow', url: firstResult(`${title} movie site:in.bookmyshow.com`) },
-    { label: 'District', url: firstResult(`${title} movie tickets site:district.in`) },
+    { label: 'BookMyShow', url: firstResult(`${title}${lang} movie site:in.bookmyshow.com`) },
+    { label: 'District', url: firstResult(`${title}${lang} movie tickets site:district.in`) },
   ]
 }

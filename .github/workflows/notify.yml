@@ -1,6 +1,6 @@
 # Release notifications, sent at 9 AM in each subscriber's own timezone.
 #
-# Separate from the sweep on purpose: the sweep runs at 6 AM IST because that is
+# Separate from the sweep on purpose: the sweep runs at 4 AM IST because that is
 # when the sources have settled, which is not when anyone wants waking.
 #
 # Only the hours India and the USA need, rather than all 24 — those are the two

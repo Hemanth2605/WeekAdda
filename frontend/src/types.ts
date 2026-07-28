@@ -4,6 +4,8 @@ export interface Release {
   originalTitle: string
   language: string
   languageLabel: string
+  /** Every language it released in, original first — only on pan-India films */
+  languages?: string[]
   releaseDate: string
   overview: string
   poster: string | null

@@ -68,7 +68,7 @@ async function main() {
   // run's data for the failed one) still reaches production.
   await pushToSupabase()
 
-  // Notifications are deliberately not sent here. This runs at 6 AM IST, which
+  // Notifications are deliberately not sent here. This runs at 4 AM IST, which
   // is when the sources have settled, not when anyone wants waking — see
   // notify.ts and .github/workflows/notify.yml.
 

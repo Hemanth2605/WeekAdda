@@ -20,6 +20,7 @@ import NotifyCard from '../components/NotifyCard'
 import ReleaseCard, { coverGradient, formatDate } from '../components/ReleaseCard'
 import ReleaseModal from '../components/ReleaseModal'
 import { platformClass } from '../share'
+import { languageLabel, releaseLanguagesOf } from '../languages'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
@@ -165,12 +166,25 @@ export default function Releases() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, language, ottType, upcomingSource])
 
-  // Group by language; Telugu always leads, then largest sections first
+  // Group by language; Telugu always leads, then largest sections first.
+  // A pan-India film is listed in every language it released in, not just the
+  // one it was shot in — someone reading the Hindi row is exactly the person
+  // who would otherwise never learn a Telugu-original film is playing in Hindi.
+  // The card carries a Pan-India badge naming the original, so the repeat reads
+  // as information rather than a duplicate. (To place each film once again,
+  // iterate `[r.language]` here instead.)
   const sections = useMemo(() => {
     const map = new Map<string, { label: string; items: Release[] }>()
     for (const r of releases) {
-      if (!map.has(r.language)) map.set(r.language, { label: r.languageLabel, items: [] })
-      map.get(r.language)!.items.push(r)
+      for (const code of releaseLanguagesOf(r)) {
+        if (!map.has(code)) {
+          map.set(code, {
+            label: code === r.language ? r.languageLabel : languageLabel(code),
+            items: [],
+          })
+        }
+        map.get(code)!.items.push(r)
+      }
     }
     return [...map.entries()]
       .map(([code, v]) => ({ code, ...v }))
@@ -465,6 +479,13 @@ export default function Releases() {
           >
             All languages
           </button>
+          <button
+            className={`genre-chip${language === 'pan' ? ' active' : ''}`}
+            onClick={() => setLanguage('pan')}
+            title="Films released in several languages at once"
+          >
+            Pan-India
+          </button>
           {languages.map((l) => (
             <button
               key={l.code}
@@ -521,7 +542,13 @@ export default function Releases() {
                 </div>
                 <div className="lang-row">
                   {section.items.map((r, i) => (
-                    <ReleaseCard key={r.id} release={r} index={i} onOpen={setSelected} />
+                    <ReleaseCard
+                      key={r.id}
+                      release={r}
+                      index={i}
+                      onOpen={setSelected}
+                      contextLanguage={section.code}
+                    />
                   ))}
                 </div>
               </section>
@@ -546,7 +573,15 @@ export default function Releases() {
           </div>
           <div className="release-grid">
             {releases.map((r, i) => (
-              <ReleaseCard key={r.id} release={r} index={i} onOpen={setSelected} />
+              <ReleaseCard
+                key={r.id}
+                release={r}
+                index={i}
+                onOpen={setSelected}
+                // In the filtered grid the chosen language is the context; under
+                // "Pan-India" or a search there is none, so the original stands
+                contextLanguage={language !== 'all' && language !== 'pan' ? language : undefined}
+              />
             ))}
           </div>
         </>

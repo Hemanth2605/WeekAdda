@@ -3,6 +3,7 @@ import { Release } from '../types'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
 import { platformClass, shareRelease } from '../share'
+import { alsoInLabel, languageLabel } from '../languages'
 
 // Deterministic gradient for films without poster art
 export function coverGradient(title: string) {
@@ -31,14 +32,30 @@ interface Props {
   release: Release
   index: number
   onOpen: (release: Release) => void
+  /**
+   * The language row or filter this card is being shown under. Only matters for
+   * pan-India films, where it decides which language's tickets the Book button
+   * opens — the card in the Hindi row books the Hindi show.
+   */
+  contextLanguage?: string
 }
 
-export default function ReleaseCard({ release, index, onOpen }: Props) {
+export default function ReleaseCard({ release, index, onOpen, contextLanguage }: Props) {
   const days = daysUntil(release.releaseDate)
   const isOtt = Boolean(release.platforms?.length)
   // OTT entry whose platform TMDB hasn't linked yet (contentType marks OTT pools)
   const isOttUnknown = !isOtt && Boolean(release.contentType)
   const isUpcoming = days > 0
+  // Pan-India films surface under every language they play in, so the card has
+  // to say which one it was actually shot in
+  const alsoIn = alsoInLabel(release.languages, release.language)
+  const isPanIndia = alsoIn !== ''
+  // Which language's tickets to open, and what to bill the click as. Single-
+  // language films name nothing: their search already resolves.
+  const bookLanguage = isPanIndia
+    ? languageLabel(contextLanguage ?? release.language)
+    : undefined
+  const bookLabel = bookLanguage ?? release.languageLabel
 
   return (
     <article
@@ -64,6 +81,14 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
           </span>
         )}
         {release.contentType === 'series' && <span className="release-kind">Series</span>}
+        {isPanIndia && (
+          <span
+            className="release-flag pan"
+            title={`${release.languageLabel} original, also in ${alsoIn}`}
+          >
+            Pan-India
+          </span>
+        )}
         {isOtt && days <= 0 && (
           <a
             className="card-watch"
@@ -89,10 +114,10 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
         {!isOtt && !isOttUnknown && days <= 0 && (
           <a
             className="card-watch"
-            href={bookingUrls(release.title)[0].url}
+            href={bookingUrls(release.title, bookLanguage)[0].url}
             target="_blank"
             rel="noopener noreferrer"
-            title={`Book tickets for ${release.title} on BookMyShow`}
+            title={`Book ${bookLabel} tickets for ${release.title} on BookMyShow`}
             onClick={(e) => {
               e.stopPropagation()
               trackClick({
@@ -100,7 +125,7 @@ export default function ReleaseCard({ release, index, onOpen }: Props) {
                 platform: 'BookMyShow',
                 titleId: release.id,
                 title: release.title,
-                language: release.languageLabel,
+                language: bookLabel,
               })
             }}
           >

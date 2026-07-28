@@ -904,6 +904,34 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Language picker above the booking buttons, on films playing in more than one.
+   Reuses .genre-chip so it reads as the same control as the language filter. */
+.book-lang-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 -4px;
+}
+.book-lang-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* Multi-language release. Sits bottom-left, clear of the date/platform flags
+   above and the rating opposite; only OTT series use that corner and the
+   pan-India list is films. */
+.release-flag.pan {
+  top: auto;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(10, 10, 14, 0.78);
+  color: #7fd6c0;
+  border: 1px solid rgba(127, 214, 192, 0.45);
+}
 .card-watch {
   position: absolute;
   left: 50%;

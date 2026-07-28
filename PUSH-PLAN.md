@@ -51,7 +51,7 @@ permission prompt
 PushManager.subscribe()
   └ POST /api/push/subscribe ─> push_subscriptions
     (+ Intl timezone)                  ▲   ▲
-                                       │   │  sweep.yml   06:00 IST — gathers only
+                                       │   │  sweep.yml   04:00 IST — gathers only
                                        │   └─ notify.yml  hourly — sends to whoever
                                        │                  is at 9 AM right now
   <──────── encrypted push ────────────┘   web-push (VAPID)
@@ -63,7 +63,7 @@ tap → /movies?language=te
 Node-only imports, and Web Push needs VAPID signing and payload encryption that
 the `web-push` package handles.
 
-**And in its own workflow, not the sweep.** The sweep runs at 6 AM IST because
+**And in its own workflow, not the sweep.** The sweep runs at 4 AM IST because
 that is when the sources have settled — not a time to wake anyone. `notify.yml`
 runs hourly and sends only to subscribers whose own clock currently reads 9. It
 reads the cache Supabase already holds rather than sweeping again, so no source

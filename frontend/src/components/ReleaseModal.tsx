@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X, Star, CalendarDays, Languages, Users, Play, ExternalLink, Ticket, Share2 } from 'lucide-react'
 import { Release } from '../types'
@@ -7,6 +7,7 @@ import { coverGradient, formatDate, daysUntil } from './ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { trackClick } from '../api'
 import { platformClass, shareRelease } from '../share'
+import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
 
 interface Props {
   release: Release
@@ -25,6 +26,13 @@ export default function ReleaseModal({ release, onClose }: Props) {
   }, [onClose])
 
   const days = daysUntil(release.releaseDate)
+  const alsoIn = alsoInLabel(release.languages, release.language)
+  // A pan-India film plays in several languages at once and the sites list each
+  // separately, so the booking link has to be told which one. Defaults to the
+  // language it was shot in; single-language films never see the picker.
+  const bookLanguages = releaseLanguagesOf(release)
+  const [bookLanguage, setBookLanguage] = useState(release.language)
+  const bookLabel = languageLabel(bookLanguage)
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -68,6 +76,7 @@ export default function ReleaseModal({ release, onClose }: Props) {
               </span>
               <span>
                 <Languages size={15} /> {release.languageLabel}
+                {alsoIn && ` · also in ${alsoIn}`}
               </span>
               {release.rating > 0 && (
                 <span className="rating">
@@ -81,34 +90,53 @@ export default function ReleaseModal({ release, onClose }: Props) {
               )}
             </div>
             {!release.platforms?.length && !release.contentType && (
-              <div className="platform-list">
-                {bookingUrls(release.title).map((b) => (
-                  <a
-                    key={b.label}
-                    href={b.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={
-                      days > 0
-                        ? `${b.label} — advance booking when available`
-                        : `Book tickets for ${release.title} on ${b.label}`
-                    }
-                    onClick={() =>
-                      trackClick({
-                        kind: 'book',
-                        platform: b.label,
-                        titleId: release.id,
-                        title: release.title,
-                        language: release.languageLabel,
-                      })
-                    }
-                  >
-                    <Ticket size={13} />
-                    Book on {b.label}
-                    <ExternalLink size={11} />
-                  </a>
-                ))}
-              </div>
+              <>
+                {bookLanguages.length > 1 && (
+                  <div className="book-lang-row">
+                    <span className="book-lang-label">Book in</span>
+                    {bookLanguages.map((code) => (
+                      <button
+                        key={code}
+                        className={`genre-chip${bookLanguage === code ? ' active' : ''}`}
+                        onClick={() => setBookLanguage(code)}
+                      >
+                        {languageLabel(code)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="platform-list">
+                  {bookingUrls(
+                    release.title,
+                    bookLanguages.length > 1 ? bookLabel : undefined
+                  ).map((b) => (
+                    <a
+                      key={b.label}
+                      href={b.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={
+                        days > 0
+                          ? `${b.label} — advance booking when available`
+                          : `Book ${bookLabel} tickets for ${release.title} on ${b.label}`
+                      }
+                      onClick={() =>
+                        trackClick({
+                          kind: 'book',
+                          platform: b.label,
+                          titleId: release.id,
+                          title: release.title,
+                          language: bookLabel,
+                        })
+                      }
+                    >
+                      <Ticket size={13} />
+                      Book on {b.label}
+                      <ExternalLink size={11} />
+                    </a>
+                  ))}
+                </div>
+              </>
             )}
             {release.platforms && release.platforms.length > 0 && (
               <div className="platform-list">

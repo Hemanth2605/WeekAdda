@@ -16,7 +16,7 @@ import {
  * payload encryption that `web-push` does for us, and worker.ts must stay free
  * of Node-only imports.
  *
- * Deliberately *not* part of the sweep any more. The sweep runs at 6 AM IST,
+ * Deliberately *not* part of the sweep any more. The sweep runs at 4 AM IST,
  * which is when the data lands, not when anyone wants to be woken. This is
  * called hourly instead and sends to each subscriber at 9 AM in their own
  * timezone — so Hyderabad hears at breakfast and New Jersey hears at breakfast,

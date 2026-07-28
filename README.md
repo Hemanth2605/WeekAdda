@@ -82,7 +82,7 @@ Production below). **Google sign-in** for writing is optional: set `GOOGLE_CLIEN
 
 ## The agents
 
-Both run **daily at 6 AM** (node-cron) and on server start when their cache is stale.
+Both run **daily at 4 AM** (node-cron) and on server start when their cache is stale.
 Each also keeps a `POST /refresh` route for dev convenience; in production a manual
 sweep is Actions → Daily sweep → Run workflow.
 
@@ -268,7 +268,7 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
 Live at **https://weekadda.com** (the old workers.dev URL redirects there) — all
 free tiers plus the domain:
 
-- **Daily sweep**: GitHub Actions (`.github/workflows/sweep.yml`) at 6 AM IST runs the
+- **Daily sweep**: GitHub Actions (`.github/workflows/sweep.yml`) at 4 AM IST runs the
   agents and pushes both caches to Supabase (manual run: Actions → Daily sweep →
   Run workflow)
 - **Release notifications**: a separate workflow (`notify.yml`) because 6 AM is when the

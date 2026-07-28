@@ -10,7 +10,7 @@ import type { Release } from './releaseAgent'
  * Parsing is defensive: a section or page that doesn't parse is skipped.
  */
 
-const WIKI_LANGUAGES = [
+export const WIKI_LANGUAGES = [
   { code: 'hi', label: 'Hindi', page: 'List_of_Hindi_films_of_' },
   { code: 'te', label: 'Telugu', page: 'List_of_Telugu_films_of_' },
   { code: 'ta', label: 'Tamil', page: 'List_of_Tamil_films_of_' },
@@ -47,6 +47,60 @@ export function normalizeTitle(title: string) {
 // so parallel sweeps never trip Wikipedia's rate limiter (HTTP 429).
 let wikiQueue: Promise<unknown> = Promise.resolve()
 const WIKI_GAP_MS = 700
+
+/**
+ * Article wikitext for many pages at once.
+ *
+ * The Action API returns a batch of pages per request, which is the difference
+ * between ~15 calls and ~300 when reading a year of film articles. Goes through
+ * the same serialized queue, and holds it for the whole run so a batch sweep
+ * cannot interleave with the list-page fetches and double the rate.
+ *
+ * Missing pages are simply absent from the result; a failed batch costs that
+ * batch and no more.
+ */
+const ARTICLE_BATCH = 20
+
+export function fetchWikiArticles(titles: string[]): Promise<Map<string, string>> {
+  const task = wikiQueue.then(async () => {
+    const out = new Map<string, string>()
+    for (let i = 0; i < titles.length; i += ARTICLE_BATCH) {
+      await new Promise((r) => setTimeout(r, WIKI_GAP_MS))
+      const batch = titles.slice(i, i + ARTICLE_BATCH)
+      const url =
+        'https://en.wikipedia.org/w/api.php?action=query&prop=revisions&rvprop=content' +
+        '&rvslots=main&format=json&formatversion=2&titles=' +
+        encodeURIComponent(batch.join('|'))
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent':
+              'WeekAdda/1.0 (release tracker; contact: hemanth.mareedu8@gmail.com)',
+          },
+        })
+        if (!res.ok) continue
+        const body = (await res.json()) as {
+          query?: {
+            pages?: Array<{
+              title?: string
+              missing?: boolean
+              revisions?: Array<{ slots?: { main?: { content?: string } } }>
+            }>
+          }
+        }
+        for (const page of body.query?.pages ?? []) {
+          const text = page.missing ? undefined : page.revisions?.[0]?.slots?.main?.content
+          if (page.title && text) out.set(page.title, text)
+        }
+      } catch {
+        // One bad batch must never sink the sweep
+      }
+    }
+    return out
+  })
+  wikiQueue = task.catch(() => new Map<string, string>())
+  return task
+}
 
 export function fetchWikiHtml(page: string): Promise<string> {
   const task = wikiQueue.then(async () => {

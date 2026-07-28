@@ -17,6 +17,7 @@ import { usePageMeta, titlePath } from '../seo'
 import ReleaseCard, { coverGradient, formatDate, daysUntil } from '../components/ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { platformClass, shareRelease } from '../share'
+import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
 
 type TitleStatus = 'streaming' | 'upcoming-ott' | 'in-theatres' | 'upcoming-theatre'
 
@@ -32,10 +33,15 @@ export default function MovieDetail() {
   const [data, setData] = useState<TitleResponse | null>(null)
   const [missing, setMissing] = useState(false)
   const [reviews, setReviews] = useState<BlogPost[]>([])
+  // Which language's tickets to book, on the few films that play in more than
+  // one. Null until someone picks, because the film — and so its default — only
+  // arrives with the fetch; it resets when navigating to another title.
+  const [pickedLanguage, setBookLanguage] = useState<string | null>(null)
 
   useEffect(() => {
     setData(null)
     setMissing(false)
+    setBookLanguage(null)
     api<TitleResponse>(`/title/${encodeURIComponent(id ?? '')}`)
       .then(setData)
       .catch(() => setMissing(true))
@@ -61,6 +67,9 @@ export default function MovieDetail() {
 
   const r = data?.release
   const isOttTitle = data?.status === 'streaming' || data?.status === 'upcoming-ott'
+  const bookLanguages = r ? releaseLanguagesOf(r) : []
+  const bookLanguage = pickedLanguage ?? r?.language ?? ''
+  const bookLabel = languageLabel(bookLanguage)
   const metaText = r
     ? `${r.title} (${r.languageLabel}) — release date ${formatDate(r.releaseDate)}${
         r.platforms?.length ? `, streaming on ${r.platforms.join(', ')}` : ''
@@ -143,6 +152,8 @@ export default function MovieDetail() {
             </span>
             <span>
               <Languages size={15} /> {r.languageLabel}
+              {alsoInLabel(r.languages, r.language) &&
+                ` · also in ${alsoInLabel(r.languages, r.language)}`}
             </span>
             {r.rating > 0 && (
               <span className="rating">
@@ -156,34 +167,52 @@ export default function MovieDetail() {
             )}
           </div>
           {!isOttTitle && (
-            <div className="platform-list">
-              {bookingUrls(r.title).map((b) => (
-                <a
-                  key={b.label}
-                  href={b.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={
-                    days > 0
-                      ? `${b.label} — advance booking when available`
-                      : `Book tickets for ${r.title} on ${b.label}`
-                  }
-                  onClick={() =>
-                    trackClick({
-                      kind: 'book',
-                      platform: b.label,
-                      titleId: r.id,
-                      title: r.title,
-                      language: r.languageLabel,
-                    })
-                  }
-                >
-                  <Ticket size={13} />
-                  Book on {b.label}
-                  <ExternalLink size={11} />
-                </a>
-              ))}
-            </div>
+            <>
+              {bookLanguages.length > 1 && (
+                <div className="book-lang-row">
+                  <span className="book-lang-label">Book in</span>
+                  {bookLanguages.map((code) => (
+                    <button
+                      key={code}
+                      className={`genre-chip${bookLanguage === code ? ' active' : ''}`}
+                      onClick={() => setBookLanguage(code)}
+                    >
+                      {languageLabel(code)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="platform-list">
+                {bookingUrls(r.title, bookLanguages.length > 1 ? bookLabel : undefined).map(
+                  (b) => (
+                    <a
+                      key={b.label}
+                      href={b.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={
+                        days > 0
+                          ? `${b.label} — advance booking when available`
+                          : `Book ${bookLabel} tickets for ${r.title} on ${b.label}`
+                      }
+                      onClick={() =>
+                        trackClick({
+                          kind: 'book',
+                          platform: b.label,
+                          titleId: r.id,
+                          title: r.title,
+                          language: bookLabel,
+                        })
+                      }
+                    >
+                      <Ticket size={13} />
+                      Book on {b.label}
+                      <ExternalLink size={11} />
+                    </a>
+                  )
+                )}
+              </div>
+            </>
           )}
           {r.platforms && r.platforms.length > 0 && (
             <div className="platform-list">

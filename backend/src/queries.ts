@@ -11,14 +11,39 @@ export interface Release {
   id: string
   title: string
   originalTitle: string
-  language: string // ISO code, e.g. 'te'
+  language: string // ISO code, e.g. 'te' — the language it was SHOT in
   languageLabel: string // e.g. 'Telugu'
+  /**
+   * Every language it actually released in, original first — a pan-India film
+   * shot in Telugu but also released in Hindi/Tamil/Malayalam is `['te','hi',
+   * 'ta','ml']`. Absent on the vast majority of films, and absent from every
+   * cache written before this existed, so read it through `releaseLanguages`
+   * rather than directly.
+   */
+  languages?: string[]
   releaseDate: string // YYYY-MM-DD
   overview: string
   poster: string | null // full image URL when available
   rating: number // 0–10 (0 = not yet rated)
   votes: number
 }
+
+/**
+ * The languages a film can be watched in. Single-language films — almost all of
+ * them — never carry the field, and neither does a cache written before it
+ * existed, so the original language is the answer unless told otherwise.
+ */
+export function releaseLanguages(r: Release): string[] {
+  return r.languages?.length ? r.languages : [r.language]
+}
+
+/** Released in more than one language: the "Pan-India" filter chip. */
+export function isPanIndia(r: Release): boolean {
+  return releaseLanguages(r).length > 1
+}
+
+/** The pseudo-code the language filter uses for "any multi-language release". */
+export const PAN_INDIA_CODE = 'pan'
 
 export interface OttRelease extends Release {
   platforms: string[] // e.g. ['Netflix', 'ZEE5']
@@ -165,8 +190,14 @@ export function queryReleases(
     releases = releases.filter((r) => r.releaseDate >= from && r.releaseDate <= to)
   }
 
+  // Filter on every language a film released in, not just the one it was shot
+  // in: someone who watches in Hindi should find the Telugu-original pan-India
+  // film that is playing in Hindi down the road from them.
   if (typeof q.language === 'string' && q.language && q.language !== 'all') {
-    releases = releases.filter((r) => r.language === q.language)
+    releases =
+      q.language === PAN_INDIA_CODE
+        ? releases.filter(isPanIndia)
+        : releases.filter((r) => releaseLanguages(r).includes(q.language as string))
   }
   if (typeof q.search === 'string' && q.search.trim()) {
     const s = q.search.trim().toLowerCase()

@@ -15,7 +15,9 @@ name: Daily sweep
 
 on:
   schedule:
-    - cron: '30 0 * * *' # 00:30 UTC = 6:00 AM IST
+    # Actions cron is UTC, and IST is UTC+5:30, so 4 AM IST is 22:30 UTC the
+    # evening before.
+    - cron: '30 22 * * *' # 22:30 UTC = 4:00 AM IST (next day)
   workflow_dispatch:
 
 jobs:

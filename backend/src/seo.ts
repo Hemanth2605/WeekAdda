@@ -249,7 +249,7 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
    */
   const updated = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt : ''
   const updatedLine = updated
-    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 6 AM IST.</p>`
+    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`
     : ''
   const pageLd = updated
     ? jsonLd({

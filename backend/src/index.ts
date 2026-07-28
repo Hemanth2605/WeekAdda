@@ -32,8 +32,9 @@ app.use('/api/blog', blogRoutes)
 app.use('/api/adda', addaRoutes)
 app.use('/api/push', pushRoutes)
 
-// The daily agents: every morning at 06:00 — movies then cricket.
-cron.schedule('0 6 * * *', () => {
+// The daily agents: every morning at 04:00 — movies then cricket. Matches the
+// production sweep (.github/workflows/sweep.yml), which runs at 4 AM IST.
+cron.schedule('0 4 * * *', () => {
   syncReleases().catch((err) => console.warn('⚠️  Scheduled sync failed:', err.message))
   syncCricket().catch((err) => console.warn('⚠️  Scheduled cricket sync failed:', err.message))
 })

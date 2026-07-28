@@ -7,7 +7,7 @@ import type { ReleaseCache } from './queries'
 /**
  * The hourly notification run, separate from the sweep.
  *
- * The sweep gathers at 6 AM IST because that is when the sources have settled;
+ * The sweep gathers at 4 AM IST because that is when the sources have settled;
  * nobody wants to be woken then. This runs every hour instead and sends to each
  * subscriber at 9 o'clock in their own timezone, so the same job serves
  * Hyderabad and New Jersey without either being told about the other's morning.

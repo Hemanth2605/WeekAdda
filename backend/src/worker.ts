@@ -470,6 +470,21 @@ const routes = {
       return json({ status: 'ok', service: 'WeekAdda API' })
     }
 
+    // Where is this visitor, coarsely — country + state from Cloudflare's own
+    // IP lookup (request.cf), no permission prompt, nothing stored. The SPA
+    // uses it to put the local language's section first. Per-visitor, so it
+    // must never be cached; ?force=IN-KA exists for testing.
+    if (url.pathname === '/api/geo' && request.method === 'GET') {
+      const force = url.searchParams.get('force')
+      const cf = (request as { cf?: { country?: string; regionCode?: string } }).cf ?? {}
+      const [country, region] = force
+        ? [force.split('-')[0] || null, force.split('-')[1] || null]
+        : [cf.country ?? null, cf.regionCode ?? null]
+      return new Response(JSON.stringify({ country, region }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      })
+    }
+
     if (url.pathname === '/api/releases' && request.method === 'GET') {
       const data = await loadCache(env, 'releases', EMPTY_RELEASES)
       return json(

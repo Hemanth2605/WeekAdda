@@ -20,6 +20,7 @@ import { shareMatch } from '../share'
 import { countryFlag } from '../flags'
 import WeekTimeline from '../components/WeekTimeline'
 import PipShow from '../components/PipShow'
+import { useHomeTeam } from '../geo'
 
 type Window = 'recent' | 'upcoming'
 
@@ -140,8 +141,12 @@ export default function Cricket() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, matchType])
 
-  // Group matches by series; series featuring India always come first. Fixtures
-  // are additionally banded by when they play: Today / This Week / Later.
+  // Group matches by series; the visitor's own country's series come first
+  // when we can tell where they are (Australia sees Australia's matches on
+  // top), then India's — so an undetected visitor, or one whose country has
+  // no matches, gets the site's India-first default. Fixtures are
+  // additionally banded by when they play: Today / This Week / Later.
+  const homeTeam = useHomeTeam()
   const bands = useMemo(() => {
     const groupBySeries = (items: CricketMatch[]) => {
       const map = new Map<string, { label: string; items: CricketMatch[] }>()
@@ -149,13 +154,15 @@ export default function Cricket() {
         if (!map.has(m.seriesId)) map.set(m.seriesId, { label: m.series, items: [] })
         map.get(m.seriesId)!.items.push(m)
       }
-      const hasIndia = (list: CricketMatch[]) =>
-        list.some((m) => m.teams.some((t) => t.name.toLowerCase().startsWith('india')))
+      const hasTeam = (list: CricketMatch[], prefix: string) =>
+        list.some((m) => m.teams.some((t) => t.name.toLowerCase().startsWith(prefix)))
+      const hasHome = (list: CricketMatch[]) => (homeTeam ? hasTeam(list, homeTeam) : false)
       return [...map.entries()]
         .map(([id, v]) => ({ id, ...v }))
         .sort(
           (a, b) =>
-            Number(hasIndia(b.items)) - Number(hasIndia(a.items)) ||
+            Number(hasHome(b.items)) - Number(hasHome(a.items)) ||
+            Number(hasTeam(b.items, 'india')) - Number(hasTeam(a.items, 'india')) ||
             b.items.length - a.items.length
         )
     }
@@ -178,7 +185,7 @@ export default function Cricket() {
       { label: 'This Week', sections: groupBySeries(thisWeek) },
       { label: 'Later', sections: groupBySeries(later) },
     ].filter((b) => b.sections.length > 0)
-  }, [matches, windowTab])
+  }, [matches, windowTab, homeTeam])
 
   const maxWeeks = weekInfo?.maxWeeks ?? 13
 
@@ -186,9 +193,14 @@ export default function Cricket() {
   // The kicker reads "1st T20I · <series>" in one line; fixtures carry
   // date/time + venue, results carry the scores with who won in gold —
   // ESPN's statusDetail is just "Final", which tells a reader nothing.
-  const pipSlides = useMemo(
-    () =>
-      matches.slice(0, 40).map((m) => {
+  const pipSlides = useMemo(() => {
+    // Same home-first order as the page: the visitor's country's matches lead
+    const isHome = (m: CricketMatch) =>
+      homeTeam ? m.teams.some((t) => t.name.toLowerCase().startsWith(homeTeam)) : false
+    return [...matches]
+      .sort((a, b) => Number(isHome(b)) - Number(isHome(a)))
+      .slice(0, 40)
+      .map((m) => {
         const winner = m.teams.find((t) => t.winner)
         return {
           kicker: [m.label, m.series].filter(Boolean).join(' · '),
@@ -216,9 +228,8 @@ export default function Cricket() {
             .filter(Boolean),
           href: windowTab === 'recent' ? '/cricket/results' : '/cricket',
         }
-      }),
-    [matches, windowTab]
-  )
+      })
+  }, [matches, windowTab, homeTeam])
 
   // Headline India's match when the current view has one (results: latest
   // result; upcoming: next fixture)

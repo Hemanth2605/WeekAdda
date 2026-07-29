@@ -19,6 +19,13 @@ app.use(cors())
 app.use(express.json())
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'WeekAdda API' }))
+// Local dev has no IP lookup (that's Cloudflare's request.cf in production) —
+// answer with nothing so the default language order applies; ?force=IN-KA tests it
+app.get('/api/geo', (req, res) => {
+  const force = typeof req.query.force === 'string' ? req.query.force : ''
+  res.set('Cache-Control', 'no-store')
+  res.json({ country: force.split('-')[0] || null, region: force.split('-')[1] || null })
+})
 app.use('/api/releases', releaseRoutes)
 app.get('/api/title/:id', (req, res) => {
   const data = getReleaseData()

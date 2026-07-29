@@ -22,7 +22,8 @@ import WeekTimeline from '../components/WeekTimeline'
 import ReleaseCard, { coverGradient, formatDate } from '../components/ReleaseCard'
 import ReleaseModal from '../components/ReleaseModal'
 import { platformClass } from '../share'
-import { languageLabel, releaseLanguagesOf, LANGUAGE_ORDER } from '../languages'
+import { languageLabel, releaseLanguagesOf } from '../languages'
+import { useHomeLanguage, orderWithHome } from '../geo'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
@@ -168,8 +169,14 @@ export default function Releases() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, language, ottType, upcomingSource])
 
-  // Group by language; fixed order Telugu, Tamil, English, Hindi, Malayalam,
-  // Kannada, then remaining languages largest-first.
+  // The visitor's own language leads when we can tell where they are
+  // (Karnataka → Kannada first, Japan → Japanese, abroad → English);
+  // undetected keeps the fixed order untouched.
+  const homeLang = useHomeLanguage()
+  const langOrder = useMemo(() => orderWithHome(homeLang), [homeLang])
+
+  // Group by language; home language first, then the fixed order Telugu,
+  // Tamil, English, Hindi, Malayalam, Kannada, then the rest largest-first.
   // A pan-India film is listed in every language it released in, not just the
   // one it was shot in — someone reading the Hindi row is exactly the person
   // who would otherwise never learn a Telugu-original film is playing in Hindi.
@@ -190,24 +197,33 @@ export default function Releases() {
       }
     }
     const rank = (code: string) => {
-      const i = LANGUAGE_ORDER.indexOf(code)
-      return i === -1 ? LANGUAGE_ORDER.length : i
+      const i = langOrder.indexOf(code)
+      return i === -1 ? langOrder.length : i
     }
     return [...map.entries()]
       .map(([code, v]) => ({ code, ...v }))
       .sort((a, b) => rank(a.code) - rank(b.code) || b.items.length - a.items.length)
-  }, [releases])
+  }, [releases, langOrder])
 
   const showRows = language === 'all' && !search.trim()
   const maxWeeks = weekInfo?.maxWeeks ?? 13
   const isWeekView = windowTab !== 'upcoming'
 
+  // Filter chips follow the same home-first order as the sections
+  const chipLanguages = useMemo(() => {
+    const rank = (code: string) => {
+      const i = langOrder.indexOf(code)
+      return i === -1 ? langOrder.length : i
+    }
+    return [...languages].sort((a, b) => rank(a.code) - rank(b.code))
+  }, [languages, langOrder])
+
   // Mini-player slides: this page's films, posters only, regrouped into the
-  // fixed language order (stable sort keeps the page's order within each)
+  // same home-first language order (stable sort keeps the page's order within)
   const pipSlides = useMemo(() => {
     const rank = (code: string) => {
-      const i = LANGUAGE_ORDER.indexOf(code)
-      return i === -1 ? LANGUAGE_ORDER.length : i
+      const i = langOrder.indexOf(code)
+      return i === -1 ? langOrder.length : i
     }
     return releases
       .filter((r) => r.poster)
@@ -221,7 +237,7 @@ export default function Releases() {
         image: r.poster,
         href: titlePath(r),
       }))
-  }, [releases])
+  }, [releases, langOrder])
 
   // The week's biggest titles (by ratings volume) headline the page
   const heroPicks = useMemo(() => {
@@ -547,7 +563,7 @@ export default function Releases() {
           >
             Pan-India
           </button>
-          {languages.map((l) => (
+          {chipLanguages.map((l) => (
             <button
               key={l.code}
               className={`genre-chip${language === l.code ? ' active' : ''}`}

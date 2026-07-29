@@ -14,7 +14,7 @@ export { LANGUAGES, MAX_WEEKS }
 export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
-const SOURCES_VERSION = 8
+const SOURCES_VERSION = 10
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -938,12 +938,37 @@ export async function syncReleases(): Promise<ReleaseCache> {
       applyPanIndia(ottUpcoming, detected)
     if (panIndia) console.log(`🤖 Release agent: marked ${panIndia} pan-India release(s)`)
 
+    // A film whose "theatrical" date is really its OTT premiere never plays in
+    // cinemas: TMDB's discover-by-language has no release-type filter, so a
+    // direct-to-OTT title (a ZEE5 web series filed as a movie, say) lands in
+    // the theatre list under its digital date. When the OTT sweeps saw the
+    // same TMDB id premiere within a week of that date, keep it out of the
+    // theatre lists — a genuine cinema release reaches OTT weeks later, so
+    // those keep both entries.
+    const digitalPremieres = new Map<string, string>()
+    for (const o of [...ott, ...ottUpcoming]) {
+      const m = /^ott-(\d+)$/.exec(o.id)
+      if (m) digitalPremieres.set(m[1], o.releaseDate)
+    }
+    const theatrical = allReleases.filter((r) => {
+      const m = /^tmdb-(\d+)$/.exec(r.id)
+      const ottDate = m ? digitalPremieres.get(m[1]) : undefined
+      if (!ottDate) return true
+      const days = Math.abs(Date.parse(r.releaseDate) - Date.parse(ottDate)) / 86400000
+      return days > 7
+    })
+    if (theatrical.length < allReleases.length) {
+      console.log(
+        `🤖 Release agent: moved ${allReleases.length - theatrical.length} direct-to-OTT premiere(s) out of the theatre lists`
+      )
+    }
+
     cache = {
       fetchedAt: new Date().toISOString(),
       source: 'tmdb',
       rangeDays: PAST_DAYS,
       sourcesVersion: SOURCES_VERSION,
-      releases: allReleases,
+      releases: theatrical,
       ott: ott.filter((r) => !drop.has(r.id)),
       ottUpcoming: ottUpcoming.filter((r) => !drop.has(r.id)),
     }

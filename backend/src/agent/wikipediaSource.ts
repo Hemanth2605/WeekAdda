@@ -231,6 +231,24 @@ export async function sweepWikipedia(
   const known = new Set(existing.map((r) => normalizeTitle(r.title)))
   existing.forEach((r) => known.add(normalizeTitle(r.originalTitle)))
 
+  // TMDB and Wikipedia often name the same film differently — "KJQ" vs
+  // "KJQ: King Jackie Queen" — so exact title matching lets it in twice.
+  // A film releasing the SAME DAY whose normalized title is a prefix of the
+  // other's (either direction) is the same film wearing a subtitle.
+  const knownByDate = new Map<string, string[]>()
+  for (const r of existing) {
+    const arr = knownByDate.get(r.releaseDate) ?? []
+    arr.push(normalizeTitle(r.title), normalizeTitle(r.originalTitle))
+    knownByDate.set(r.releaseDate, arr)
+  }
+  const knownVariant = (norm: string, date: string) =>
+    (knownByDate.get(date) ?? []).some(
+      (k) =>
+        k.length >= 3 &&
+        norm.length >= 3 &&
+        (k.startsWith(norm) || norm.startsWith(k))
+    )
+
   const results = await Promise.allSettled(
     WIKI_LANGUAGES.flatMap((lang) =>
       years.map(async (year) => ({ lang, films: await fetchPageFilms(lang.page, year) }))
@@ -248,7 +266,7 @@ export async function sweepWikipedia(
     for (const f of films) {
       if (f.date < from || f.date > to) continue
       const norm = normalizeTitle(f.title)
-      if (!norm || known.has(norm)) continue
+      if (!norm || known.has(norm) || knownVariant(norm, f.date)) continue
       const id = `wiki-${lang.code}-${norm}-${f.date}`
       if (seen.has(id)) continue
       seen.add(id)

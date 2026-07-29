@@ -12,6 +12,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ShareSheet from './components/ShareSheet'
 import NotifySheet from './components/NotifySheet'
+import BackToTop from './components/BackToTop'
 
 /** Start every page from the top when the route changes (SPA keeps scroll otherwise). */
 function ScrollToTop() {
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/stats" element={<Stats />} />
         <Route path="*" element={<Navigate to="/movies" replace />} />
       </Routes>
+      <BackToTop />
       <Footer />
     </>
   )

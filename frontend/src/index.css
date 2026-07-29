@@ -634,6 +634,49 @@ input {
   }
 }
 
+/* Back-to-top arrow: appears after a screen of scrolling, stacked above the
+   mini player so the bottom-right reads as one control column */
+.back-top {
+  position: fixed;
+  right: 20px;
+  bottom: 86px;
+  z-index: 90;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--bg-raised);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s, color 0.2s, border-color 0.2s;
+}
+.back-top.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.back-top:hover {
+  color: var(--gold);
+  border-color: rgba(232, 179, 75, 0.5);
+}
+:root[data-theme='light'] .back-top {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+@media (max-width: 560px) {
+  .back-top {
+    right: 16px;
+    bottom: 72px;
+    width: 40px;
+    height: 40px;
+  }
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

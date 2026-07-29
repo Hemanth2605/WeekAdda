@@ -553,6 +553,86 @@ input {
   color: var(--gold);
   border-bottom-color: var(--gold);
 }
+/* Mini-player launcher: a floating action button pinned bottom-right, always
+   in reach while scrolling, on every Movies tab. Sits under modals (z 100)
+   and the share menu (z 300). The icon wears the same circulating gold ring
+   as the sign-in button (google-ring keyframes) — only the icon, not the pill. */
+.reel-btn {
+  position: fixed;
+  right: 20px;
+  bottom: 22px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 18px 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s, color 0.2s, border-color 0.2s;
+}
+.reel-btn:hover {
+  color: var(--gold);
+  border-color: rgba(232, 179, 75, 0.5);
+  transform: translateY(-2px);
+}
+.reel-ico {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: var(--gold);
+  box-shadow: 0 0 12px rgba(232, 179, 75, 0.35);
+}
+.reel-ico::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  inset: -150%;
+  background: conic-gradient(
+    rgba(232, 179, 75, 0.25),
+    var(--gold) 12%,
+    var(--gold-bright) 20%,
+    var(--gold) 28%,
+    rgba(232, 179, 75, 0.25) 40%,
+    rgba(232, 179, 75, 0.25)
+  );
+  animation: google-ring 3s linear infinite;
+}
+.reel-ico::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--bg-raised);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reel-ico::before {
+    animation: none;
+  }
+}
+/* On phones the label folds away, leaving a round thumb-sized glowing icon */
+@media (max-width: 560px) {
+  .reel-btn .reel-label {
+    display: none;
+  }
+  .reel-btn {
+    padding: 8px;
+    right: 16px;
+    bottom: 18px;
+  }
+}
 
 .toolbar {
   display: flex;
@@ -715,32 +795,45 @@ input {
   letter-spacing: 0.08em;
   margin-top: 3px;
 }
-.week-strip {
+/* Week history as a scrollable timeline of labelled chips: oldest left,
+   This Week right, active chip auto-centred. Edges fade to hint the scroll. */
+.week-timeline {
+  flex: 1 1 260px;
+  min-width: 0;
   display: flex;
-  align-items: center;
   gap: 6px;
+  overflow-x: auto;
+  padding: 4px 24px;
   margin-left: 8px;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
-.week-dot {
-  width: 22px;
-  height: 5px;
-  border-radius: 3px;
-  border: none;
-  background: rgba(255, 255, 255, 0.14);
-  transition: background 0.2s, transform 0.2s;
+.week-timeline::-webkit-scrollbar {
+  display: none;
 }
-.week-dot:hover {
-  background: rgba(232, 179, 75, 0.5);
-}
-.week-dot.active {
-  background: var(--gold);
-  transform: scaleY(1.4);
-}
-.week-hint {
+.week-tl-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--text-dim);
-  font-size: 11.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  transition: all 0.2s;
+}
+.week-tl-chip:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.week-tl-chip.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #171205;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(232, 179, 75, 0.3);
 }
 
 /* ---------------- language sections ---------------- */
@@ -911,7 +1004,7 @@ input {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin: 14px 0 -4px;
+  margin: 14px 0 10px;
 }
 .book-lang-label {
   font-size: 11px;
@@ -1210,7 +1303,12 @@ input {
   .blog-wrap { padding-left: 20px; padding-right: 20px; }
   .blog-composer-foot { flex-wrap: wrap; }
   .blog-input.author { max-width: none; flex: 1 1 100%; }
-  .week-strip { display: none; }
+  /* Full-width swipe row on phones; chips grown to thumb-sized (~44px)
+     targets, and the big week heading stepped down so the row breathes */
+  .week-timeline { flex-basis: 100%; order: 9; margin-left: 0; padding: 4px 16px; }
+  .week-tl-chip { min-height: 44px; padding: 10px 16px; font-size: 12.5px; }
+  .week-label { min-width: 0; }
+  .week-label h3 { font-size: 18px; }
   .agent-notice { margin: 10px 20px 0; }
   .lang-row { padding: 16px 20px 16px; gap: 13px; scroll-padding-left: 20px; scroll-padding-right: 20px; }
   .release-card { flex-basis: 145px; width: 145px; }
@@ -1889,7 +1987,7 @@ input {
 .pf-dot.pf-etvwin { background: #d6006e; }
 
 /* ---------------- blog ---------------- */
-.blog-page > *:not(.letter-rain):not(.modal-overlay) {
+.blog-page > *:not(.letter-rain):not(.modal-overlay):not(.reel-btn) {
   position: relative;
   z-index: 1;
 }
@@ -2630,6 +2728,12 @@ input {
 }
 :root[data-theme='light'] .week-arrow {
   border-color: rgba(0, 0, 0, 0.15);
+}
+:root[data-theme='light'] .week-tl-chip {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+:root[data-theme='light'] .week-tl-chip:hover {
+  border-color: rgba(0, 0, 0, 0.35);
 }
 :root[data-theme='light'] .week-dot {
   background: #353026;

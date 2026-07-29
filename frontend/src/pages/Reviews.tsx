@@ -17,6 +17,7 @@ import GoogleButton from '../components/GoogleButton'
 import { matchFlags } from '../flags'
 import { usePageMeta } from '../seo'
 import { BlogPost, BlogTag, RatingSummary, Release, CricketMatch } from '../types'
+import PipShow from '../components/PipShow'
 
 function timeAgo(iso: string) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -679,9 +680,47 @@ export default function Reviews() {
         ? (myPosts ?? [])
         : posts.filter((p) => p.tag.kind === filter)
 
+  // Mini-player slides: one card per review — the reader rating leads as
+  // "★ 4.2 / 5", then title, writer + what it's about, and the opening of
+  // the take. 3s so there is time to read.
+  const pipSlides = useMemo(
+    () =>
+      visible.slice(0, 40).map((p) => {
+        const r = ratings[p.id]
+        return {
+          kicker:
+            r && r.count > 0
+              ? `★ ${r.avg.toFixed(1)} / 5 · ${r.count} rating${r.count === 1 ? '' : 's'}`
+              : 'Not yet rated',
+          title: p.title,
+          sub: `${p.author} · ${p.tag.label}`,
+          lines: [p.body.length > 220 ? `${p.body.slice(0, 220)}…` : p.body],
+          href: '/reviews',
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posts, myPosts, filter, ratings]
+  )
+
   return (
     <main className="blog-page">
       <LetterRain />
+      <PipShow
+        slides={pipSlides}
+        noun="reviews"
+        rotateMs={3000}
+        context={{
+          tab: 'Reviews',
+          detail:
+            filter === 'all'
+              ? 'Latest takes'
+              : filter === 'mine'
+                ? 'My takes'
+                : filter === 'movie'
+                  ? 'Movie reviews'
+                  : 'Match reviews',
+        }}
+      />
       <section className="community-hero">
         <div className="community-hero-text">
           <h1 className="sr-only">Movie &amp; Cricket Reviews by Real Viewers</h1>

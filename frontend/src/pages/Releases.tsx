@@ -14,13 +14,15 @@ import {
 } from 'lucide-react'
 import { Star } from 'lucide-react'
 import { api } from '../api'
-import { usePageMeta } from '../seo'
+import { usePageMeta, titlePath } from '../seo'
 import { Release, ReleaseMeta, LanguageInfo, WeekInfo } from '../types'
 import NotifyCard from '../components/NotifyCard'
+import PipShow, { MAX_SLIDES } from '../components/PipShow'
+import WeekTimeline from '../components/WeekTimeline'
 import ReleaseCard, { coverGradient, formatDate } from '../components/ReleaseCard'
 import ReleaseModal from '../components/ReleaseModal'
 import { platformClass } from '../share'
-import { languageLabel, releaseLanguagesOf } from '../languages'
+import { languageLabel, releaseLanguagesOf, LANGUAGE_ORDER } from '../languages'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
@@ -166,7 +168,8 @@ export default function Releases() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [windowTab, week, search, language, ottType, upcomingSource])
 
-  // Group by language; Telugu always leads, then largest sections first.
+  // Group by language; fixed order Telugu, Tamil, English, Hindi, Malayalam,
+  // Kannada, then remaining languages largest-first.
   // A pan-India film is listed in every language it released in, not just the
   // one it was shot in — someone reading the Hindi row is exactly the person
   // who would otherwise never learn a Telugu-original film is playing in Hindi.
@@ -186,17 +189,39 @@ export default function Releases() {
         map.get(code)!.items.push(r)
       }
     }
+    const rank = (code: string) => {
+      const i = LANGUAGE_ORDER.indexOf(code)
+      return i === -1 ? LANGUAGE_ORDER.length : i
+    }
     return [...map.entries()]
       .map(([code, v]) => ({ code, ...v }))
-      .sort(
-        (a, b) =>
-          Number(b.code === 'te') - Number(a.code === 'te') || b.items.length - a.items.length
-      )
+      .sort((a, b) => rank(a.code) - rank(b.code) || b.items.length - a.items.length)
   }, [releases])
 
   const showRows = language === 'all' && !search.trim()
   const maxWeeks = weekInfo?.maxWeeks ?? 13
   const isWeekView = windowTab !== 'upcoming'
+
+  // Mini-player slides: this page's films, posters only, regrouped into the
+  // fixed language order (stable sort keeps the page's order within each)
+  const pipSlides = useMemo(() => {
+    const rank = (code: string) => {
+      const i = LANGUAGE_ORDER.indexOf(code)
+      return i === -1 ? LANGUAGE_ORDER.length : i
+    }
+    return releases
+      .filter((r) => r.poster)
+      .sort((a, b) => rank(a.language) - rank(b.language))
+      .slice(0, MAX_SLIDES)
+      .map((r) => ({
+        title: r.title,
+        sub: `${r.languageLabel} · ${formatDate(r.releaseDate)}${
+          r.platforms?.[0] ? ` · ${r.platforms[0]}` : ''
+        }`,
+        image: r.poster,
+        href: titlePath(r),
+      }))
+  }, [releases])
 
   // The week's biggest titles (by ratings volume) headline the page
   const heroPicks = useMemo(() => {
@@ -312,6 +337,52 @@ export default function Releases() {
         </Link>
       </div>
 
+      {/* Floating mini-player launcher — fixed bottom-right, above the grid */}
+      <PipShow
+        slides={pipSlides}
+        noun="films"
+          context={{
+            tab:
+              windowTab === 'ott'
+                ? 'OTT India'
+                : windowTab === 'released'
+                  ? 'In Theatres'
+                  : 'Coming Soon',
+            detail:
+              windowTab === 'upcoming'
+                ? upcomingSource === 'ott'
+                  ? 'On OTT'
+                  : 'In Theatres'
+                : weekInfo
+                  ? `${weekTitle(week)} · ${shortDate(weekInfo.from)} – ${shortDate(weekInfo.to)}`
+                  : weekTitle(week),
+          }}
+          weekJumps={
+            isWeekView
+              ? [
+                  ...(week > 0
+                    ? [
+                        {
+                          label: weekTitle(week - 1),
+                          dir: 'newer' as const,
+                          go: () => setWeek((w) => Math.max(0, w - 1)),
+                        },
+                      ]
+                    : []),
+                  ...(week < maxWeeks - 1
+                    ? [
+                        {
+                          label: weekTitle(week + 1),
+                          dir: 'older' as const,
+                          go: () => setWeek((w) => Math.min(maxWeeks - 1, w + 1)),
+                        },
+                      ]
+                    : []),
+                ]
+              : undefined
+          }
+        />
+
       {isWeekView && (
         <div className="week-nav">
           <button
@@ -341,17 +412,7 @@ export default function Releases() {
             <ChevronRight size={19} />
           </button>
 
-          <div className="week-strip">
-            {Array.from({ length: maxWeeks }, (_, i) => (
-              <button
-                key={i}
-                className={`week-dot${i === week ? ' active' : ''}`}
-                onClick={() => setWeek(i)}
-                title={weekTitle(i)}
-              />
-            ))}
-          </div>
-          <span className="week-hint">{maxWeeks} weeks of history</span>
+          <WeekTimeline weeks={maxWeeks} week={week} onPick={setWeek} />
         </div>
       )}
 

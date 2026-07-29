@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   CalendarDays,
   ChevronDown,
@@ -15,6 +15,7 @@ import {
 import { api } from '../api'
 import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } from '../auth'
 import GoogleButton from '../components/GoogleButton'
+import PipShow from '../components/PipShow'
 import { usePageMeta } from '../seo'
 
 interface ListingContact {
@@ -374,8 +375,32 @@ export default function Adda() {
 
   const visible = listings.filter((l) => l.status === 'open')
 
+  // Mini-player slides: one card per open listing — freshness and interest
+  // lead as the kicker. 3s so there is time to read.
+  const pipSlides = useMemo(
+    () =>
+      visible.slice(0, 40).map((l) => ({
+        kicker:
+          l.interestCount > 0
+            ? `${timeAgo(l.ts)} · ${l.interestCount} interested`
+            : `${timeAgo(l.ts)} · be the first to reply`,
+        title: l.title,
+        sub: `by ${l.author}`,
+        lines: [l.details.length > 200 ? `${l.details.slice(0, 200)}…` : l.details],
+        href: '/adda',
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [listings]
+  )
+
   return (
     <main>
+      <PipShow
+        slides={pipSlides}
+        noun="posts"
+        rotateMs={3000}
+        context={{ tab: 'The Adda', detail: 'Open asks & offers' }}
+      />
       <section className="community-hero">
         <div className="community-hero-text">
           <h1 className="sr-only">The Adda</h1>

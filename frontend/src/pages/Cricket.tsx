@@ -18,6 +18,8 @@ import { usePageMeta } from '../seo'
 import { CricketMatch, CricketMeta, WeekInfo } from '../types'
 import { shareMatch } from '../share'
 import { countryFlag } from '../flags'
+import WeekTimeline from '../components/WeekTimeline'
+import PipShow from '../components/PipShow'
 
 type Window = 'recent' | 'upcoming'
 
@@ -180,6 +182,44 @@ export default function Cricket() {
 
   const maxWeeks = weekInfo?.maxWeeks ?? 13
 
+  // Mini-player slides: one card per match, exactly what the tab is showing.
+  // The kicker reads "1st T20I · <series>" in one line; fixtures carry
+  // date/time + venue, results carry the scores with who won in gold —
+  // ESPN's statusDetail is just "Final", which tells a reader nothing.
+  const pipSlides = useMemo(
+    () =>
+      matches.slice(0, 40).map((m) => {
+        const winner = m.teams.find((t) => t.winner)
+        return {
+          kicker: [m.label, m.series].filter(Boolean).join(' · '),
+          title: m.teams.length === 2 ? `${m.teams[0].name} vs ${m.teams[1].name}` : m.name,
+          sub:
+            windowTab === 'recent'
+              ? winner
+                ? `${winner.name} won`
+                : m.statusDetail && !/^final$/i.test(m.statusDetail)
+                  ? m.statusDetail
+                  : 'No result'
+              : new Date(m.date).toLocaleString('en-IN', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                }),
+          lines:
+            windowTab === 'recent'
+              ? m.teams.map((t) => `${t.name} — ${t.score || 'no score'}`)
+              : [m.venue].filter(Boolean),
+          badges: m.teams
+            .map((t) => countryFlag(t.name) ?? t.logo ?? '')
+            .filter(Boolean),
+          href: windowTab === 'recent' ? '/cricket/results' : '/cricket',
+        }
+      }),
+    [matches, windowTab]
+  )
+
   // Headline India's match when the current view has one (results: latest
   // result; upcoming: next fixture)
   const indiaMatch = useMemo(
@@ -264,19 +304,48 @@ export default function Cricket() {
           >
             <ChevronRight size={19} />
           </button>
-          <div className="week-strip">
-            {Array.from({ length: maxWeeks }, (_, i) => (
-              <button
-                key={i}
-                className={`week-dot${i === week ? ' active' : ''}`}
-                onClick={() => setWeek(i)}
-                title={weekTitle(i)}
-              />
-            ))}
-          </div>
-          <span className="week-hint">{maxWeeks} weeks of history</span>
+          <WeekTimeline weeks={maxWeeks} week={week} onPick={setWeek} />
         </div>
       )}
+
+      {/* Floating mini-player: this tab's matches, one by one */}
+      <PipShow
+        slides={pipSlides}
+        noun="matches"
+        context={{
+          tab: 'Cricket',
+          detail:
+            windowTab === 'recent'
+              ? weekInfo
+                ? `Results · ${weekTitle(week)} · ${shortDate(weekInfo.from)} – ${shortDate(weekInfo.to)}`
+                : `Results · ${weekTitle(week)}`
+              : 'Fixtures · Today & This Week',
+        }}
+        weekJumps={
+          windowTab === 'recent'
+            ? [
+                ...(week > 0
+                  ? [
+                      {
+                        label: weekTitle(week - 1),
+                        dir: 'newer' as const,
+                        go: () => setWeek((w) => Math.max(0, w - 1)),
+                      },
+                    ]
+                  : []),
+                ...(week < maxWeeks - 1
+                  ? [
+                      {
+                        label: weekTitle(week + 1),
+                        dir: 'older' as const,
+                        go: () => setWeek((w) => Math.min(maxWeeks - 1, w + 1)),
+                      },
+                    ]
+                  : []),
+              ]
+            : undefined
+        }
+      />
 
       <div className="toolbar">
         <div className="search-wrap">

@@ -161,7 +161,13 @@ export function routeMeta(pathname: string): { title: string; description: strin
 
 // ---------------- /movies ----------------
 
-/** Group releases by language, Telugu first, then biggest groups first. */
+/**
+ * Group releases by language in the site's fixed order — Telugu, Tamil,
+ * English, Hindi, Malayalam, Kannada — then remaining languages biggest-first.
+ * Mirrors LANGUAGE_ORDER in frontend/src/languages.ts — keep the two in step.
+ */
+const LANGUAGE_ORDER = ['Telugu', 'Tamil', 'English', 'Hindi', 'Malayalam', 'Kannada']
+
 function byLanguage<T extends { languageLabel: string }>(list: T[]): Array<[string, T[]]> {
   const map = new Map<string, T[]>()
   for (const r of list) {
@@ -169,11 +175,13 @@ function byLanguage<T extends { languageLabel: string }>(list: T[]): Array<[stri
     arr.push(r)
     map.set(r.languageLabel, arr)
   }
-  return [...map.entries()].sort((a, b) => {
-    const telugu = Number(b[0] === 'Telugu') - Number(a[0] === 'Telugu')
-    if (telugu !== 0) return telugu
-    return b[1].length - a[1].length
-  })
+  const rank = (label: string) => {
+    const i = LANGUAGE_ORDER.indexOf(label)
+    return i === -1 ? LANGUAGE_ORDER.length : i
+  }
+  return [...map.entries()].sort(
+    (a, b) => rank(a[0]) - rank(b[0]) || b[1].length - a[1].length
+  )
 }
 
 /** Crawlable link to the title's own page. */

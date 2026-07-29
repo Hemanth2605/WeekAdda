@@ -21,6 +21,13 @@ const LABELS: Record<string, string> = {
 export const languageLabel = (code: string) => LABELS[code] ?? code
 
 /**
+ * The fixed display order for language sections: Telugu, Tamil, English,
+ * Hindi, Malayalam, Kannada; anything else follows, largest section first.
+ * Mirrors `byLanguage` in backend/src/seo.ts — keep the two in step.
+ */
+export const LANGUAGE_ORDER = ['te', 'ta', 'en', 'hi', 'ml', 'kn']
+
+/**
  * Every language a film can be watched in. Mirrors `releaseLanguages` in
  * backend/src/queries.ts: the field is absent on single-language films and on
  * any cache written before it existed, and the original language is the answer

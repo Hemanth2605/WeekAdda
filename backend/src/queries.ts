@@ -67,16 +67,17 @@ export interface ReleaseCache {
   ottUpcoming: OttRelease[] // digital releases announced for the next ~90 days
 }
 
+// Display order: Telugu, Tamil, English, Hindi, Malayalam, Kannada, then the rest.
 export const LANGUAGES = [
   { code: 'te', label: 'Telugu' },
-  { code: 'hi', label: 'Hindi' },
   { code: 'ta', label: 'Tamil' },
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi' },
   { code: 'ml', label: 'Malayalam' },
   { code: 'kn', label: 'Kannada' },
   { code: 'bn', label: 'Bengali' },
   { code: 'mr', label: 'Marathi' },
   { code: 'pa', label: 'Punjabi' },
-  { code: 'en', label: 'English' },
   { code: 'ko', label: 'Korean' },
   { code: 'ja', label: 'Japanese' },
   { code: 'es', label: 'Spanish' },

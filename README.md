@@ -13,9 +13,11 @@ link opens where the sender was.
 - 📺 **OTT India** (`/movies`, the default) — movies **and web series** that just arrived on
   JioHotstar, Amazon Prime Video, Netflix, Sony LIV, ZEE5, Sun NXT, Apple TV, Aha and
   ETV Win — weekly paging, platform badges, Movies / Web Series filter.
-- 🎞 **Just Released** (`/movies/theatres`) — theatrical releases paged by week (This Week,
-  Last Week, … up to 13 weeks back), segregated into horizontally-scrolling rows per
-  language, with posters, ratings, and search.
+- 🎞 **Just Released** (`/movies/theatres`) — theatrical releases paged by week along a
+  scrollable **week timeline** of labelled chips (This Week, Last Week, … up to 13 weeks
+  back, oldest on the left), segregated into horizontally-scrolling rows per language —
+  always **Telugu, Tamil, English, Hindi, Malayalam, Kannada** first, then the rest —
+  with posters, ratings, and search.
 - 🔜 **Coming Soon** (`/movies/upcoming`) — two views: **In Theatres** (next 90 days) and
   **On OTT** (announced digital premieres for India, platform-tagged where known).
 - 🏏 **Cricket** (`/cricket`) — lands on **Fixtures** banded **Today / This Week / Later**;
@@ -41,6 +43,27 @@ link opens where the sender was.
   service's terms, tickets at face value only).
 - 👤 **About & Privacy** (`/about`, `/privacy`) — the founder story and a plain-language
   privacy policy (what's collected, why, and who can see it).
+- 📍 **Your language and your team, first** — the page opens on what the visitor
+  actually watches. Cloudflare knows each request's country (and Indian state) from the
+  IP, so **Karnataka lands on Kannada**, Kerala on Malayalam, Tamil Nadu on Tamil, the
+  Hindi belt on Hindi; **Japan on Japanese**, Spain on Spanish, and anywhere abroad whose
+  language we don't carry on **English**. Cricket does the same by country: **Australia
+  sees Australia's series pinned first**, Pakistan sees Pakistan's. Everything else keeps
+  the site's fixed order (Telugu, Tamil, English, Hindi, Malayalam, Kannada, then the
+  rest) and India-first cricket — which is also the answer when the country has no
+  matches that week, when the state's language isn't one we carry, and when nothing is
+  detected at all. **No permission prompt, no coordinates, nothing stored**: it's a
+  coarse IP lookup the edge already did, cached in the browser for a day.
+- 🪟 **Mini player** — a floating picture-in-picture slideshow on Movies, Cricket,
+  Reviews and the Adda that plays whatever the page is showing — movie posters, match
+  cards with team flags and who won, reviews with their star rating, open Adda posts —
+  while the viewer does other things. Desktop Chrome/Edge get a fully clickable window
+  (click opens that title on the site, ‹ › arrows to step, an end card offering the
+  adjacent weeks); everywhere else a canvas-drawn video PiP with the system's ⏮ ⏭
+  controls. The button hides itself when the page has nothing to play or the browser
+  has no PiP at all.
+- ⬆️ **Back to top** — a floating arrow fades in after a screen of scrolling on every
+  page, stacked above the mini-player button as one bottom-right control column.
 - 📤 **Sharing** — native share sheet on phones (WhatsApp, Telegram, Instagram, anything
   installed); a WhatsApp / Telegram / X / Instagram / Copy chooser on desktop. Every
   page (including per-title movie pages) carries its own Open Graph tags, so shared
@@ -100,10 +123,18 @@ sweep is Actions → Daily sweep → Run workflow.
     titles appear even though TMDB doesn't cover them
   - **Watchmode** (`watchmodeSource.ts`, optional key) — catalog *additions* (licensed
     content a platform just added), skipped silently when no key is set
+  - **Two honesty passes at the end**: a film whose only release is its OTT premiere
+    (same TMDB id premiering digitally within a week of its "theatrical" date) is kept
+    out of the theatre lists — TMDB's discover has no release-type filter, so ZEE5 web
+    series were showing as upcoming theatre releases; and a same-day title that is a
+    prefix of another ("KJQ" vs "KJQ: King Jackie Queen") enters once, not twice
 - 🏏 **Cricket agent** (`backend/src/agent/cricketAgent.ts`) — sweeps ESPN's public cricket
   scoreboard JSON (no key needed), every active league month by month. ESPN only lists
   *current* leagues, so the cache **accumulates**: past weeks keep filling up from launch
-  day and finished series stay until they age out of the 13-week window.
+  day and finished series stay until they age out of the 13-week window. ESPN's
+  scoreboard feed marks winners with the **strings** `"true"`/`"false"` (its other feeds
+  use booleans) — the agent parses them strictly, and when ESPN itself crowns both
+  teams, it highlights neither rather than the wrong one.
 
 Without any API key the app runs on built-in sample data, so it works out of the box.
 
@@ -173,6 +204,7 @@ Cricket needs no key.
 | POST   | `/api/adda/:id/close`   | Close your own listing (Bearer required) |
 | POST   | `/api/push/subscribe`   | Store a browser's release-notification registration: `{ subscription, languages[], timezone? }`. No account, no email |
 | POST   | `/api/push/unsubscribe` | Forget it: `{ endpoint }` |
+| GET    | `/api/geo`              | The visitor's coarse country + Indian state, from the edge's own IP lookup — the app puts their language and national team first. `no-store` (per-visitor), `?force=IN-KA` for testing, and `{ null, null }` in local dev |
 | GET    | `/api/health`           | Liveness check |
 
 ## Project structure
@@ -195,7 +227,9 @@ frontend/
   src/
     pages/                 # Releases, Cricket, Reviews, MovieDetail, Adda, About, Privacy, Stats
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
-                           #   NotifyBell / NotifyCard / NotifySheet
+                           #   NotifyBell / NotifyCard / NotifySheet, BackToTop,
+                           #   PipShow (mini player), WeekTimeline (week chips)
+    geo.ts                 # country/state → home language + national team, one cached lookup
     auth.ts                # Google sign-in (token flow) + app-wide user state
     push.ts                # subscribe/unsubscribe + browser support detection
     seo.ts                 # usePageMeta — must mirror the Worker's routeMeta strings
@@ -283,6 +317,11 @@ free tiers plus the domain:
   redirects the `www` and legacy workers.dev hosts to weekadda.com, and sets security
   headers (`nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`) on
   every response
+- **Geo personalization needs the edge**: `/api/geo` reads `request.cf` (country +
+  `regionCode`), which only exists in production — locally it answers `{ null, null }`
+  and the default order applies. The **pre-render deliberately keeps the canonical
+  order**: HTML is cached per URL at the edge, so a personalized block would be served
+  to the wrong visitor and to crawlers. Personalization is the SPA's job, after mount.
 - **After a deploy that changes HTML, purge the Cloudflare cache** (Caching →
   Configuration → Purge Everything). Deploying does not evict cached pages, so the edge
   keeps serving the previous HTML — including to Googlebot. Hashed JS/CSS filenames are
@@ -308,6 +347,10 @@ free tiers plus the domain:
 - Hard 404 status for expired `/movie/…` URLs (currently a soft 404 shell)
 - Per-review URLs (`/reviews/:id/:slug`) with their own meta tags + AggregateRating schema,
   so individual takes (and their star ratings) can rank in search and be shared directly
+- A visible "showing X first — change" control so a detected language/team can be
+  overridden by hand (today the only override is the language filter itself)
+- Per-week counts on the week timeline chips, so it's obvious which past weeks are worth
+  opening
 - Email notification to an Adda poster when someone responds (built then removed —
   revisit with a transactional-email key when the board sees real usage)
 - A second daily sweep in the evening so cricket results land the same night

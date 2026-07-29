@@ -29,8 +29,11 @@ cd frontend && npm run build
   Deleting an agent cache file is safe — it regenerates on the next sync. `blog.json`
   holds real (or seeded test) posts and does NOT regenerate.
 - **Two daily agents**: `releaseAgent.ts` (TMDB + Wikipedia film lists + Wikipedia OTT
-  originals + optional Watchmode) and `cricketAgent.ts` (ESPN public scoreboard JSON,
-  accumulating cache). Locally node-cron runs them at 4 AM (`backend/src/index.ts`);
+  originals + optional Watchmode; at cache-build time it drops direct-to-OTT premieres
+  from the theatre lists and skips same-day subtitle-variant duplicates — bump
+  `SOURCES_VERSION` when sources or rules change so stale caches resweep on boot) and
+  `cricketAgent.ts` (ESPN public scoreboard JSON, accumulating cache;
+  `CRICKET_CACHE_VERSION` plays the same role). Locally node-cron runs them at 4 AM (`backend/src/index.ts`);
   each keeps a POST `/refresh` route for dev convenience (no UI button).
 - **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
   and the cache types, used by both the Express routes and the Worker. Change behaviour
@@ -164,8 +167,19 @@ cd frontend && npm run build
   deliberately (July 2026). Results show only completed (`state === 'post'`) matches;
   in-progress matches are filtered out at the API and there is no live-polling code.
   Do not reintroduce any of it unless explicitly asked.
-- **Telugu-first sorting** in releases; **India-first sorting** in cricket (series
-  featuring any team whose name starts with "india" are pinned first). Intentional.
+- **Fixed language display order** (July 2026): Telugu, Tamil, English, Hindi,
+  Malayalam, Kannada, then the rest — in the filter chips (`LANGUAGES` in
+  `queries.ts`), the section rows (`LANGUAGE_ORDER` in `frontend/src/languages.ts`),
+  and the pre-render (`byLanguage` in `seo.ts`); keep the three in step. Within a
+  list, Telugu-first then date/votes still applies (`queries.ts` sort).
+  **India-first sorting** in cricket (series featuring any team whose name starts
+  with "india" are pinned first). Intentional.
+- **The visitor's own language/team goes first, but only as a promotion**
+  (owner-requested, July 2026): geo detection moves *one* language (or one
+  cricket team) to the front — Karnataka → Kannada, Japan → Japanese, abroad →
+  English, Australia → Australia's series. It never reorders anything else and
+  never removes anything; the fixed order above is what remains, and is what
+  everyone undetected still gets. See the Geo personalization bullet.
 - **Wikipedia fetches are serialized with a polite delay** — keep it that way; do not
   parallelize them.
 - Optional data sources (Watchmode) must **fail silent** when their key is missing.
@@ -206,6 +220,34 @@ cd frontend && npm run build
   Real Viewers"), and `Adda.tsx` ("The Adda"). Movies/Cricket use the
   `.opp-header` hero; Reviews/Adda
   use `.community-hero` (a compact hero with the CTA on the right).
+- **Mini player (PiP)** — `components/PipShow.tsx`, mounted on Releases, Cricket,
+  Reviews and Adda as a fixed bottom-right button (`.reel-btn`). A generic slide
+  player: slides with `image` render poster-style, the rest as text cards
+  (kicker / title / gold sub / lines / flag badges). Each page builds its own
+  slides from the data it already fetched, so the show always mirrors the
+  current tab/week/filters — and live-updates the open window when they change.
+  Desktop Chrome/Edge use Document PiP (clickable, ‹ › arrows, end card with
+  week jumps); everywhere else a canvas→captureStream video PiP with
+  Media-Session prev/next. Button hides when unsupported or nothing to play.
+  Reviews/Adda rotate at 3s (reading), Movies/Cricket at 2.5s (`rotateMs`).
+- **Geo personalization** (`frontend/src/geo.ts`, July 2026): GET `/api/geo`
+  returns `{ country, region }` from Cloudflare's `request.cf` (Express answers
+  nulls locally; `?force=IN-KA` fakes it). One `useGeo` lookup, cached in
+  localStorage for 24h, feeds both `useHomeLanguage` (state/country → language,
+  promoted to the front of `LANGUAGE_ORDER`; abroad gets their language then
+  English) and `useHomeTeam` (country → national team name prefix, pinned above
+  India in `Cricket.tsx`'s series sort). **Every fallback path is the existing
+  fixed order** — undetected, unmapped state, or a country with no matches must
+  keep today's behaviour. Never make this a blocking wait or a permission
+  prompt, and never personalize the pre-render (see the gotcha below).
+- **Week timeline** — `components/WeekTimeline.tsx` replaces the old dot strip
+  on Movies and Cricket Results: labelled chips (This Week, Last Week, then
+  date ranges), oldest left → This Week right, active chip auto-centred,
+  visible on mobile (the dots used to be hidden there). Chip dates use the
+  same UTC-day math as the backend's isoDaysAgo.
+- **Back to top** — `components/BackToTop.tsx`, mounted once in `App.tsx` so
+  every page has it; fades in past 600px of scroll and sits above `.reel-btn`
+  in the same bottom-right column.
 
 ## Gotchas
 
@@ -234,6 +276,19 @@ cd frontend && npm run build
   to ask for a verdict out of five, which it does not. Whatever the pre-render
   shows must also render for people — `MovieDetail` loads the same reviews, or
   the markup is unsupported by visible content.
+- **Never personalize the pre-render.** Edge HTML is cached per URL, so a
+  geo-ordered block would be handed to the next visitor from anywhere and to
+  crawlers. `seo.ts` keeps the canonical order; personalization happens in the
+  SPA after mount. Same reason `/api/geo` is `no-store`.
+- **ESPN's scoreboard feed sends `winner` as the STRING `"true"`/`"false"`** (its
+  header feed sends real booleans). `Boolean("false")` is `true` — this crowned both
+  teams and the UI highlighted the home side. `cricketAgent.ts` parses strictly, and
+  a finished match ESPN gives two winners gets none (guard also runs over merged
+  cache entries, since the cache accumulates old sweeps).
+- **Canvas + CORS cache trap**: the page loads TMDB posters as plain `<img>`; a later
+  `crossOrigin` request for the same URL (the mini player's canvas) gets the cached
+  non-CORS response and fails. `PipShow.tsx` appends `?pip=1` so the canvas fetch has
+  its own cache entry. Applies to any future canvas/WebGL use of page-loaded images.
 - **Two waits that look like bugs.** A Worker deploy takes ~30–60s to propagate,
   so probing immediately after `wrangler deploy` returns the *previous* version;
   and the Worker caches Supabase reads for 5 minutes per isolate, which a URL

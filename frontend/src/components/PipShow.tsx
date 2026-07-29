@@ -600,7 +600,7 @@ export default function PipShow({
       drawChrome(index)
     }
 
-    const drawCard = (s: PipSlide, index: number) => {
+    const drawCard = (s: PipSlide, index: number, badgeImgs: HTMLImageElement[] = []) => {
       const cw = canvas.width
       const ch = canvas.height
       ctx.fillStyle = '#0d1017'
@@ -614,11 +614,31 @@ export default function PipShow({
       // heading big — empty space belongs at the bottom, not around a blob
       // floating in the middle
       let y = 128
+      if (badgeImgs.length) {
+        let x = 20
+        for (const im of badgeImgs) {
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(x + 22, y - 8 + 22, 22, 0, Math.PI * 2)
+          ctx.clip()
+          ctx.drawImage(im, x, y - 8, 44, 44)
+          ctx.restore()
+          ctx.beginPath()
+          ctx.arc(x + 22, y - 8 + 22, 22, 0, Math.PI * 2)
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+          ctx.stroke()
+          x += 56
+        }
+        y += 60
+      }
       if (s.kicker) {
         ctx.fillStyle = '#d5b96b'
         ctx.font = '700 15px system-ui, sans-serif'
-        ctx.fillText(s.kicker.toUpperCase(), 20, y)
-        y += 30
+        for (const line of wrap(s.kicker.toUpperCase(), cw - 40, 2)) {
+          ctx.fillText(line, 20, y)
+          y += 22
+        }
+        y += 8
       }
       ctx.fillStyle = '#e8e6e1'
       ctx.font = '800 30px Georgia, serif'
@@ -669,9 +689,24 @@ export default function PipShow({
         image.onerror = () => {
           if (at === i) drawCard(s, at)
         }
-        image.src = s.image
+        // The page shows the same posters as plain <img>, so the browser may
+        // hold a non-CORS cached copy that a crossOrigin request then trips
+        // over — a marker param makes this a distinct, CORS-clean fetch
+        image.src = `${s.image}${s.image.includes('?') ? '&' : '?'}pip=1`
       } else {
+        // Text first, then the badges (team flags) pop in as they load
         drawCard(s, at)
+        const wanted = (s.badges ?? []).slice(0, 2)
+        const loaded: HTMLImageElement[] = []
+        for (const src of wanted) {
+          const im = new Image()
+          im.crossOrigin = 'anonymous'
+          im.onload = () => {
+            loaded.push(im)
+            if (at === i) drawCard(s, at, loaded)
+          }
+          im.src = new URL(src, window.location.origin).href
+        }
       }
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({

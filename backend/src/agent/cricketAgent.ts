@@ -21,7 +21,7 @@ export type { CricketTeam, CricketMatch, CricketCache }
 const PAST_DAYS = CRICKET_MAX_WEEKS * 7 - 1
 const FUTURE_DAYS = 90
 
-const CRICKET_CACHE_VERSION = 5
+const CRICKET_CACHE_VERSION = 7
 
 // National sides (suffixes like "Women", "Under-19s", "A" are stripped before lookup)
 const NATIONS = new Set([
@@ -113,7 +113,8 @@ interface EspnEvent {
     venue?: { fullName?: string }
     status?: { type?: { state?: string; detail?: string; shortDetail?: string } }
     competitors?: Array<{
-      winner?: boolean
+      /** The scoreboard endpoint sends this as the STRING "true"/"false" */
+      winner?: boolean | string
       score?: string
       team?: { displayName?: string; abbreviation?: string; logo?: string }
     }>
@@ -129,8 +130,15 @@ function normalizeEvent(e: EspnEvent, series: string, seriesId: string): Cricket
     abbreviation: t.team?.abbreviation ?? '',
     score: t.score ?? '',
     logo: t.team?.logo ?? null,
-    winner: Boolean(t.winner),
+    // ESPN sends booleans on some feeds and "true"/"false" strings on the
+    // scoreboard one — Boolean("false") is true, which crowned both teams
+    winner: t.winner === true || t.winner === 'true',
   }))
+  // ESPN occasionally marks both sides as winners (some domestic feeds).
+  // A wrong crown is worse than none — highlight nobody in that case.
+  if (teams.filter((t) => t.winner).length > 1) {
+    for (const t of teams) t.winner = false
+  }
   return {
     id: `espn-${e.id}`,
     name: e.name ?? '',
@@ -271,6 +279,14 @@ export async function syncCricket(): Promise<CricketCache> {
       const day = m.date.slice(0, 10)
       return day >= from && day <= to
     })
+
+    // Heal accumulated entries too (older sweeps stored double winners):
+    // a wrong crown is worse than none
+    for (const m of matches) {
+      if (m.teams.filter((t) => t.winner).length > 1) {
+        for (const t of m.teams) t.winner = false
+      }
+    }
 
     // Remember every league that had matches in-window, for future sweeps
     const knownLeagues = [...activeLeagues.entries()].map(([id, name]) => ({ id, name }))

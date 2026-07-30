@@ -779,6 +779,25 @@ input {
   text-decoration: underline;
 }
 
+/* The line where a platform hub stops being about this week and says so */
+.hub-earlier-lead {
+  padding: 26px 42px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+/* A quiet week is the first thing on the page, so it gets a little more weight
+   than the same line sitting below this week's arrivals */
+.hub-earlier-lead.quiet {
+  padding-top: 14px;
+  color: var(--text);
+  font-size: 13.5px;
+}
+@media (max-width: 720px) {
+  .hub-earlier-lead {
+    padding: 20px 20px 0;
+  }
+}
+
 /* ---------------- empty-state starters ----------------
    An empty page has to answer "what do I write?", not just "why should I".
    Reviews names real films from this week; the Adda names the three things the

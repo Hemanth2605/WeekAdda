@@ -4,7 +4,7 @@ import { MonitorPlay, Film } from 'lucide-react'
 import { api } from '../api'
 import { usePageMeta, titlePath } from '../seo'
 import { Release } from '../types'
-import { platformBySlug, platformMeta } from '../platforms'
+import { platformBySlug, platformMeta, platformShort } from '../platforms'
 import PlatformLinks from '../components/PlatformLinks'
 import Breadcrumbs from '../components/Breadcrumbs'
 import { languageLabel } from '../languages'
@@ -16,6 +16,9 @@ import { useHomeLanguage, orderWithHome } from '../geo'
 interface HubResponse {
   platform: { slug: string; name: string }
   streaming: Release[]
+  /** The last seven days — the page leads with these, as its title promises */
+  thisWeek: Release[]
+  earlier: Release[]
   upcoming: Release[]
   indexable: boolean
 }
@@ -35,7 +38,9 @@ export default function PlatformHub() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Release | null>(null)
 
-  const meta = platformMeta(platform?.name ?? 'OTT')
+  // The short name, matching platformMeta in backend/src/seo.ts exactly — the
+  // Worker writes these tags and this overwrites them on mount
+  const meta = platformMeta(platform ? platformShort(platform) : 'OTT')
   usePageMeta(meta.title, meta.description)
 
   useEffect(() => {
@@ -57,7 +62,8 @@ export default function PlatformHub() {
       return i === -1 ? langOrder.length : i
     }
     const map = new Map<string, Release[]>()
-    for (const r of data?.streaming ?? []) {
+    // This week is its own section above; these are the rest
+    for (const r of data?.earlier ?? data?.streaming ?? []) {
       const arr = map.get(r.language) ?? []
       arr.push(r)
       map.set(r.language, arr)
@@ -104,10 +110,12 @@ export default function PlatformHub() {
           <span className="hero-eyebrow">
             <MonitorPlay size={13} /> Now streaming in India
           </span>
-          <h1 className="sr-only">New Movies &amp; Web Series on {platform.name} in India</h1>
+          <h1 className="sr-only">
+            New Movies &amp; Web Series on {platform.name} in India This Week
+          </h1>
           <p>
-            Everything that recently started streaming on {platform.name} in India, newest first —
-            plus what has been announced next. Swept daily and laid out language by language.
+            What just landed on {platform.name} in India this week, then everything else that
+            arrived recently — newest first, laid out language by language.
           </p>
           {/* Every hub links to every other one: eight pages only the sitemap
               knows about are eight orphans. Real links, not a JS-only tab. */}
@@ -141,6 +149,37 @@ export default function PlatformHub() {
         </div>
       ) : (
         <div className="lang-sections">
+          {/* The title promises this week, so this week is what leads */}
+          {(data?.thisWeek.length ?? 0) > 0 && (
+            <section className="lang-section">
+              <div className="lang-head">
+                <h2>New this week on {platform.name}</h2>
+                <span className="count">
+                  {data!.thisWeek.length} title{data!.thisWeek.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="lang-row">
+                {data!.thisWeek.map((r, i) => (
+                  <ReleaseCard key={r.id} release={r} index={i} onOpen={setSelected} />
+                ))}
+              </div>
+            </section>
+          )}
+          {/* The page said "this week"; where that stops being true, say so.
+              A quiet week is normal and rotates between platforms — the page
+              admits it rather than sliding into the archive in silence. */}
+          {(data?.earlier.length ?? 0) > 0 &&
+            ((data?.thisWeek.length ?? 0) > 0 ? (
+              <p className="hub-earlier-lead">
+                Everything else that landed on {platform.name} in the last few weeks —{' '}
+                {data!.earlier.length} more, newest first
+              </p>
+            ) : (
+              <p className="hub-earlier-lead quiet">
+                Nothing new arrived on {platform.name} this week. Here is what landed in the weeks
+                before — {data!.earlier.length} titles, newest first
+              </p>
+            ))}
           {sections.map((s) => (
             <section key={s.code} className="lang-section">
               <div className="lang-head">

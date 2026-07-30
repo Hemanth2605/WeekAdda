@@ -9,6 +9,7 @@ import {
   queryCricket,
   queryPlatform,
   OTT_PLATFORMS,
+  platformShort,
   findTitle,
   relatedTitles,
   titleUrl,
@@ -153,7 +154,9 @@ export function routeMeta(pathname: string): { title: string; description: strin
         'New OTT releases this week in India — movies & web series on Netflix, Prime Video, JioHotstar, ZEE5, Sun NXT & Aha, plus theatre and upcoming release dates.',
     },
     '/movies/upcoming': {
-      title: 'Upcoming Movies & OTT Releases in India — Release Dates | WeekAdda',
+      // 66 chars before — past where engines truncate, so "| WeekAdda" was
+      // being cut off and the brand never appeared in the result
+      title: 'Upcoming Movies & OTT Release Dates in India | WeekAdda',
       description:
         'Upcoming movie release dates in India — theatre releases and upcoming OTT releases & web series, with the streaming platform where confirmed. Updated daily.',
     },
@@ -180,7 +183,7 @@ export function routeMeta(pathname: string): { title: string; description: strin
     '/adda': {
       title: 'The Adda — Ask, Offer & Find Company | WeekAdda',
       description:
-        'A community board for movie and cricket fans in India: spare tickets at face value, company for a show or match, honest asks. Free to read; respond with Google sign-in.',
+        'A community board for movie and cricket fans in India: spare tickets at face value, company for a show or a match, honest asks. Free to read, sign in to reply.',
     },
     '/privacy': {
       title: 'Privacy Policy | WeekAdda',
@@ -203,10 +206,20 @@ function platformMeta(pathname: string): { title: string; description: string } 
   const slug = pathname.startsWith('/ott/') ? pathname.slice(5) : ''
   const platform = OTT_PLATFORMS.find((p) => p.slug === slug)
   if (!platform) return null
+  // Built to a budget — ≤60 for the title, 140–160 for the description —
+  // measured against the longest platform name, not the shortest.
+  //
+  // "This Week" stays: it is how the query is actually typed ("new movies on
+  // netflix this week"), and it is what has to give way is the "| WeekAdda"
+  // suffix, which the breadcrumb now supplies in the result anyway. The page
+  // earns the phrase by leading with the last seven days — see the thisWeek
+  // section in buildPlatformSeo. A title claiming a week over three months of
+  // back catalogue would be the mismatch worth avoiding, not the phrase.
+  const name = platformShort(platform)
   return {
-    title: esc(`New Movies & Web Series on ${platform.name} India This Week | WeekAdda`),
+    title: esc(`New Movies & Web Series on ${name} India This Week`),
     description: esc(
-      `New releases on ${platform.name} in India — the latest movies and web series to start streaming, with release dates and languages, plus what is coming to ${platform.name} next. Updated daily.`
+      `New this week on ${name} in India — the movies and web series that just started streaming, plus everything from recent weeks and what is coming next.`
     ),
   }
 }
@@ -560,12 +573,32 @@ function buildReviewedTitlePage(
 export function buildPlatformSeo(data: ReleaseCache, slug: string): string | null {
   const result = queryPlatform(data, slug)
   if (!result) return null
-  const { platform, streaming, upcoming } = result
+  const { platform, streaming, thisWeek, earlier, upcoming } = result
   const name = esc(platform.name)
 
-  // By language, because that is how the query is really asked:
-  // "telugu movies on aha", "new hindi web series on jiohotstar"
-  const streamingSections = byLanguage(streaming)
+  // The page's title says "this week", so this is what has to be at the top of
+  // it. Everything else the cache holds follows underneath.
+  const thisWeekSection = section(
+    `New this week on ${platform.name} in India`,
+    thisWeek.slice(0, 20).map(ottLine)
+  )
+
+  // Then by language, because that is how the rest is really asked for:
+  // "telugu movies on aha", "new hindi web series on jiohotstar".
+  // Introduced explicitly rather than just appearing: the page says "this
+  // week", so the moment it stops being about this week it should say so.
+  //
+  // A quiet week is normal — ZEE5 had none the day this was written, and it
+  // rotates. The title stays put (one URL, one title; a data-dependent title
+  // would make the same address say different things on different days), so
+  // the *page* is what has to admit it rather than silently sliding into the
+  // archive under a heading promising this week.
+  const earlierLead = !earlier.length
+    ? ''
+    : thisWeek.length > 0
+      ? `<p>Everything else that landed on ${name} in the last few weeks — ${earlier.length} more, newest first:</p>`
+      : `<p>Nothing new arrived on ${name} this week. Here is what landed in the weeks before — ${earlier.length} titles, newest first:</p>`
+  const streamingSections = byLanguage(earlier.length ? earlier : streaming)
     .map(([lang, items]) =>
       section(
         `${lang} movies & web series on ${platform.name} in India`,
@@ -598,10 +631,12 @@ export function buildPlatformSeo(data: ReleaseCache, slug: string): string | nul
       { name: 'Movies & OTT', href: '/movies' },
       { name: platform.name },
     ]) +
-    `<h1>New Movies &amp; Web Series on ${name} in India</h1>` +
-    `<p>Everything that has recently started streaming on ${name} in India, newest first, with release dates and languages — plus what is announced for ${name} next. Updated every morning.</p>` +
+    `<h1>New Movies &amp; Web Series on ${name} in India This Week</h1>` +
+    `<p>What just started streaming on ${name} in India this week, then everything else that landed recently — newest first, with release dates and languages, plus what is announced for ${name} next. Updated every morning.</p>` +
     fresh.line +
     empty +
+    thisWeekSection +
+    earlierLead +
     streamingSections +
     upcomingSection +
     platformNav(platform.slug) +

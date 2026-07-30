@@ -245,9 +245,12 @@ export function queryReleases(
  * the label the release agent writes into `platforms`, exactly; that string is
  * the join between the two halves of this feature.
  */
-export const OTT_PLATFORMS: Array<{ slug: string; name: string }> = [
+export const OTT_PLATFORMS: Array<{ slug: string; name: string; short?: string }> = [
   { slug: 'netflix', name: 'Netflix' },
-  { slug: 'prime-video', name: 'Amazon Prime Video' },
+  // `short` is what goes in a <title>, where every character is rationed.
+  // "Amazon Prime Video" alone pushed the tag to 72 characters, past the point
+  // search engines truncate — and "Prime Video" is what people type anyway.
+  { slug: 'prime-video', name: 'Amazon Prime Video', short: 'Prime Video' },
   { slug: 'jiohotstar', name: 'JioHotstar' },
   { slug: 'sonyliv', name: 'Sony LIV' },
   { slug: 'zee5', name: 'ZEE5' },
@@ -255,6 +258,11 @@ export const OTT_PLATFORMS: Array<{ slug: string; name: string }> = [
   { slug: 'apple-tv', name: 'Apple TV' },
   { slug: 'aha', name: 'Aha' },
 ]
+
+/** The name for a <title> or meta description; full name everywhere else. */
+export function platformShort(p: { name: string; short?: string }): string {
+  return p.short ?? p.name
+}
 
 export function platformBySlug(slug: string): { slug: string; name: string } | null {
   return OTT_PLATFORMS.find((p) => p.slug === slug) ?? null
@@ -270,9 +278,18 @@ export function platformBySlug(slug: string): { slug: string; name: string } | n
 export const PLATFORM_MIN_TITLES = 3
 
 export interface PlatformResult {
-  platform: { slug: string; name: string }
+  platform: { slug: string; name: string; short?: string }
   /** Already streaming, newest arrival first — every week the cache holds. */
   streaming: OttRelease[]
+  /**
+   * The last seven days of `streaming`, split out because "what landed on
+   * Netflix this week" is the question people actually type, and a page whose
+   * title says so has to lead with it rather than bury it in three months of
+   * back catalogue.
+   */
+  thisWeek: OttRelease[]
+  /** Everything else already streaming — same list minus `thisWeek`. */
+  earlier: OttRelease[]
   /** Announced for this platform, soonest first. */
   upcoming: OttRelease[]
   /** Enough content to deserve indexing. */
@@ -296,9 +313,15 @@ export function queryPlatform(data: ReleaseCache, slug: string): PlatformResult 
   const upcoming = data.ottUpcoming
     .filter((r) => on(r) && r.releaseDate > today)
     .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
+  // Week 0 on the rest of the site is today-6..today; a platform hub uses the
+  // same seven days so "this week" means one thing everywhere
+  const weekFrom = isoDaysAgo(6)
+  const thisWeek = streaming.filter((r) => r.releaseDate >= weekFrom)
   return {
     platform,
     streaming,
+    thisWeek,
+    earlier: streaming.filter((r) => r.releaseDate < weekFrom),
     upcoming,
     indexable: streaming.length + upcoming.length >= PLATFORM_MIN_TITLES,
   }

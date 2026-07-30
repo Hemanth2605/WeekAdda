@@ -57,6 +57,24 @@ const data: ReleaseCache = {
   ottUpcoming: [ott({ id: 'n4', title: 'Netflix Soon', releaseDate: iso(6) })],
 }
 
+/** Every route that ships a title/description, hubs included. */
+const ALL_META_PATHS = [
+  '/movies',
+  '/movies/theatres',
+  '/movies/upcoming',
+  '/cricket/results',
+  '/reviews',
+  '/about',
+  '/adda',
+  '/privacy',
+  ...OTT_PLATFORMS.map((p) => `/ott/${p.slug}`),
+]
+
+/** routeMeta returns HTML-escaped strings; length budgets are about what a
+ *  reader sees, so "&amp;" counts as the one character it renders as. */
+const unescape_ = (s: string) =>
+  s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+
 /** Every ld+json block in a chunk of markup, parsed. Throws on invalid JSON. */
 const schemas = (html: string) =>
   [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) =>
@@ -91,6 +109,50 @@ describe('buildPlatformSeo', () => {
     }
     // and back to the section hub
     expect(html).toContain('href="/movies"')
+  })
+
+  /**
+   * The title promises "this week", so the page leads with it — and when a
+   * platform has a quiet week (ZEE5 had one the day this was written, and it
+   * rotates) the page says so rather than sliding into the archive under a
+   * heading that promised something else. The title stays put either way: one
+   * URL keying its title on the day's data would say different things on
+   * different days.
+   */
+  it('leads with this week, then labels the archive', () => {
+    // Its own fixture: the shared one is all from yesterday, so it has no
+    // archive to label and would pass this test vacuously
+    const mixed: ReleaseCache = {
+      ...data,
+      ott: [
+        ott({ id: 'fresh', title: 'Landed Yesterday', releaseDate: iso(-1) }),
+        ott({ id: 'old', title: 'Landed Last Month', releaseDate: iso(-40) }),
+      ],
+    }
+    const html = buildPlatformSeo(mixed, 'netflix')!
+    const week = html.indexOf('New this week on Netflix')
+    const archive = html.indexOf('Everything else that landed')
+    const langs = html.indexOf('Telugu movies')
+    expect(week).toBeGreaterThan(-1)
+    expect(week).toBeLessThan(archive)
+    expect(archive).toBeLessThan(langs)
+    // and the split itself is right
+    expect(html.indexOf('Landed Yesterday')).toBeLessThan(archive)
+    expect(html.indexOf('Landed Last Month')).toBeGreaterThan(archive)
+  })
+
+  it('admits a quiet week instead of pretending', () => {
+    // Everything on this platform is older than seven days
+    const stale: ReleaseCache = {
+      ...data,
+      ott: [ott({ id: 'old1', title: 'Old One', releaseDate: iso(-40) })],
+      ottUpcoming: [],
+    }
+    const html = buildPlatformSeo(stale, 'netflix')!
+    expect(html).toContain('Nothing new arrived on Netflix this week')
+    expect(html).not.toContain('Everything else that landed')
+    // …and still lists what it does have
+    expect(html).toContain('Old One')
   })
 
   it('still renders a working page for a platform with nothing on it', () => {
@@ -133,7 +195,8 @@ describe('routeMeta', () => {
     for (const p of OTT_PLATFORMS) {
       const meta = routeMeta(`/ott/${p.slug}`)
       expect(meta).toBeTruthy()
-      expect(meta!.title).toContain(p.name.replace(/&/g, '&amp;'))
+      // The short name where one exists — a <title> has a character budget
+      expect(meta!.title).toContain((p.short ?? p.name).replace(/&/g, '&amp;'))
       expect(seen.has(meta!.title)).toBe(false)
       seen.add(meta!.title)
     }
@@ -158,8 +221,39 @@ describe('routeMeta', () => {
    */
   it('keeps the hub title format the frontend mirrors', () => {
     expect(routeMeta('/ott/netflix')!.title).toBe(
-      'New Movies &amp; Web Series on Netflix India This Week | WeekAdda'
+      'New Movies &amp; Web Series on Netflix India This Week'
     )
+  })
+
+  it('uses the short platform name where characters are rationed', () => {
+    // "Amazon Prime Video" put this tag at 72 characters — past truncation, so
+    // "| WeekAdda" never appeared in the result. "Prime Video" is the searched
+    // form anyway. The full name is still what the page itself says.
+    expect(routeMeta('/ott/prime-video')!.title).toContain('Prime Video')
+    expect(routeMeta('/ott/prime-video')!.title).not.toContain('Amazon')
+    expect(buildPlatformSeo(data, 'prime-video')).toContain('Amazon Prime Video')
+  })
+
+  /**
+   * Bing Webmaster flagged the hubs for both. Measured across every route, not
+   * just the one reported: eight hub descriptions were over 160 and five
+   * titles over 60, plus /movies/upcoming and /adda, which nothing had caught.
+   * Budgets are checked against the *longest* platform name, since that is the
+   * one that breaks.
+   */
+  it('keeps every title inside what search engines display', () => {
+    for (const path of ALL_META_PATHS) {
+      const plain = unescape_(routeMeta(path)!.title)
+      expect(plain.length, `${path} title is ${plain.length} chars`).toBeLessThanOrEqual(60)
+    }
+  })
+
+  it('keeps every description inside 160, and long enough to be worth showing', () => {
+    for (const path of ALL_META_PATHS) {
+      const plain = unescape_(routeMeta(path)!.description)
+      expect(plain.length, `${path} description is ${plain.length} chars`).toBeLessThanOrEqual(160)
+      expect(plain.length, `${path} description is only ${plain.length} chars`).toBeGreaterThan(110)
+    }
   })
 
   /**

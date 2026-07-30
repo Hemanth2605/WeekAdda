@@ -354,6 +354,26 @@ describe('page freshness', () => {
     expect(broken).not.toContain('<time')
     expect(broken).not.toContain('dateModified')
   })
+
+  /**
+   * The sweep runs at 22:30 UTC, which is already the next morning in Delhi.
+   * Read in UTC it reported every single sweep as a day older than it was —
+   * on the one page whose whole claim is being current.
+   */
+  it('labels the sweep by its Indian calendar day, not its UTC one', () => {
+    // 23:32 UTC on the 29th is 05:02 IST on the 30th — a page swept this
+    // morning, not yesterday
+    const html = buildCricketSeo({ ...cricket, fetchedAt: '2026-07-29T23:32:40.453Z' })
+    expect(html).toContain('>30 Jul 2026</time>')
+    expect(html).not.toContain('>29 Jul 2026</time>')
+    // The machine-readable half keeps the exact instant, offset and all
+    expect(html).toContain('datetime="2026-07-29T23:32:40.453Z"')
+  })
+
+  it('leaves a sweep already inside the Indian day alone', () => {
+    const html = buildCricketSeo({ ...cricket, fetchedAt: '2026-07-30T04:00:00.000Z' })
+    expect(html).toContain('>30 Jul 2026</time>')
+  })
 })
 
 describe('every pre-render block', () => {

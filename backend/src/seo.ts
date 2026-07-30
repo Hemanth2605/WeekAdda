@@ -42,6 +42,27 @@ function day(iso: string): string {
   })
 }
 
+/**
+ * A *timestamp* as its calendar day in India.
+ *
+ * `day()` above is for release dates, which arrive as bare 'YYYY-MM-DD' and
+ * must be read as-is — reading those in IST would shift half of them. A sweep
+ * time is a different animal: it is a real instant, and the sweep lands at
+ * 22:30 UTC, which is already the next morning in Delhi. Formatted in UTC it
+ * reported every sweep as a day older than it was, on a page whose only claim
+ * is being current. Same reason aggregateClicks buckets clicks with istDay.
+ */
+function istDayLabel(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  })
+}
+
 /** Match start time in IST, or '' when the feed only carries a date. */
 function istTime(iso: string): string {
   if (iso.length <= 10 || /T00:00/.test(iso)) return ''
@@ -278,8 +299,10 @@ function platformCrumb(r: OttRelease): { name: string; href: string } | null {
 function pageFreshness(fetchedAt: string, name: string): { line: string; ld: string } {
   const updated = /^\d{4}-\d{2}-\d{2}/.test(fetchedAt) ? fetchedAt : ''
   if (!updated) return { line: '', ld: '' }
+  // The label is the sweep's IST calendar day; the datetime attribute stays
+  // the full instant, which carries its own offset and needs no interpreting
   return {
-    line: `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`,
+    line: `<p>Updated <time datetime="${esc(updated)}">${esc(istDayLabel(updated) || day(updated))}</time>, and every morning at 4 AM IST.</p>`,
     ld: jsonLd({
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',

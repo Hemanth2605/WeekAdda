@@ -72,6 +72,13 @@ function ContactPanel({ contact }: { contact: ListingContact }) {
   )
 }
 
+/** Deterministic avatar tint, so the same poster is the same colour every time. */
+function authorTint(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
+  return `hsl(${Math.abs(hash) % 360}, 42%, 34%)`
+}
+
 function ListingCard({
   listing,
   index,
@@ -131,15 +138,33 @@ function ListingCard({
       className="blog-card adda-card"
       style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}
     >
-      <div className="blog-card-meta">
-        <h2>{listing.title}</h2>
-        <span className="blog-card-byline">
-          {listing.author} {listing.mine && <span className="blog-you">You</span>} ·{' '}
-          <CalendarDays size={12} /> {timeAgo(listing.ts)} · <Users size={12} />{' '}
-          {listing.interestCount} interested
+      {/* An avatar, a heading, a two-item meta line — something for the eye to
+          land on before it starts reading. A grid of pure paragraphs has no
+          entry point, which is what made this page feel like a document. */}
+      <header className="adda-head">
+        <span className="adda-avatar" style={{ background: authorTint(listing.author) }}>
+          {listing.author.trim().charAt(0).toUpperCase() || '?'}
         </span>
-      </div>
-      <div className="blog-card-body">
+        <div className="adda-head-text">
+          <h2>{listing.title}</h2>
+          <span className="blog-card-byline">
+            {listing.author} {listing.mine && <span className="blog-you">You</span>} ·{' '}
+            <CalendarDays size={12} /> {timeAgo(listing.ts)}
+          </span>
+        </div>
+        {listing.interestCount > 0 && (
+          <span
+            className="adda-count"
+            title={`${listing.interestCount} interested`}
+            aria-label={`${listing.interestCount} interested`}
+          >
+            <Users size={12} /> {listing.interestCount}
+          </span>
+        )}
+      </header>
+      {/* Clamped to three lines: cards in a grid have to be the same height to
+          be scannable, and the whole ask fits in three lines anyway */}
+      <div className="blog-card-body adda-body">
         {listing.details.split(/\n+/).filter((p) => p.trim()).map((p, i) => (
           <p key={i}>{p}</p>
         ))}
@@ -168,7 +193,7 @@ function ListingCard({
             <button className="share-wa sm" onClick={respond} disabled={busy}>
               <HandHeart size={14} /> {busy ? 'One sec…' : "I'm interested"}
             </button>
-            <small>Responding shares your name &amp; Gmail with the poster</small>
+            <small>Shares your name &amp; email, both ways</small>
           </span>
         )}
       </div>
@@ -335,12 +360,21 @@ function ExampleCard({ onPost }: { onPost: () => void }) {
   return (
     <article className="blog-card adda-card adda-example">
       <span className="adda-example-chip">Example · this is how a post looks</span>
-      <div className="blog-card-meta">
-        <h2>One extra ticket — Chennai Love Story at PVR Nexus, Hyderabad</h2>
-        <span className="blog-card-byline">
-          Sample poster · just now · <Users size={12} /> 1 interested
+      {/* Same shape as a real card, or it teaches the wrong thing */}
+      <header className="adda-head">
+        <span className="adda-avatar" style={{ background: authorTint('Sample poster') }}>
+          S
         </span>
-      </div>
+        <div className="adda-head-text">
+          <h2>One extra ticket — Chennai Love Story at PVR Nexus, Hyderabad</h2>
+          <span className="blog-card-byline">
+            Sample poster · <CalendarDays size={12} /> just now
+          </span>
+        </div>
+        <span className="adda-count">
+          <Users size={12} /> 1
+        </span>
+      </header>
       <div className="blog-card-body">
         <p>
           I have one spare ticket for Saturday&apos;s 6pm show, selling at face value (no extra).
@@ -436,17 +470,17 @@ export default function Adda() {
         rotateMs={3000}
         context={{ tab: 'The Adda', detail: 'Open asks & offers' }}
       />
-      <section className="community-hero">
+      <section className="community-hero adda-hero">
         <div className="community-hero-text">
           <h1 className="sr-only">The Adda</h1>
           <span className="hero-eyebrow">
             <HandHeart size={13} /> The community board
           </span>
-          <p>
-            Ask, offer, find company — a spare ticket at face value, a movie plan that needs one
-            more person, a question for fellow fans. Everyone can read; responding takes a Google
-            sign-in, and contact details are shared only between the two of you.
-          </p>
+          {/* One line, not three. How sign-in and the contact reveal work is
+              transactional detail — it belongs at the moment someone responds,
+              where the button already says it, not in front of a board they
+              have not seen yet. */}
+          <p>Spare tickets at face value, company for a show or a match, honest asks.</p>
         </div>
         {!composerOpen && (
           <button className="community-cta" onClick={() => setComposerOpen(true)}>
@@ -465,12 +499,6 @@ export default function Adda() {
           }}
           onPosted={(l) => setListings((prev) => [l, ...prev])}
         />
-
-        <p className="adda-rules">
-          <ShieldCheck size={14} /> House rules: nothing illegal or against any service&apos;s
-          terms — no account/subscription sharing, tickets at face value only. WeekAdda only
-          connects people; verify before paying anyone.
-        </p>
 
         {loading ? (
           <div className="blog-feed">
@@ -521,6 +549,20 @@ export default function Adda() {
             ))}
           </div>
         )}
+
+        {/* Below the board, and folded away. The rules have to be here and stay
+            here — but as the second thing on the page they cost every visitor
+            three lines of reading before they had seen a single post. */}
+        <details className="adda-rules">
+          <summary>
+            <ShieldCheck size={14} /> House rules — worth ten seconds
+          </summary>
+          <p>
+            Nothing illegal or against any service&apos;s terms — no account or subscription
+            sharing, tickets at face value only. WeekAdda only connects people; verify before
+            paying anyone.
+          </p>
+        </details>
       </div>
     </main>
   )

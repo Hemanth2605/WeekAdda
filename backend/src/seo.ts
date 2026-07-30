@@ -7,6 +7,8 @@ import {
   CricketMatch,
   queryReleases,
   queryCricket,
+  queryPlatform,
+  OTT_PLATFORMS,
   findTitle,
   relatedTitles,
   titleUrl,
@@ -99,6 +101,16 @@ export const SKELETON =
 const NAV =
   '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/reviews">Reviews</a></p>'
 
+/**
+ * Links into the per-platform hubs. /movies carries them so the hubs are two
+ * clicks from the homepage and reachable by a crawler that never runs JS —
+ * a page only the sitemap knows about is an orphan. SEO-PLAN.md, principle 5.
+ */
+const PLATFORM_NAV =
+  '<p>Browse by platform: ' +
+  OTT_PLATFORMS.map((p) => `<a href="/ott/${p.slug}">${esc(p.name)}</a>`).join(' · ') +
+  '</p>'
+
 function section(title: string, items: string[]): string {
   if (items.length === 0) return ''
   return `<h2>${esc(title)}</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`
@@ -155,8 +167,27 @@ export function routeMeta(pathname: string): { title: string; description: strin
         'What WeekAdda collects, why, and who can see it — in plain language. Browsing needs no account; Google sign-in is used only for posting, rating and the Adda.',
     },
   }
+  const hub = platformMeta(pathname)
+  if (hub) return hub
   const m = meta[pathname]
   return m ? { title: esc(m.title), description: esc(m.description) } : null
+}
+
+/**
+ * /ott/<slug> titles, built rather than listed — eight platforms times two
+ * strings is a table nobody would keep in step by hand. Phrased as the query:
+ * people search "new movies on netflix india", not "netflix hub".
+ */
+function platformMeta(pathname: string): { title: string; description: string } | null {
+  const slug = pathname.startsWith('/ott/') ? pathname.slice(5) : ''
+  const platform = OTT_PLATFORMS.find((p) => p.slug === slug)
+  if (!platform) return null
+  return {
+    title: esc(`New Movies & Web Series on ${platform.name} India This Week | WeekAdda`),
+    description: esc(
+      `New releases on ${platform.name} in India — the latest movies and web series to start streaming, with release dates and languages, plus what is coming to ${platform.name} next. Updated daily.`
+    ),
+  }
 }
 
 // ---------------- /movies ----------------
@@ -188,6 +219,68 @@ function byLanguage<T extends { languageLabel: string }>(list: T[]): Array<[stri
 function titleLink(r: { id: string; title: string }): string {
   return `<a href="${titleUrl(r)}">${esc(r.title)}</a>`
 }
+
+/**
+ * Where this page sits, said twice: a visible trail and the matching
+ * `BreadcrumbList`.
+ *
+ * Both, deliberately. Markup that describes a path the reader cannot see is
+ * the same mistake as reviews carrying a `reviewRating` nobody was asked for —
+ * and the visible trail is doing real work anyway, since it puts a link from
+ * every title page back into its platform hub.
+ *
+ * The last crumb is the current page: named, not linked, which is what Google
+ * expects (`item` omitted on the final entry).
+ */
+function breadcrumb(trail: Array<{ name: string; href?: string }>): string {
+  const visible =
+    '<p class="wa-crumbs">' +
+    trail
+      .map((c) => (c.href ? `<a href="${c.href}">${esc(c.name)}</a>` : `<span>${esc(c.name)}</span>`))
+      .join(' › ') +
+    '</p>'
+  const ld = jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: trail.map((c, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: c.name,
+      ...(c.href ? { item: `https://weekadda.com${c.href}` } : {}),
+    })),
+  })
+  return visible + ld
+}
+
+/** The hub a title belongs under, when one of its platforms has one. */
+function platformCrumb(r: OttRelease): { name: string; href: string } | null {
+  for (const name of r.platforms ?? []) {
+    const p = OTT_PLATFORMS.find((x) => x.name === name)
+    if (p) return { name: p.name, href: `/ott/${p.slug}` }
+  }
+  return null
+}
+
+/** Shared by /movies and the /ott hubs — an empty list emits nothing at all. */
+const itemListLd = (name: string, items: Array<Release | OttRelease>) =>
+  items.length === 0
+    ? ''
+    : jsonLd({
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name,
+        itemListElement: items.slice(0, 20).map((r, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          item: {
+            '@type': (r as OttRelease).contentType === 'series' ? 'TVSeries' : 'Movie',
+            name: r.title,
+            ...(r.poster ? { image: r.poster } : {}),
+            datePublished: r.releaseDate,
+            inLanguage: r.language,
+          },
+        })),
+      })
 
 /** "Kingdom (web series) is now streaming on Netflix — OTT release date 22 Jul 2026" */
 function ottLine(r: OttRelease): string {
@@ -268,25 +361,6 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
       })
     : ''
 
-  const itemListLd = (name: string, items: Array<Release | OttRelease>) =>
-    items.length === 0
-      ? ''
-      : jsonLd({
-          '@context': 'https://schema.org',
-          '@type': 'ItemList',
-          name,
-          itemListElement: items.slice(0, 20).map((r, i) => ({
-            '@type': 'ListItem',
-            position: i + 1,
-            item: {
-              '@type': (r as OttRelease).contentType === 'series' ? 'TVSeries' : 'Movie',
-              name: r.title,
-              ...(r.poster ? { image: r.poster } : {}),
-              datePublished: r.releaseDate,
-              inLanguage: r.language,
-            },
-          })),
-        })
   const ld = itemListLd('New OTT releases this week in India', ott)
 
   const upcomingTheatreSection = section(
@@ -353,11 +427,174 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
     theatreSections +
     upcomingTheatreSection +
     upcomingOttSection +
+    PLATFORM_NAV +
     NAV +
     pageLd +
     ld +
     '</div>'
   )
+}
+
+/**
+ * The page a film keeps once it has aged out of the release cache, built from
+ * the reviews alone.
+ *
+ * Everything factual here comes off the review's own tag — the title, the
+ * poster, the language line — because the release row is gone. It is a smaller
+ * page than the live one and it says so: no release date, no watch links, no
+ * related titles, since none of those are still known. What it does have is the
+ * only part that was ever unique to us, which is what people wrote.
+ *
+ * No reviews and no cache row means the title genuinely does not exist here,
+ * and the Worker 404s it as before.
+ */
+function buildReviewedTitlePage(
+  id: string,
+  reviews: BlogPost[]
+): { block: string; title: string; description: string; canonical: string; image?: string } | null {
+  const own = reviews.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === id)
+  if (own.length === 0) return null
+  const tag = own[0].tag!
+  const name = tag.label
+  const poster = tag.poster ?? undefined
+  const excerpt = (body: string) => {
+    const flat = body.replace(/\s+/g, ' ').trim()
+    return flat.length > 240 ? `${flat.slice(0, 237).replace(/\s+\S*$/, '')}…` : flat
+  }
+  const count = `${own.length} review${own.length === 1 ? '' : 's'}`
+
+  const block =
+    WRAP_OPEN +
+    breadcrumb([
+      { name: 'WeekAdda', href: '/' },
+      { name: 'Movies & OTT', href: '/movies' },
+      { name },
+    ]) +
+    `<h1>${esc(name)} — Reviews from Viewers</h1>` +
+    `<p><strong>${count} of ${esc(name)}, written by people who watched it.</strong> ` +
+    'This title has left WeekAdda&rsquo;s current release window, so release dates and ' +
+    'streaming links are no longer tracked — the reviews stay.</p>' +
+    section(
+      `${name} review — what viewers said`,
+      own
+        .slice(0, 20)
+        .map(
+          (p) =>
+            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(p.author)}</em>`
+        )
+    ) +
+    '<p><a href="/reviews">More reviews on WeekAdda</a></p>' +
+    NAV +
+    jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'Movie',
+      name,
+      ...(poster ? { image: poster } : {}),
+      review: own.slice(0, 20).map((p) => ({
+        '@type': 'Review',
+        name: p.title,
+        reviewBody: excerpt(p.body),
+        datePublished: p.ts,
+        author: { '@type': 'Person', name: p.author },
+      })),
+    }) +
+    '</div>'
+
+  const description = `${count} of ${name} from viewers who actually watched it — what was worth it and what was not, on WeekAdda.`
+  return {
+    block,
+    title: esc(`${name} Review — What Viewers Said | WeekAdda`),
+    description: esc(description.slice(0, 160)),
+    canonical: `https://weekadda.com${titleUrl({ id, title: name })}`,
+    ...(poster ? { image: poster } : {}),
+  }
+}
+
+// ---------------- /ott/<platform> (per-platform hubs) ----------------
+
+/**
+ * One page per streaming service, answering "new movies on netflix india" and
+ * "zee5 new release" — queries /movies cannot win because its title says
+ * "this week" and names eight platforms at once.
+ *
+ * Not week-scoped, unlike every other movies block: the question is standing,
+ * so the page carries everything the cache holds for that platform, oldest
+ * weeks included. Returns null for an unknown slug so the Worker can 404 it.
+ */
+export function buildPlatformSeo(data: ReleaseCache, slug: string): string | null {
+  const result = queryPlatform(data, slug)
+  if (!result) return null
+  const { platform, streaming, upcoming } = result
+  const name = esc(platform.name)
+
+  // By language, because that is how the query is really asked:
+  // "telugu movies on aha", "new hindi web series on jiohotstar"
+  const streamingSections = byLanguage(streaming)
+    .map(([lang, items]) =>
+      section(
+        `${lang} movies & web series on ${platform.name} in India`,
+        items.slice(0, 20).map(ottLine)
+      )
+    )
+    .join('')
+
+  const upcomingSection = section(
+    `Coming soon to ${platform.name} in India`,
+    upcoming
+      .slice(0, 20)
+      .map(
+        (r) =>
+          `${titleLink(r)} (${esc(r.languageLabel)}) — ${platform.name} release date ${day(r.releaseDate)}`
+      )
+  )
+
+  const updated = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt : ''
+  const updatedLine = updated
+    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`
+    : ''
+
+  const empty =
+    streaming.length === 0 && upcoming.length === 0
+      ? `<p>Nothing from ${name} has been recorded in the last few weeks. New arrivals are added every morning.</p>`
+      : ''
+
+  return (
+    WRAP_OPEN +
+    breadcrumb([
+      { name: 'WeekAdda', href: '/' },
+      { name: 'Movies & OTT', href: '/movies' },
+      { name: platform.name },
+    ]) +
+    `<h1>New Movies &amp; Web Series on ${name} in India</h1>` +
+    `<p>Everything that has recently started streaming on ${name} in India, newest first, with release dates and languages — plus what is announced for ${name} next. Updated every morning.</p>` +
+    updatedLine +
+    empty +
+    streamingSections +
+    upcomingSection +
+    platformNav(platform.slug) +
+    (updated
+      ? jsonLd({
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: `New releases on ${platform.name} in India`,
+          dateModified: updated,
+        })
+      : '') +
+    itemListLd(`New releases on ${platform.name} in India`, streaming) +
+    '</div>'
+  )
+}
+
+/**
+ * Every hub links to every other hub, and back to /movies. Crawl depth ≤ 3
+ * needs real hrefs, and eight pages that only the sitemap knows about are eight
+ * orphans — see SEO-PLAN.md, principle 5.
+ */
+function platformNav(current: string): string {
+  const others = OTT_PLATFORMS.filter((p) => p.slug !== current)
+    .map((p) => `<a href="/ott/${p.slug}">${esc(p.name)}</a>`)
+    .join(' · ')
+  return `<p>${others}</p>` + NAV
 }
 
 // ---------------- /movie/:id/:slug (per-title pages) ----------------
@@ -372,7 +609,11 @@ export function buildTitlePage(
   reviews: BlogPost[] = []
 ): { block: string; title: string; description: string; canonical: string; image?: string } | null {
   const found = findTitle(data, id)
-  if (!found) return null
+  // A film leaves the 13-week cache; the reviews people wrote about it do not.
+  // Without this the page that ranks for "<film> review" 404s a few months
+  // after release, taking the reviews and the ranking with it — the one kind
+  // of content here that was never going to expire.
+  if (!found) return buildReviewedTitlePage(id, reviews)
   const r = found.item as OttRelease
   const lang = r.languageLabel
   const kind = r.contentType === 'series' ? 'web series' : 'movie'
@@ -451,8 +692,18 @@ export function buildTitlePage(
       : {}),
   })
 
+  // A film sitting under its platform's hub is both true and useful: it is the
+  // only link from a title page back into the hub, which is the page we are
+  // trying to build authority for.
+  const hubCrumb = platformCrumb(r)
   const block =
     WRAP_OPEN +
+    breadcrumb([
+      { name: 'WeekAdda', href: '/' },
+      { name: 'Movies & OTT', href: '/movies' },
+      ...(hubCrumb ? [hubCrumb] : []),
+      { name: r.title },
+    ]) +
     `<h1>${esc(heading)}</h1>` +
     `<p><strong>${esc(answer)}</strong></p>` +
     (r.overview ? `<p>${esc(r.overview)}</p>` : '') +
@@ -506,7 +757,7 @@ export function buildTitlePage(
 // ---------------- /sitemap.xml ----------------
 
 /** Sitemap with every current title page; lastmod = last agent sweep. */
-export function buildSitemap(data: ReleaseCache): string {
+export function buildSitemap(data: ReleaseCache, reviews: BlogPost[] = []): string {
   const base = 'https://weekadda.com'
   const lastmod = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt.slice(0, 10) : ''
   const mod = lastmod ? `<lastmod>${lastmod}</lastmod>` : ''
@@ -521,6 +772,11 @@ export function buildSitemap(data: ReleaseCache): string {
     '/adda',
     '/about',
     '/privacy',
+    // Platform hubs, but only the ones with something on them: a hub listing
+    // one film is thin content, and submitting it costs more than it earns
+    ...OTT_PLATFORMS.filter((p) => queryPlatform(data, p.slug)?.indexable).map(
+      (p) => `/ott/${p.slug}`
+    ),
   ].map(
     (p) => `<url><loc>${base}${p}</loc>${mod}<changefreq>daily</changefreq><priority>${p === '/' || p === '/movies' ? '1.0' : '0.8'}</priority></url>`
   )
@@ -529,6 +785,15 @@ export function buildSitemap(data: ReleaseCache): string {
     if (seen.has(r.id)) continue
     seen.add(r.id)
     urls.push(`<url><loc>${base}${titleUrl(r)}</loc>${mod}</url>`)
+  }
+  // Titles that have left the release window but still have reviews keep a
+  // page (see buildReviewedTitlePage), so they keep a sitemap entry — dropping
+  // the URL is how an indexed page quietly becomes an orphan.
+  for (const p of reviews) {
+    const tag = p.tag
+    if (!tag || tag.kind !== 'movie' || !tag.id || seen.has(tag.id)) continue
+    seen.add(tag.id)
+    urls.push(`<url><loc>${base}${titleUrl({ id: tag.id, title: tag.label })}</loc>${mod}</url>`)
   }
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`
 }

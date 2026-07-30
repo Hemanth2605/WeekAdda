@@ -9,7 +9,7 @@ import blogRoutes from './routes/blog'
 import addaRoutes from './routes/adda'
 import pushRoutes from './routes/push'
 import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
-import { findTitle, relatedTitles } from './queries'
+import { findTitle, relatedTitles, queryPlatform } from './queries'
 import { syncCricket, syncCricketIfStale } from './agent/cricketAgent'
 
 const app = express()
@@ -32,6 +32,13 @@ app.get('/api/title/:id', (req, res) => {
   const found = findTitle(data, req.params.id)
   if (!found) return res.status(404).json({ error: 'Title not found' })
   res.json({ release: found.item, status: found.status, related: relatedTitles(data, found.item) })
+})
+// Platform hubs: /ott/<slug> in the app, this behind it. Mirrors the Worker.
+app.get('/api/ott/:slug', (req, res) => {
+  const data = getReleaseData()
+  const hub = queryPlatform(data, req.params.slug)
+  if (!hub) return res.status(404).json({ error: 'Unknown platform' })
+  res.json({ ...hub, meta: { fetchedAt: data.fetchedAt, source: data.source } })
 })
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)

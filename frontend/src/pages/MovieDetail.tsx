@@ -18,6 +18,8 @@ import ReleaseCard, { coverGradient, formatDate, daysUntil } from '../components
 import { watchUrl, bookingUrls } from '../watchLinks'
 import { platformClass, shareRelease } from '../share'
 import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
+import { platformByName } from '../platforms'
+import Breadcrumbs from '../components/Breadcrumbs'
 
 type TitleStatus = 'streaming' | 'upcoming-ott' | 'in-theatres' | 'upcoming-theatre'
 
@@ -117,11 +119,23 @@ export default function MovieDetail() {
   const days = daysUntil(r.releaseDate)
   const kindLabel = r.contentType === 'series' ? 'Web series' : 'Movie'
 
+  // Under its platform's hub when it has one — true, and the only link from a
+  // title page back into the hub. Matches the trail the pre-render emits.
+  const hub = (r.platforms ?? []).map((n) => platformByName(n)).find(Boolean)
+
   return (
     <main className="movie-page">
       <Link className="movie-back" to="/movies">
         <ArrowLeft size={15} /> All releases
       </Link>
+      <Breadcrumbs
+        trail={[
+          { name: 'WeekAdda', href: '/' },
+          { name: 'Movies & OTT', href: '/movies' },
+          ...(hub ? [{ name: hub.name, href: `/ott/${hub.slug}` }] : []),
+          { name: r.title },
+        ]}
+      />
       <div className="release-detail-grid movie-page-card">
         <div
           className="release-detail-poster"

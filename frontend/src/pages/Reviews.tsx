@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Feather,
   Film,
@@ -11,12 +11,13 @@ import {
   CalendarDays,
   Tag,
   Star,
+  ArrowRight,
 } from 'lucide-react'
 import { api, fetchPosts, fetchMyPosts, fetchRatings, ratePost, createPost } from '../api'
 import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } from '../auth'
 import GoogleButton from '../components/GoogleButton'
 import { matchFlags } from '../flags'
-import { usePageMeta } from '../seo'
+import { usePageMeta, titlePath } from '../seo'
 import { BlogPost, BlogTag, RatingSummary, Release, CricketMatch } from '../types'
 import PipShow from '../components/PipShow'
 
@@ -183,17 +184,130 @@ function useTagOptions(kind: 'movie' | 'match', open: boolean) {
   return options
 }
 
+/**
+ * The starters shown when the feed is empty.
+ *
+ * "Write a review" asks someone to face a blank page and think of a film.
+ * These name films that are actually out this week and open the composer
+ * already tagged to the one they pick, which turns the ask into a question
+ * they can answer: did you watch this, was it worth it.
+ */
+function ReviewStarters({ onPick }: { onPick: (tag: BlogTag) => void }) {
+  const [picks, setPicks] = useState<BlogTag[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all(
+      ['ott', 'released'].map((w) =>
+        api<{ releases: Release[] }>(`/releases?window=${w}`).then(
+          (r) => r.releases,
+          () => [] as Release[]
+        )
+      )
+    ).then((lists) => {
+      if (cancelled) return
+      // The week's most-watched, which is the likeliest thing a visitor has
+      // actually seen — a film nobody watched is a starter nobody can use
+      const seen = new Set<string>()
+      const pool = lists
+        .flat()
+        .filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)))
+        .sort((a, b) => b.votes - a.votes)
+        .slice(0, 4)
+      setPicks(
+        pool.map((r) => ({
+          kind: 'movie' as const,
+          id: r.id,
+          label: r.title,
+          sub: r.platforms?.length ? `${r.languageLabel} · ${r.platforms[0]}` : r.languageLabel,
+          poster: r.poster,
+        }))
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (picks.length === 0) return null
+
+  return (
+    <div className="starters">
+      <span className="starters-label">Watched any of these? Start there</span>
+      <div className="starters-row">
+        {picks.map((t) => (
+          <button key={t.id} className="starter" onClick={() => onPick(t)}>
+            {t.poster ? (
+              <img src={t.poster} alt="" loading="lazy" />
+            ) : (
+              <span className="starter-fallback">
+                <Film size={18} />
+              </span>
+            )}
+            <span className="starter-text">
+              <strong>{t.label}</strong>
+              <small>{t.sub}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The tagged film, as a link to its own page.
+ *
+ * Two jobs. A reader who wants the film gets there in one tap; and the page
+ * that ranks for "<film> review" — the title page, which carries these same
+ * reviews — finally gets an internal link from every review written about it.
+ * Matches have no page of their own, so they stay plain text.
+ */
+function TagLine({ tag }: { tag: BlogTag }) {
+  const inner = (
+    <>
+      <Tag size={12} /> {tag.label}
+      {tag.sub && <em> · {tag.sub}</em>}
+    </>
+  )
+  if (tag.kind !== 'movie' || !tag.id) return <span className="blog-card-tag">{inner}</span>
+  return (
+    <Link
+      className="blog-card-tag linked"
+      to={titlePath({ id: tag.id, title: tag.label })}
+      // The card behind this opens the review; the link must win
+      onClick={(e) => e.stopPropagation()}
+      title={`Everything about ${tag.label}`}
+    >
+      {inner}
+    </Link>
+  )
+}
+
 function Composer({
   open,
   onClose,
   onPublished,
+  preset,
 }: {
   open: boolean
   onClose: () => void
   onPublished: (post: BlogPost) => void
+  /** Opened from a starter — the film is already chosen. */
+  preset?: BlogTag | null
 }) {
   const [kind, setKind] = useState<'movie' | 'match'>('movie')
   const [tag, setTag] = useState<BlogTag | null>(null)
+
+  // Adopt the starter's film when the composer opens on one, and only then —
+  // it must never overwrite a tag the writer has since picked themselves
+  useEffect(() => {
+    if (open && preset) {
+      setKind(preset.kind)
+      setTag(preset)
+    }
+  }, [open, preset])
+
   const [tagSearch, setTagSearch] = useState('')
   const [author, setAuthor] = useState(() => {
     try {
@@ -529,10 +643,7 @@ function PostModal({
             </span>
           )}
           <div className="blog-card-meta">
-            <span className="blog-card-tag">
-              <Tag size={12} /> {post.tag.label}
-              {post.tag.sub && <em> · {post.tag.sub}</em>}
-            </span>
+            <TagLine tag={post.tag} />
             <h2>{post.title}</h2>
             <span className="blog-card-byline">
               {post.author} {own && <span className="blog-you">You</span>} ·{' '}
@@ -596,10 +707,7 @@ function PostCard({
           <span className="blog-card-poster fallback">{post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}</span>
         )}
         <div className="blog-card-meta">
-          <span className="blog-card-tag">
-            <Tag size={12} /> {post.tag.label}
-            {post.tag.sub && <em> · {post.tag.sub}</em>}
-          </span>
+          <TagLine tag={post.tag} />
           <h2>{post.title}</h2>
           <span className="blog-card-byline">
             {post.author} {mine && <span className="blog-you">You</span>} ·{' '}
@@ -638,6 +746,8 @@ export default function Reviews() {
   const [ratings, setRatings] = useState<Record<string, RatingSummary>>({})
   const [selected, setSelected] = useState<BlogPost | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
+  // A film chosen from the empty-state starters, handed to the composer
+  const [preset, setPreset] = useState<BlogTag | null>(null)
   const [params, setParams] = useSearchParams()
   const wantedReview = params.get('review')
 
@@ -773,7 +883,11 @@ export default function Reviews() {
       <div className="blog-wrap">
         <Composer
           open={composerOpen}
-          onClose={() => setComposerOpen(false)}
+          preset={preset}
+          onClose={() => {
+            setComposerOpen(false)
+            setPreset(null)
+          }}
           onPublished={(post) => {
             setPosts((p) => [post, ...p])
             if (user) setMyPosts((mine) => [post, ...(mine ?? [])])
@@ -857,6 +971,19 @@ export default function Reviews() {
                 </p>
               </>
             )}
+            {/* Two ways out, so an empty page is never a dead end: name
+                something they may have watched, or send them to the films. */}
+            {filter !== 'match' && (
+              <ReviewStarters
+                onPick={(tag) => {
+                  setPreset(tag)
+                  setComposerOpen(true)
+                }}
+              />
+            )}
+            <Link className="empty-onward" to="/movies">
+              See what released this week <ArrowRight size={14} />
+            </Link>
           </div>
         ) : (
           <div className="blog-feed">

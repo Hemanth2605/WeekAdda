@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Bell, X } from 'lucide-react'
-import { NOTIFY_CHANGED, cardDismissed, dismissCard, openNotify } from '../notify'
+import {
+  NOTIFY_CHANGED,
+  NOTIFY_PROMPT,
+  cardDismissed,
+  dismissCard,
+  isPromptOpen,
+  openNotify,
+} from '../notify'
 import { currentSubscription, pushSupported } from '../push'
 
 /**
@@ -13,6 +20,15 @@ import { currentSubscription, pushSupported } from '../push'
  */
 export default function NotifyCard({ language, label }: { language: string; label: string }) {
   const [hidden, setHidden] = useState(true)
+  // The landing prompt asks the same question. Two asks on one screen is worse
+  // than none, so whichever is up, the card is not.
+  const [promptUp, setPromptUp] = useState(isPromptOpen)
+
+  useEffect(() => {
+    const onPrompt = () => setPromptUp(isPromptOpen())
+    window.addEventListener(NOTIFY_PROMPT, onPrompt)
+    return () => window.removeEventListener(NOTIFY_PROMPT, onPrompt)
+  }, [])
 
   useEffect(() => {
     if (!pushSupported || cardDismissed()) return
@@ -30,7 +46,7 @@ export default function NotifyCard({ language, label }: { language: string; labe
     return () => window.removeEventListener(NOTIFY_CHANGED, onChange)
   }, [])
 
-  if (hidden || !pushSupported || cardDismissed()) return null
+  if (hidden || promptUp || !pushSupported || cardDismissed()) return null
 
   return (
     <section className="notify-card-inline">

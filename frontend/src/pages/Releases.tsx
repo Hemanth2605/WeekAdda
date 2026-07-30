@@ -24,6 +24,7 @@ import ReleaseModal from '../components/ReleaseModal'
 import { platformClass } from '../share'
 import { languageLabel, releaseLanguagesOf } from '../languages'
 import { useHomeLanguage, orderWithHome } from '../geo'
+import PlatformLinks from '../components/PlatformLinks'
 
 type Window = 'released' | 'ott' | 'upcoming'
 
@@ -98,8 +99,29 @@ function weekTitle(index: number) {
 export default function Releases() {
   const { tab } = useParams<{ tab?: string }>()
   const windowTab: Window = (tab && WINDOW_FOR_TAB[tab]) || 'ott'
-  const [ottType, setOttType] = useState<'all' | 'movie' | 'series'>('all')
-  const [upcomingSource, setUpcomingSource] = useState<'theatres' | 'ott'>('theatres')
+  // Remembered too — it is the same page and the same kind of choice as the
+  // language filter and the source toggle below, and a control that forgets
+  // while the two beside it remember reads as a bug. Applies to both the OTT
+  // week view and upcoming-on-OTT, which is the one filter shared by the two.
+  const [ottType, setOttType] = useState<'all' | 'movie' | 'series'>(() => {
+    try {
+      const saved = localStorage.getItem('weekadda-ott-type')
+      return saved === 'movie' || saved === 'series' ? saved : 'all'
+    } catch {
+      return 'all'
+    }
+  })
+  // Remembered like the language filter: someone who came for upcoming OTT
+  // should not have to say so again after a reload. Theatres is still where a
+  // first visit starts. Deliberately not in the URL — the sub-toggle must not
+  // give /movies/upcoming a second address or a second title.
+  const [upcomingSource, setUpcomingSource] = useState<'theatres' | 'ott'>(() => {
+    try {
+      return localStorage.getItem('weekadda-upcoming-source') === 'ott' ? 'ott' : 'theatres'
+    } catch {
+      return 'theatres'
+    }
+  })
   const [week, setWeek] = useState(0)
   const [weekInfo, setWeekInfo] = useState<WeekInfo | null>(null)
   const [releases, setReleases] = useState<Release[]>([])
@@ -135,6 +157,15 @@ export default function Releases() {
       // private mode — the filter just resets next visit
     }
   }, [language])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('weekadda-upcoming-source', upcomingSource)
+      localStorage.setItem('weekadda-ott-type', ottType)
+    } catch {
+      // private mode — the toggles just reset next visit
+    }
+  }, [upcomingSource, ottType])
 
   usePageMeta(PAGE_META[windowTab].title, PAGE_META[windowTab].description)
 
@@ -314,6 +345,9 @@ export default function Releases() {
                 ? 'Digital premieres announced for the next 90 days — platform-tagged where known, plus India digital releases whose platform is yet to be announced.'
                 : 'Movie releases from every region and language — swept daily by the WeekAdda agent and laid out language by language, one week at a time.'}
           </p>
+          {/* Wayfinding, so it sits with the intro copy rather than in the
+              toolbar competing with the filters */}
+          {windowTab === 'ott' && <PlatformLinks />}
         </div>
         <div className="agent-panel">
           <div className={`agent-chip${meta?.source === 'sample' ? ' sample' : ''}`}>

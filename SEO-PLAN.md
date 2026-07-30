@@ -1,7 +1,8 @@
 # WeekAdda — SEO URL taxonomy plan
 
 Working plan for growing WeekAdda's organic surface beyond the seven pages it has
-today. Written 25 July 2026. **Step 1 is implemented; steps 2–4 are not started.**
+today. Written 25 July 2026. **Tiers 1 and 2 are implemented; tiers 3–4 are not
+started.**
 
 Read this with the SEO bullets in `CLAUDE.md` — this file is the roadmap, CLAUDE.md
 is the description of what already exists.
@@ -57,28 +58,53 @@ Deliberately **no** `/cricket/fixtures` and no `/movies/ott` — those would be 
 second URL for content the default already serves, which is duplication, not
 coverage.
 
-### Tier 2 — per-platform hubs (**not started**)
+### Tier 2 — per-platform hubs (**done**, 30 July 2026)
 
-`/ott/<platform>` for each tracked platform:
+`/ott/<slug>` for each tracked platform — **eight**, not the seven first listed
+here; Sony LIV was an omission, not a decision:
 
 ```
-/ott/netflix   /ott/prime-video   /ott/jiohotstar   /ott/zee5
-/ott/sun-nxt   /ott/apple-tv      /ott/aha
+/ott/netflix   /ott/prime-video   /ott/jiohotstar   /ott/sonyliv
+/ott/zee5      /ott/sun-nxt       /ott/apple-tv     /ott/aha
 ```
 
 Targets "new movies on netflix india", "zee5 new release", "sun nxt latest
-movies". Seven pages from one template.
+movies". Eight pages from one template.
 
-**Threshold applies.** As of 25 Jul 2026 Aha has 1 title and Sun NXT 2 across
-weeks 0–3 — `/ott/aha` would be a thin page on day one. Require **≥ 3 titles**
-before a hub is indexed and sitemapped; below that, serve it with
-`X-Robots-Tag: noindex` and omit it from `buildSitemap`.
+Slugs are what people type, not what the platform calls itself — `prime-video`
+and `sun-nxt`, not `amazon-prime-video` or `sunnxt`. `OTT_PLATFORMS` in
+`queries.ts` is the authority: its `name` must equal the label `releaseAgent`
+writes into `platforms`, which is the join between the two halves of the
+feature. `frontend/src/platforms.ts` mirrors it — keep them in step.
+
+**Not week-paged**, unlike every other movies block. A hub answers "what is on
+Netflix", which is a standing question; `/movies` answers "what arrived this
+week". Sharing the paging would have made them the same page twice.
+
+**Threshold applies and is live.** `PLATFORM_MIN_TITLES = 3` in `queries.ts`;
+`queryPlatform` returns `indexable`. Below it the page still serves — someone
+following a link gets something that works — but the Worker sends
+`X-Robots-Tag: noindex, follow` and `buildSitemap` omits it. At the time of
+writing all eight qualify, Aha only just (2 streaming + 1 upcoming).
+
+**Orphan check, which is the part that would have wasted the tier.** Eight pages
+only the sitemap knows about earn nothing. `/movies` carries a real `<a href>`
+row in both the pre-render (`PLATFORM_NAV`) and the app (`PlatformLinks.tsx`),
+and every hub cross-links the other seven, so a hub is depth 2 from the
+homepage. Those links are text, not filter chips, deliberately: the toolbar's
+chips filter in place, these leave the page, and giving both the same shape
+promises the wrong thing.
 
 ### Tier 3 — per-language hubs (**not started**)
 
 `/movies/telugu`, `/movies/hindi`, `/movies/tamil`, `/movies/malayalam`,
 `/movies/kannada`, `/movies/english`. Telugu first — it is the core audience and
 the sort order already favours it. Same threshold rule.
+
+Tier 2 is the template: `queryPlatform` + `buildPlatformSeo` + one route in the
+four places below. Watch the collision — `/movies/:tab` already matches
+`/movies/telugu`, so the tab table and the language table have to be resolved in
+one place rather than by route order.
 
 ### Tier 4 — cross products (**deliberately deferred**)
 
@@ -150,9 +176,13 @@ Shipped 25–26 July 2026, all live and verified:
 - [x] JSON-LD lifted into `<head>` — see the Gotchas in CLAUDE.md, this one
       silently voided every schema block on the site
 
+Shipped 30 July 2026, built and verified locally — **not yet deployed**:
+
+- [x] **Tier 2** — eight `/ott/<slug>` hubs, threshold gating, `noindex` below
+      it, sitemap entries, cross-links from `/movies` and between hubs
+
 Not started:
 
-- [ ] **Tier 2** — `/ott/<platform>` hubs + threshold gating
 - [ ] **Tier 3** — `/movies/<language>` hubs
 - [ ] **Tier 4** — cross products (only if 2 and 3 earn impressions)
 - [ ] Per-review URLs (`/reviews/:id/:slug`) — worth it once there are enough
@@ -164,7 +194,9 @@ Not started:
 
 1. Purge the Cloudflare cache (required after any HTML-changing deploy)
 2. Search Console: resubmit `sitemap.xml`; Request Indexing for `/reviews`,
-   `/movies/upcoming`, `/movies/theatres`, `/cricket/results`
+   `/movies/upcoming`, `/movies/theatres`, `/cricket/results`, and once Tier 2
+   is deployed the three hubs worth the quota — `/ott/netflix`,
+   `/ott/prime-video`, `/ott/jiohotstar`. Leave the small ones to the sitemap
 3. Search Console → Enhancements → Events → **Validate Fix on "image" and
    "address" only**. Not `performer`, `organizer` or `offers` — all three are
    deliberate absences now and validation would fail

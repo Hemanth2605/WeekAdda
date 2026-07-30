@@ -553,6 +553,35 @@ input {
   color: var(--gold);
   border-bottom-color: var(--gold);
 }
+@media (max-width: 560px) {
+  /* Phones get the icon stacked over its label, each tab an equal share of the
+     width — the app-bar shape a thumb already knows. Side by side, the 15px
+     icon was decoration next to the text and the whole row sat left-aligned,
+     leaving the third tab nearest the edge and the smallest target. */
+  .opp-tabs {
+    gap: 0;
+    padding: 14px 10px 0;
+  }
+  .opp-tabs button,
+  .opp-tabs a {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 6px;
+    /* Comfortably past the 44px thumb target, label included */
+    min-height: 62px;
+    padding: 8px 4px 10px;
+    font-size: 11.5px;
+    line-height: 1.25;
+    text-align: center;
+  }
+  /* Beats lucide's width/height attributes — CSS wins over presentational
+     attributes, so the icons resize without touching every `size={15}` */
+  .opp-tabs svg {
+    width: 23px;
+    height: 23px;
+  }
+}
 /* Mini-player launcher: a floating action button pinned bottom-right, always
    in reach while scrolling, on every Movies tab. Sits under modals (z 100)
    and the share menu (z 300). The icon wears the same circulating gold ring
@@ -738,6 +767,190 @@ input {
   color: #171205;
   font-weight: 600;
   box-shadow: 0 4px 16px rgba(232, 179, 75, 0.3);
+}
+/* The tagged film is a link to its own page — the page that answers
+   "<film> review". Underlined only on hover so the card still reads as one. */
+.blog-card-tag.linked {
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.blog-card-tag.linked:hover {
+  color: var(--gold-bright);
+  text-decoration: underline;
+}
+
+/* ---------------- empty-state starters ----------------
+   An empty page has to answer "what do I write?", not just "why should I".
+   Reviews names real films from this week; the Adda names the three things the
+   board is for. Both open the composer already part-filled. */
+.starters {
+  width: 100%;
+  max-width: 620px;
+  margin: 22px auto 4px;
+}
+.starters-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.starters-row {
+  display: flex;
+  gap: 10px;
+  /* Swipe rather than stack — four posters wrapped is a wall on a phone */
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.starters-row::-webkit-scrollbar {
+  display: none;
+}
+.starters-row.wrap {
+  flex-wrap: wrap;
+  overflow: visible;
+  justify-content: center;
+}
+.starter {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 230px;
+  padding: 8px 14px 8px 8px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.2s;
+}
+.starter:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+}
+.starter img,
+.starter-fallback {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: rgba(232, 179, 75, 0.12);
+  color: var(--gold);
+}
+.starter-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.starter-text strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.starter-text small {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* The Adda's are plain prompts — no poster, so they read as pills */
+.starter.chip {
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  min-height: 42px;
+}
+/* Never a dead end: somewhere to go that definitely has content */
+.empty-onward {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--gold);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(232, 179, 75, 0.35);
+  padding-bottom: 2px;
+}
+.empty-onward:hover {
+  color: var(--gold-bright);
+}
+.adda-empty-wrap .empty-onward {
+  display: flex;
+  width: fit-content;
+  margin: 20px auto 0;
+}
+
+/* Breadcrumb trail. Same class the pre-render uses, so the crawler copy and the
+   rendered page look alike during the handover. */
+.wa-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.wa-crumbs a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.wa-crumbs a:hover {
+  color: var(--gold-bright);
+  text-decoration: underline;
+}
+.wa-crumbs [aria-current='page'] {
+  color: var(--text);
+}
+@media (max-width: 560px) {
+  .wa-crumbs {
+    font-size: 11.5px;
+    gap: 5px;
+  }
+  /* The film's own title is the <h1> right below — repeating it in the trail
+     costs a line on a phone and tells nobody anything */
+  .movie-page .wa-crumbs [aria-current='page'] {
+    display: none;
+  }
+  .movie-page .wa-crumbs > span:nth-last-child(2) {
+    display: none;
+  }
+}
+
+/* Navigation into the /ott/<slug> hubs — a quiet line of links, deliberately
+   not chips, so it never reads as another filter. Separators are drawn rather
+   than typed, so there is no stray "·" at the end of a wrapped line. */
+.platform-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.platform-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(232, 179, 75, 0.28);
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.platform-links a:hover {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+}
+.platform-links strong {
+  color: var(--gold);
+  font-weight: 700;
 }
 
 .section-head {
@@ -1451,6 +1664,15 @@ input {
   .week-tl-chip { min-height: 44px; padding: 10px 16px; font-size: 12.5px; }
   .week-label { min-width: 0; }
   .week-label h3 { font-size: 18px; }
+  /* Filter chips swipe instead of wrapping. Fourteen languages wrapped into
+     three or four stacked rows, which pushed the first poster off the screen
+     on a phone; one swipeable line is the same content in a third of the
+     height, and it is the gesture the poster rows and week chips already use.
+     Nothing is dropped or reordered — the row simply scrolls. */
+  .toolbar .genre-row { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .toolbar .genre-row::-webkit-scrollbar { display: none; }
+  .toolbar .genre-chip { flex: 0 0 auto; min-height: 40px; }
+  .platform-links { gap: 3px 11px; margin-top: 10px; }
   .agent-notice { margin: 10px 20px 0; }
   .lang-row { padding: 16px 20px 16px; gap: 13px; scroll-padding-left: 20px; scroll-padding-right: 20px; }
   .release-card { flex-basis: 145px; width: 145px; }
@@ -1874,6 +2096,136 @@ input {
 
 /* In-feed card: the ask that converts, sitting right after the first language
    row the reader scrolled */
+/* ---------------- the landing ask ----------------
+   Bottom-left on desktop: the bottom-right column already holds the mini
+   player and Back to top, and a prompt that covers a control someone is
+   reaching for gets dismissed on reflex rather than on the merits. */
+.notify-prompt {
+  position: fixed;
+  left: 20px;
+  bottom: 22px;
+  z-index: 95;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 40px 16px 16px;
+  border: 1px solid rgba(232, 179, 75, 0.3);
+  border-radius: 16px;
+  background: var(--bg-raised);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
+  animation: notify-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes notify-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+.notify-prompt-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(232, 179, 75, 0.14);
+  color: var(--gold);
+}
+.notify-prompt-text {
+  flex: 1 1 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.notify-prompt-text strong {
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.notify-prompt-text span {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.notify-prompt-actions {
+  flex: 1 1 100%;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.notify-prompt-yes,
+.notify-prompt-no {
+  border-radius: 999px;
+  font-size: 13px;
+  /* 40px+ of thumb — this is the one control on the page someone answers
+     without having decided to look at it */
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.notify-prompt-yes {
+  background: var(--gold);
+  color: #171205;
+  font-weight: 700;
+}
+.notify-prompt-yes:hover {
+  background: var(--gold-bright);
+}
+.notify-prompt-no {
+  background: none;
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text-dim);
+}
+.notify-prompt-no:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.notify-prompt-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+}
+.notify-prompt-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+@media (max-width: 560px) {
+  /* A real bottom sheet: edge to edge, sitting above the home indicator, with
+     both answers side by side under the thumb instead of off in a corner */
+  .notify-prompt {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-width: none;
+    padding: 15px 38px 15px 15px;
+    border-radius: 18px;
+  }
+  .notify-prompt-actions {
+    justify-content: stretch;
+  }
+  .notify-prompt-yes,
+  .notify-prompt-no {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notify-prompt {
+    animation: none;
+  }
+}
+
 .notify-card-inline {
   display: flex;
   align-items: center;

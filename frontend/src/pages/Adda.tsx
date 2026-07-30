@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
+  ArrowRight,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -188,14 +190,30 @@ function ListingCard({
   )
 }
 
+/**
+ * The three things this board is for, as one-tap openers.
+ *
+ * The example card below shows what a post *looks* like; these answer the
+ * harder question of what to write. Each drops a half-finished title in, with
+ * the specifics left blank so nobody posts the template by accident.
+ */
+const STARTERS = [
+  { chip: '🎟 Spare ticket', title: 'One spare ticket — ', hint: 'film, cinema, show time' },
+  { chip: '🍿 Company for a movie', title: 'Anyone up for ', hint: 'film and when' },
+  { chip: '🏏 Company for a match', title: 'Watching the match — ', hint: 'match and where' },
+] as const
+
 function AddaComposer({
   open,
   onClose,
   onPosted,
+  preset,
 }: {
   open: boolean
   onClose: () => void
   onPosted: (l: Listing) => void
+  /** Opened from a starter — a title stem to finish. */
+  preset?: string | null
 }) {
   const [title, setTitle] = useState('')
   const [details, setDetails] = useState('')
@@ -208,6 +226,12 @@ function AddaComposer({
   useEffect(() => {
     if (user) setAuthor((prev) => prev || user.name.slice(0, 40))
   }, [user])
+
+  // Only on open, and only over an untouched field — a starter must never
+  // overwrite something already being written
+  useEffect(() => {
+    if (open && preset) setTitle((prev) => prev || preset)
+  }, [open, preset])
 
   const post = () => {
     if (sending) return
@@ -361,6 +385,8 @@ export default function Adda() {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [composerOpen, setComposerOpen] = useState(false)
+  // A title stem chosen from the empty-state starters
+  const [preset, setPreset] = useState<string | null>(null)
   const user = useGoogleUser()
 
   usePageMeta(
@@ -432,7 +458,11 @@ export default function Adda() {
       <div className="blog-wrap">
         <AddaComposer
           open={composerOpen}
-          onClose={() => setComposerOpen(false)}
+          preset={preset}
+          onClose={() => {
+            setComposerOpen(false)
+            setPreset(null)
+          }}
           onPosted={(l) => setListings((prev) => [l, ...prev])}
         />
 
@@ -453,7 +483,29 @@ export default function Adda() {
             <p className="adda-empty-lead">
               No posts yet — here&apos;s how a listing looks. Post yours and it shows up right here.
             </p>
+            {/* What to write, not just what it looks like */}
+            <div className="starters">
+              <span className="starters-label">Start with one of these</span>
+              <div className="starters-row wrap">
+                {STARTERS.map((s) => (
+                  <button
+                    key={s.chip}
+                    className="starter chip"
+                    title={`Post: ${s.hint}`}
+                    onClick={() => {
+                      setPreset(s.title)
+                      setComposerOpen(true)
+                    }}
+                  >
+                    {s.chip}
+                  </button>
+                ))}
+              </div>
+            </div>
             <ExampleCard onPost={() => setComposerOpen(true)} />
+            <Link className="empty-onward" to="/movies">
+              Or see what released this week <ArrowRight size={14} />
+            </Link>
           </div>
         ) : (
           <div className="blog-feed">

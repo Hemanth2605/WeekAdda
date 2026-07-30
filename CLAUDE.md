@@ -12,9 +12,13 @@ cd backend && npm run dev
 # Frontend dev server (http://localhost:5173, proxies expect API on :4000)
 cd frontend && npm run dev
 
-# Typecheck (no test suite exists)
+# Typecheck
 cd backend && npx tsc --noEmit
 cd frontend && npx tsc --noEmit
+
+# Backend tests (vitest) — queries.ts and seo.ts, the two files both the
+# Express app and the Worker run. No frontend suite yet.
+cd backend && npm test
 
 # Production frontend build
 cd frontend && npm run build
@@ -35,6 +39,17 @@ cd frontend && npm run build
   `cricketAgent.ts` (ESPN public scoreboard JSON, accumulating cache;
   `CRICKET_CACHE_VERSION` plays the same role). Locally node-cron runs them at 4 AM (`backend/src/index.ts`);
   each keeps a POST `/refresh` route for dev convenience (no UI button).
+- **Per-platform hubs** (`/ott/<slug>`, July 2026 — SEO-PLAN Tier 2): eight pages,
+  one per streaming service, for the queries `/movies` cannot win ("new movies on
+  netflix india"). `OTT_PLATFORMS` + `queryPlatform` + `PLATFORM_MIN_TITLES` in
+  `queries.ts` (the `name` must equal the label `releaseAgent` writes into
+  `platforms` — that string is the join); `buildPlatformSeo`/`platformMeta` in
+  `seo.ts`; `ottHubSlug` in `worker.ts` gates the route, the pre-render and
+  `GET /api/ott/:slug`; page `PlatformHub.tsx`, list mirrored in
+  `frontend/src/platforms.ts`. **Deliberately not week-paged** — a hub answers a
+  standing question. A hub under 3 titles still serves but gets
+  `X-Robots-Tag: noindex, follow` and is left out of `buildSitemap`; keep those
+  two gates agreeing. Adding a platform means editing **both** platform lists.
 - **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
   and the cache types, used by both the Express routes and the Worker. Change behaviour
   there, never in just one of the two.
@@ -248,6 +263,38 @@ cd frontend && npm run build
 - **Back to top** — `components/BackToTop.tsx`, mounted once in `App.tsx` so
   every page has it; fades in past 600px of scroll and sits above `.reel-btn`
   in the same bottom-right column.
+- **Release cards on the day** (July 2026): a title with `daysUntil === 0` flips its
+  `.date-cal` tile between the date and a glowing green "New" (`.date-cal-flip` +
+  `cal-flip`/`cal-glow` in index.css). Green, not gold, on purpose — gold is the
+  site's ambient accent and would read as furniture; green is the one unspent hue
+  and already means "available now". Upcoming OTT cards merge platform + timing
+  into one stacked badge (`.release-flag.ott.stacked`): two pills at opposite
+  corners overlapped at phone width, and the countdown lost.
+- **Mini-player slides carry the id of what they show** (July 2026): a click
+  lands on the item, not the page. Films go to `/movie/:id/:slug`; reviews to
+  `/reviews?review=<id>`, which opens that post's modal; matches and Adda posts
+  to `?match=`/`?post=`, where `useFocusTarget` (`frontend/src/focusTarget.ts`)
+  scrolls the card into view, flashes `.pip-focus` and strips the key so a
+  refresh is a plain load. The click **navigates before closing** the PiP window
+  — closing is what returns focus, and doing it first raced the navigation.
+- **The landing notification ask** (`components/NotifyPrompt.tsx`, mounted in
+  `App.tsx`, July 2026) is **our own card, never the browser's dialog**. It
+  appears 3.5s in, only when `Notification.permission === 'default'` and nothing
+  is subscribed; "Not now" parks it for **7 days** in `weekadda-notify-ask`, then
+  it asks once more. That weekly re-ask only works because the ask is soft — a
+  native denial is permanent and unrecoverable from JS, which is why
+  `subscribe()` in `push.ts` is still only ever reached from a click. The in-feed
+  `NotifyCard` hides while the prompt is up (`NOTIFY_PROMPT`); their dismissals
+  stay separate (permanent vs weekly). See PUSH-PLAN.md "Prompt timing".
+- **Browse controls remember, navigation reads as navigation** (July 2026): the
+  Coming Soon source (`weekadda-upcoming-source`) and the OTT content type
+  (`weekadda-ott-type`) persist in localStorage like the language filter already
+  did — a control that forgets while the two beside it remember reads as a bug.
+  The `/ott` hub links (`components/PlatformLinks.tsx`) are text links, **not
+  chips**: everything else in the toolbar filters in place, these leave the page.
+  On phones `.toolbar .genre-row` scrolls horizontally instead of wrapping —
+  fourteen language chips wrapped to four rows and pushed the first poster off
+  the screen. Nothing is dropped or reordered, the row just swipes.
 
 ## Gotchas
 

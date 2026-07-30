@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Releases from './pages/Releases'
 import MovieDetail from './pages/MovieDetail'
+import PlatformHub from './pages/PlatformHub'
 import About from './pages/About'
 import Adda from './pages/Adda'
 import Privacy from './pages/Privacy'
@@ -12,6 +13,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ShareSheet from './components/ShareSheet'
 import NotifySheet from './components/NotifySheet'
+import NotifyPrompt from './components/NotifyPrompt'
 import BackToTop from './components/BackToTop'
 
 /** Start every page from the top when the route changes (SPA keeps scroll otherwise). */
@@ -30,6 +32,9 @@ export default function App() {
       <Navbar />
       <ShareSheet />
       <NotifySheet />
+      {/* Mounted outside the routes, so the landing ask is timed once per
+          visit rather than restarting on every navigation */}
+      <NotifyPrompt />
       <Routes>
         <Route path="/" element={<Navigate to="/movies" replace />} />
         <Route path="/movies" element={<Releases />} />
@@ -40,6 +45,11 @@ export default function App() {
         <Route path="/movies/:tab" element={<Releases />} />
         <Route path="/movie/:id" element={<MovieDetail />} />
         <Route path="/movie/:id/:slug" element={<MovieDetail />} />
+        {/* One page per streaming service — the queries /movies cannot win.
+            Unknown slugs 404 at the edge and redirect to /movies in the app;
+            adding a platform means editing OTT_PLATFORMS in both queries.ts
+            and platforms.ts. See SEO-PLAN.md, Tier 2. */}
+        <Route path="/ott/:platform" element={<PlatformHub />} />
         <Route path="/cricket" element={<Cricket />} />
         <Route path="/cricket/:tab" element={<Cricket />} />
         <Route path="/reviews" element={<Reviews />} />

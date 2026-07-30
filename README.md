@@ -12,7 +12,10 @@ link opens where the sender was.
 
 - 📺 **OTT India** (`/movies`, the default) — movies **and web series** that just arrived on
   JioHotstar, Amazon Prime Video, Netflix, Sony LIV, ZEE5, Sun NXT, Apple TV, Aha and
-  ETV Win — weekly paging, platform badges, Movies / Web Series filter.
+  ETV Win — weekly paging, platform badges, Movies / Web Series filter (which, like the
+  language filter, is remembered for next time). Anything **out today** keeps flipping
+  its date tile over to a glowing green **New** and back, so the day's arrivals are
+  findable in a grid of a hundred posters.
 - 🎞 **Just Released** (`/movies/theatres`) — theatrical releases paged by week along a
   scrollable **week timeline** of labelled chips (This Week, Last Week, … up to 13 weeks
   back, oldest on the left), segregated into horizontally-scrolling rows per language —
@@ -20,6 +23,16 @@ link opens where the sender was.
   with posters, ratings, and search.
 - 🔜 **Coming Soon** (`/movies/upcoming`) — two views: **In Theatres** (next 90 days) and
   **On OTT** (announced digital premieres for India, platform-tagged where known).
+  An upcoming OTT card carries **one badge, not two**: the platform in its brand
+  colour with the timing on a dark bar beneath it — *Tomorrow*, *In 6 days*, or the
+  date itself once a countdown stops meaning anything.
+- 📡 **A page per platform** (`/ott/netflix`, `/ott/prime-video`, `/ott/jiohotstar`,
+  `/ott/sonyliv`, `/ott/zee5`, `/ott/sun-nxt`, `/ott/apple-tv`, `/ott/aha`) —
+  everything that recently landed on one service, newest first, by language, plus
+  what's announced next. Not week-paged: "what's on Netflix" is a standing question,
+  where `/movies` answers "what arrived this week". A hub with fewer than three
+  titles still works for anyone who visits but is kept out of the index until it has
+  something to say.
 - 🏏 **Cricket** (`/cricket`) — lands on **Fixtures** banded **Today / This Week / Later**;
   **Results week by week** at `/cricket/results`. Grouped series by series with scores,
   winners, venues and self-hosted country flags. Series featuring India are always pinned
@@ -58,10 +71,14 @@ link opens where the sender was.
   Reviews and the Adda that plays whatever the page is showing — movie posters, match
   cards with team flags and who won, reviews with their star rating, open Adda posts —
   while the viewer does other things. Desktop Chrome/Edge get a fully clickable window
-  (click opens that title on the site, ‹ › arrows to step, an end card offering the
-  adjacent weeks); everywhere else a canvas-drawn video PiP with the system's ⏮ ⏭
-  controls. The button hides itself when the page has nothing to play or the browser
-  has no PiP at all.
+  (‹ › arrows to step, an end card offering the adjacent weeks); everywhere else a
+  canvas-drawn video PiP with the system's ⏮ ⏭ controls. The button hides itself when
+  the page has nothing to play or the browser has no PiP at all.
+  **A click lands on the thing that was showing**, not the page it came from: a film
+  opens its own page, a review opens itself in the reader, and a match or Adda post
+  scrolls into the middle of the screen with a ring drawn round it. Those are real
+  URLs (`/cricket/results?match=…`, `/adda?post=…`, `/reviews?review=…`), so they can
+  be shared as they are.
 - ⬆️ **Back to top** — a floating arrow fades in after a screen of scrolling on every
   page, stacked above the mini-player button as one bottom-right control column.
 - 📤 **Sharing** — native share sheet on phones (WhatsApp, Telegram, Instagram, anything
@@ -82,6 +99,10 @@ link opens where the sender was.
   their own breakfast. iPhones only receive Web Push once the site is added to the Home
   Screen, so the button feature-detects itself away there rather than promising something
   that cannot work. Design and rules in `PUSH-PLAN.md`.
+  On a first visit a card asks once, a few seconds in — **our card, never the browser's
+  dialog**. That distinction is the design: a reflexive "no" to the browser is permanent
+  and can never be asked again, while **"Not now" here means a week**. The real
+  permission call still only ever happens from a tap, after the language picker.
 - 🔒 **Owner dashboard** (`/stats`) — a private view of those clicks: totals and today
   (clicks, unique visitors, signed-in accounts), member counts, a 14-day chart and
   breakdowns by action, platform, language and title. Days bucket in **IST**, since
@@ -189,6 +210,7 @@ Cricket needs no key.
 | GET    | `/api/releases`         | `?window=released\|ott\|upcoming` `&week=0..12` `&language=te` `&search=` `&contentType=movie\|series` `&source=ott` (upcoming OTT view) |
 | POST   | `/api/releases/refresh` | Wake the release agent for an immediate sweep |
 | GET    | `/api/title/:id`        | One release by id (any pool) + status (`streaming`, `upcoming-ott`, `in-theatres`, `upcoming-theatre`) + same-language related titles — feeds `/movie/:id/:slug` |
+| GET    | `/api/ott/:slug`        | One platform's titles — `{ platform, streaming[], upcoming[], indexable }`, newest first. Feeds `/ott/:slug`; an unknown slug is a 404, not an empty page |
 | GET    | `/api/cricket`          | `?window=recent\|upcoming` `&week=0..12` `&type=international\|league\|all` `&search=` |
 | POST   | `/api/cricket/refresh`  | Wake the cricket agent for an immediate sweep |
 | POST   | `/api/track/click`      | Record an outbound Watch/Book/Scorecard/Share click (fire-and-forget) |
@@ -225,10 +247,13 @@ backend/
   cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json
 frontend/
   src/
-    pages/                 # Releases, Cricket, Reviews, MovieDetail, Adda, About, Privacy, Stats
+    pages/                 # Releases, Cricket, Reviews, MovieDetail, PlatformHub (/ott/:slug),
+                           #   Adda, About, Privacy, Stats
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
-                           #   NotifyBell / NotifyCard / NotifySheet, BackToTop,
-                           #   PipShow (mini player), WeekTimeline (week chips)
+                           #   NotifyBell / NotifyCard / NotifySheet / NotifyPrompt, BackToTop,
+                           #   PipShow (mini player), WeekTimeline (week chips), PlatformLinks
+    platforms.ts           # the /ott hub list — mirrors OTT_PLATFORMS in backend queries.ts
+    focusTarget.ts         # ?match= / ?post= → scroll that card into view and flash it
     geo.ts                 # country/state → home language + national team, one cached lookup
     auth.ts                # Google sign-in (token flow) + app-wide user state
     push.ts                # subscribe/unsubscribe + browser support detection
@@ -254,11 +279,22 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
   React replaces the block on mount; on any error the untouched page is served.
   Content refreshes automatically with each daily sweep.
 - **A page per intent, not per tab**: `/movies`, `/movies/theatres`, `/movies/upcoming`,
-  `/cricket` and `/cricket/results` each get their **own** pre-rendered block, title and
-  canonical — three URLs sharing one block would have Google pick one and drop the rest,
-  which is worse than not splitting at all. `SEO-PLAN.md` holds the wider taxonomy this
-  is step one of (per-platform and per-language hubs), the index-hygiene thresholds, and
-  the **four places** a new route must be registered before it is reachable.
+  `/cricket`, `/cricket/results` and the eight `/ott/<platform>` hubs each get their
+  **own** pre-rendered block, title and canonical — URLs sharing one block would have
+  Google pick one and drop the rest, which is worse than not splitting at all.
+  `SEO-PLAN.md` holds the wider taxonomy (per-language hubs are next), the
+  index-hygiene thresholds, and the **four places** a new route must be registered
+  before it is reachable.
+- **Index hygiene is enforced, not just written down**: a platform hub with fewer than
+  three titles is served normally but sent `X-Robots-Tag: noindex, follow` and omitted
+  from the sitemap, so a page with one film on it never drags the domain down. The
+  Worker and `buildSitemap` read the same `indexable` flag, so the two cannot drift.
+- **Hubs are linked, not just listed**: `/movies` carries a real `<a href>` row into the
+  platform hubs in both the pre-render and the app, and every hub links to the other
+  seven — eight pages that only the sitemap knows about are eight orphans. In the UI
+  they are text links rather than filter chips on purpose: the chips beside them filter
+  the list in place, these leave the page, and one shape for both promises the wrong
+  thing.
 - **A skeleton while the bundle boots**: the pre-render is crawler copy, so on a slow
   phone it flashed as an unstyled text document before React mounted. The Worker injects
   a shimmer ahead of it (reusing the app's own `.sk` classes) and hides the copy during
@@ -274,9 +310,10 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
   Movie/TVSeries JSON-LD (poster + aggregate rating) and per-title canonical. Titles
   age out with the cache window and then 404 out of the index.
 - **Dynamic sitemap**: `/sitemap.xml` is generated by the Worker (`buildSitemap`) —
-  the static routes (incl. /adda, /about, /privacy) plus every current title page
-  (~1,000+ URLs), `lastmod` set to the last sweep, so crawlers see daily change. The
-  static `public/sitemap.xml` is an unused fallback.
+  the static routes (incl. /adda, /about, /privacy), every platform hub that clears the
+  threshold, plus every current title page (~1,200 URLs), `lastmod` set to the last
+  sweep, so crawlers see daily change. The static `public/sitemap.xml` is an unused
+  fallback.
 - The Worker stamps route-specific `<title>`/description/canonical **and Open Graph +
   Twitter tags** into the raw HTML (`routeMeta`; movie pages get the poster as
   `og:image`), so shared links preview the right page. The SPA then sets the **same**
@@ -342,6 +379,8 @@ free tiers plus the domain:
 
 ## Roadmap
 
+- Per-language hubs (`/movies/telugu`, `/movies/hindi`, …) on the platform-hub pattern —
+  SEO-PLAN.md Tier 3
 - IndexNow pings after each sweep so Bing indexes new title pages the same day
 - Per-series cricket pages (`/cricket/india-vs-australia`) on the movie-page pattern
 - Hard 404 status for expired `/movie/…` URLs (currently a soft 404 shell)

@@ -145,10 +145,40 @@ and ZEE5`. Tapping opens `/movies?language=te`.
 
 ## Prompt timing
 
-Never on page load. Browsers penalise it, and a blocked permission is
-permanent — the user has to dig through site settings to undo it, which nobody
-does. The prompt fires only from an explicit tap on the button, after the
-language picker, so consent is given twice before the browser ever asks.
+**The browser's permission dialog never fires on page load**, and that rule has
+not moved. Browsers penalise it, and a blocked permission is permanent — undoing
+it means digging through site settings, which nobody does. `subscribe()` is
+still only ever reached from a tap, after the language picker, so consent is
+given twice before the browser is ever asked.
+
+What *does* happen on landing is our own card (`NotifyPrompt.tsx`, mounted once
+in `App.tsx`), added 30 July 2026. It is a soft ask, and being soft is the whole
+point: declining costs nothing, so **"Not now" can mean a week instead of
+forever**. Tapping "Yes, notify me" opens the existing language sheet, and the
+real permission call happens from a click in there.
+
+Rules it follows:
+
+- Appears **3.5s** after mount — a prompt that lands with the first paint is
+  answered before it is read
+- Shown only when `Notification.permission === 'default'`, push is supported,
+  the browser has no subscription, and the ask is not parked. `granted` and
+  `denied` are both settled answers; the second is not ours to reopen
+- "Not now" / ✕ writes `weekadda-notify-ask` = timestamp. Silent for **7 days**,
+  then one more ask. An unparseable value is treated as parked, not as a licence
+  to ask forever
+- "Yes" also parks it, so backing out of the language sheet does not re-ask
+  tomorrow
+- The in-feed `NotifyCard` stands down while the prompt is up (`NOTIFY_PROMPT`
+  event) — two asks for the same thing on one screen is worse than none. Their
+  dismiss states stay separate: permanent for the card, weekly for the prompt
+- Bottom-**left** on desktop (bottom-right is the mini player and Back to top —
+  a prompt covering a control someone is reaching for gets dismissed on reflex),
+  a full-width bottom sheet under 560px with 44px buttons above the safe area
+
+Open question, deliberately left as it is: someone who declines every week is
+asked every week, forever. Three declines is arguably an answer. Not capped
+without the owner choosing it.
 
 ## Deploy order
 
@@ -171,6 +201,8 @@ Built 25 July 2026; not yet deployed.
 
 - [x] Table added to `schema.sql` — **still to be run in the Supabase SQL Editor**
 - [x] Service worker (`public/sw.js`), `push.ts`, `NotifyButton.tsx`, styles
+- [x] Landing soft prompt with a 7-day snooze (`NotifyPrompt.tsx`, 30 Jul 2026) —
+      see Prompt timing
 - [x] `POST /api/push/subscribe` + `/unsubscribe` in the Worker and Express
 - [x] Sender (`pushSender.ts`) wired into `sweep.ts`, workflow passes the keys
 - [x] VAPID keys generated into `backend/.env` and `frontend/.env`

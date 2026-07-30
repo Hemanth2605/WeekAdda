@@ -236,6 +236,74 @@ export function queryReleases(
   }
 }
 
+// ---------------- /ott/<platform> hubs ----------------
+
+/**
+ * One hub per streaming service, at /ott/<slug>. The slugs are what people
+ * type, not what the platform calls itself — "prime-video" and "sun-nxt" are
+ * searched far more than "amazon-prime-video" or "sunnxt". `name` must match
+ * the label the release agent writes into `platforms`, exactly; that string is
+ * the join between the two halves of this feature.
+ */
+export const OTT_PLATFORMS: Array<{ slug: string; name: string }> = [
+  { slug: 'netflix', name: 'Netflix' },
+  { slug: 'prime-video', name: 'Amazon Prime Video' },
+  { slug: 'jiohotstar', name: 'JioHotstar' },
+  { slug: 'sonyliv', name: 'Sony LIV' },
+  { slug: 'zee5', name: 'ZEE5' },
+  { slug: 'sun-nxt', name: 'Sun NXT' },
+  { slug: 'apple-tv', name: 'Apple TV' },
+  { slug: 'aha', name: 'Aha' },
+]
+
+export function platformBySlug(slug: string): { slug: string; name: string } | null {
+  return OTT_PLATFORMS.find((p) => p.slug === slug) ?? null
+}
+
+/**
+ * A hub below this many titles is a thin page, and thin pages drag the whole
+ * domain down — Aha and Sun NXT can genuinely have one title in a quiet month.
+ * Under the threshold the page still works for anyone who visits; it is just
+ * kept out of the sitemap and served `noindex` until it has something to say.
+ * See SEO-PLAN.md, principle 3.
+ */
+export const PLATFORM_MIN_TITLES = 3
+
+export interface PlatformResult {
+  platform: { slug: string; name: string }
+  /** Already streaming, newest arrival first — every week the cache holds. */
+  streaming: OttRelease[]
+  /** Announced for this platform, soonest first. */
+  upcoming: OttRelease[]
+  /** Enough content to deserve indexing. */
+  indexable: boolean
+}
+
+/**
+ * Everything on one platform. Deliberately not week-paged: a hub answers
+ * "what is on Netflix", which is a standing question, where /movies answers
+ * "what arrived this week". Returns null for a slug we do not serve, which is
+ * what turns /ott/anything into a real 404 rather than an empty page.
+ */
+export function queryPlatform(data: ReleaseCache, slug: string): PlatformResult | null {
+  const platform = platformBySlug(slug)
+  if (!platform) return null
+  const today = new Date().toISOString().slice(0, 10)
+  const on = (r: OttRelease) => (r.platforms ?? []).includes(platform.name)
+  const streaming = data.ott
+    .filter((r) => on(r) && r.releaseDate <= today)
+    .sort((a, b) => b.releaseDate.localeCompare(a.releaseDate))
+  const upcoming = data.ottUpcoming
+    .filter((r) => on(r) && r.releaseDate > today)
+    .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate))
+  return {
+    platform,
+    streaming,
+    upcoming,
+    indexable: streaming.length + upcoming.length >= PLATFORM_MIN_TITLES,
+  }
+}
+
 // ---------------- per-title pages ----------------
 
 /** URL-safe slug for per-title pages; decorative (lookup is by id). */

@@ -1,6 +1,8 @@
 import {
   queryReleases,
   queryCricket,
+  queryPlatform,
+  platformBySlug,
   aggregateClicks,
   countMembers,
   MemberActivity,
@@ -23,6 +25,7 @@ import {
 } from './queries'
 import {
   buildMoviesSeo,
+  buildPlatformSeo,
   buildCricketSeo,
   buildBlogSeo,
   buildAboutSeo,
@@ -221,6 +224,8 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
     return buildPrivacySeo()
   }
   const data = await loadCache(env, 'releases', EMPTY_RELEASES)
+  const hub = ottHubSlug(pathname)
+  if (hub) return buildPlatformSeo(data, hub) ?? buildMoviesSeo(data)
   if (pathname === '/movies/upcoming') return buildMoviesSeo(data, 'upcoming')
   if (pathname === '/movies/theatres') return buildMoviesSeo(data, 'theatres')
   return buildMoviesSeo(data)
@@ -264,8 +269,17 @@ const SPA_ROUTES = new Set([
 /** Title pages carry an id and an optional slug: /movie/:id[/:slug]. */
 const MOVIE_ROUTE = /^\/movie\/[^/]+(\/[^/]*)?$/
 
+/**
+ * /ott/<slug>, and only for a platform we actually serve — /ott/hulu has to
+ * 404 like any other path the site does not have, not render an empty hub.
+ */
+function ottHubSlug(pathname: string): string | null {
+  const slug = pathname.startsWith('/ott/') ? pathname.slice(5) : ''
+  return slug && platformBySlug(slug) ? slug : null
+}
+
 function isKnownRoute(pathname: string): boolean {
-  return SPA_ROUTES.has(pathname) || MOVIE_ROUTE.test(pathname)
+  return SPA_ROUTES.has(pathname) || MOVIE_ROUTE.test(pathname) || ottHubSlug(pathname) !== null
 }
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -328,9 +342,22 @@ const routes = {
       return Response.redirect(url.toString(), 301)
     }
 
+    // /ott is not a page — the hubs live at /ott/<slug> — but it is the obvious
+    // thing to type or to trim a URL back to, and 404ing a plausible guess
+    // wastes the visit. A trailing slash on a real hub lands here too.
+    if (url.pathname === '/ott' || url.pathname === '/ott/') {
+      url.pathname = '/movies'
+      return Response.redirect(url.toString(), 301)
+    }
+
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') {
-      const data = await loadCache(env, 'releases', EMPTY_RELEASES)
-      return new Response(buildSitemap(data), {
+      // Posts too: a reviewed title keeps its page after it leaves the release
+      // window, so it has to keep its sitemap entry. Both reads are cached.
+      const [data, { posts }] = await Promise.all([
+        loadCache(env, 'releases', EMPTY_RELEASES),
+        loadPosts(env),
+      ])
+      return new Response(buildSitemap(data, posts), {
         headers: { 'Content-Type': 'application/xml', 'Cache-Control': 'no-cache' },
       })
     }
@@ -357,16 +384,19 @@ const routes = {
         return new Response(asset.body, { status: asset.status, headers })
       }
       const isMoviePage = /^\/movie\/[^/]+/.test(url.pathname)
+      const hubSlug = ottHubSlug(url.pathname)
       // Edge pre-render: inject real content into the SPA shell so crawlers
       // see this week's titles. Any hiccup falls back to the untouched page.
       if (
         request.method === 'GET' &&
-        (SEO_PAGES.has(url.pathname) || isMoviePage) &&
+        (SEO_PAGES.has(url.pathname) || isMoviePage || hubSlug) &&
         (asset.headers.get('Content-Type') ?? '').includes('text/html')
       ) {
         try {
           let block: string
           let status = asset.status
+          /** Serve it, but keep it out of the index (below-threshold hub). */
+          let thin = false
           // Route-specific <title>/description/canonical (+ Open Graph) so
           // crawlers and shared links don't see the homepage metadata on
           // every route
@@ -392,6 +422,18 @@ const routes = {
             block = buildCricketSeo(data)
             meta = cricketMeta(data)
             canonical = 'https://weekadda.com/cricket'
+          } else if (hubSlug) {
+            const releases = await loadCache(env, 'releases', EMPTY_RELEASES)
+            const hub = queryPlatform(releases, hubSlug)
+            if (!hub) return asset
+            block = buildPlatformSeo(releases, hubSlug) ?? ''
+            meta = routeMeta(url.pathname)
+            canonical = `https://weekadda.com${url.pathname}`
+            // A hub with almost nothing on it is thin content. It still serves
+            // — someone who follows a link gets a working page — but it stays
+            // out of the index until the platform has enough to be worth one.
+            // Matches the gate buildSitemap applies. See SEO-PLAN.md.
+            if (!hub.indexable) thin = true
           } else {
             block = await seoBlockFor(env, url.pathname)
             meta = routeMeta(url.pathname)
@@ -456,6 +498,7 @@ const routes = {
               )
             }
           }
+          if (thin) headers.set('X-Robots-Tag', 'noindex, follow')
           return new Response(out, { status, headers })
         } catch {
           return env.ASSETS.fetch(request)
@@ -490,6 +533,14 @@ const routes = {
       return json(
         queryReleases(data, query, { syncing: false, liveConfigured: data.source === 'tmdb' })
       )
+    }
+
+    if (url.pathname.startsWith('/api/ott/') && request.method === 'GET') {
+      const slug = decodeURIComponent(url.pathname.slice('/api/ott/'.length))
+      const data = await loadCache(env, 'releases', EMPTY_RELEASES)
+      const hub = queryPlatform(data, slug)
+      if (!hub) return json({ error: 'Unknown platform' }, 404)
+      return json({ ...hub, meta: { fetchedAt: data.fetchedAt, source: data.source } })
     }
 
     if (url.pathname.startsWith('/api/title/') && request.method === 'GET') {

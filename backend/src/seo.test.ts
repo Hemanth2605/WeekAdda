@@ -1,0 +1,296 @@
+import { describe, it, expect } from 'vitest'
+import { buildPlatformSeo, buildMoviesSeo, buildTitlePage, buildSitemap, routeMeta } from './seo'
+import { OTT_PLATFORMS, type ReleaseCache, type OttRelease, type Release } from './queries'
+
+/**
+ * The pre-render is a string, which is exactly why it needs tests: every bug it
+ * has had was invisible in review and expensive in production — schema landing
+ * where React would delete it, a `ListItem` that was not a ListItem, a page
+ * shipped with no crawlable link on it.
+ *
+ * These assert the *contracts*, not the prose. Wording is meant to change with
+ * how people search; a test that pins a sentence would only ever be deleted.
+ */
+
+const iso = (daysFromToday: number) =>
+  new Date(Date.now() + daysFromToday * 86_400_000).toISOString().slice(0, 10)
+
+const release = (over: Partial<Release> & { id: string }): Release => ({
+  title: over.id,
+  originalTitle: over.id,
+  language: 'te',
+  languageLabel: 'Telugu',
+  releaseDate: iso(-1),
+  overview: 'An overview.',
+  poster: null,
+  rating: 0,
+  votes: 0,
+  ...over,
+})
+
+const ott = (over: Partial<OttRelease> & { id: string }): OttRelease => ({
+  ...release(over),
+  platforms: ['Netflix'],
+  week: 0,
+  contentType: 'movie',
+  ...over,
+})
+
+const data: ReleaseCache = {
+  fetchedAt: new Date().toISOString(),
+  source: 'tmdb',
+  releases: [release({ id: 'theatre-1', title: 'A Theatre Film' })],
+  ott: [
+    ott({ id: 'n1', title: 'Netflix One' }),
+    ott({ id: 'n2', title: 'Netflix Two', language: 'hi', languageLabel: 'Hindi' }),
+    ott({ id: 'n3', title: 'Netflix Three', contentType: 'series' }),
+    ott({ id: 'z1', title: 'Zee Film', platforms: ['ZEE5'] }),
+  ],
+  ottUpcoming: [ott({ id: 'n4', title: 'Netflix Soon', releaseDate: iso(6) })],
+}
+
+/** Every ld+json block in a chunk of markup, parsed. Throws on invalid JSON. */
+const schemas = (html: string) =>
+  [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) =>
+    JSON.parse(m[1])
+  )
+
+describe('buildPlatformSeo', () => {
+  it('returns null for a platform we do not serve', () => {
+    expect(buildPlatformSeo(data, 'hulu')).toBeNull()
+  })
+
+  it('lists only that platform’s titles', () => {
+    const html = buildPlatformSeo(data, 'netflix')!
+    expect(html).toContain('Netflix One')
+    expect(html).not.toContain('Zee Film')
+
+    const zee = buildPlatformSeo(data, 'zee5')!
+    expect(zee).toContain('Zee Film')
+    expect(zee).not.toContain('Netflix One')
+  })
+
+  it('links every title to its own page — the hub exists to pass authority on', () => {
+    const html = buildPlatformSeo(data, 'netflix')!
+    expect(html).toMatch(/<a href="\/movie\/n1\//)
+  })
+
+  it('links to the other hubs, so none of them is an orphan', () => {
+    const html = buildPlatformSeo(data, 'netflix')!
+    for (const p of OTT_PLATFORMS) {
+      if (p.slug === 'netflix') continue
+      expect(html).toContain(`href="/ott/${p.slug}"`)
+    }
+    // and back to the section hub
+    expect(html).toContain('href="/movies"')
+  })
+
+  it('still renders a working page for a platform with nothing on it', () => {
+    const empty: ReleaseCache = { ...data, ott: [], ottUpcoming: [] }
+    const html = buildPlatformSeo(empty, 'aha')!
+    expect(html).toContain('Aha')
+    expect(html).toContain('</div>')
+  })
+
+  it('emits valid schema, and a BreadcrumbList whose last crumb is the page itself', () => {
+    const found = schemas(buildPlatformSeo(data, 'netflix')!)
+    const crumbs = found.find((s) => s['@type'] === 'BreadcrumbList')
+    expect(crumbs).toBeTruthy()
+    const items = crumbs.itemListElement
+    expect(items.every((i: { '@type': string }) => i['@type'] === 'ListItem')).toBe(true)
+    expect(items.map((i: { position: number }) => i.position)).toEqual([1, 2, 3])
+    // Google expects the current page to be named but not linked
+    expect(items[items.length - 1].item).toBeUndefined()
+    expect(items[items.length - 1].name).toBe('Netflix')
+  })
+
+  it('the visible trail matches the marked-up one — no invisible breadcrumb', () => {
+    const html = buildPlatformSeo(data, 'netflix')!
+    expect(html).toMatch(/<p class="wa-crumbs">[\s\S]*?Netflix[\s\S]*?<\/p>/)
+  })
+
+  it('ItemList entries are ListItems wrapping the work, not the work itself', () => {
+    const list = schemas(buildPlatformSeo(data, 'netflix')!).find((s) => s['@type'] === 'ItemList')
+    expect(list).toBeTruthy()
+    for (const entry of list.itemListElement) {
+      expect(entry['@type']).toBe('ListItem')
+      expect(['Movie', 'TVSeries']).toContain(entry.item['@type'])
+    }
+  })
+})
+
+describe('routeMeta', () => {
+  it('gives every hub its own title and description', () => {
+    const seen = new Set<string>()
+    for (const p of OTT_PLATFORMS) {
+      const meta = routeMeta(`/ott/${p.slug}`)
+      expect(meta).toBeTruthy()
+      expect(meta!.title).toContain(p.name.replace(/&/g, '&amp;'))
+      expect(seen.has(meta!.title)).toBe(false)
+      seen.add(meta!.title)
+    }
+  })
+
+  it('has nothing to say about a path that is not a page', () => {
+    expect(routeMeta('/ott/hulu')).toBeNull()
+    expect(routeMeta('/ott')).toBeNull()
+    expect(routeMeta('/nope')).toBeNull()
+  })
+
+  it('escapes for HTML, since these go straight into attributes', () => {
+    const meta = routeMeta('/ott/netflix')!
+    expect(meta.title).not.toMatch(/(?<!&amp;)&(?!amp;|quot;|lt;|gt;)/)
+  })
+
+  /**
+   * Guards the four-place coupling: `platformMeta` here and in
+   * frontend/src/platforms.ts must produce the same strings, or one URL
+   * advertises two titles. Pinning the shape makes a drift a failing test
+   * rather than a silent SEO bug.
+   */
+  it('keeps the hub title format the frontend mirrors', () => {
+    expect(routeMeta('/ott/netflix')!.title).toBe(
+      'New Movies &amp; Web Series on Netflix India This Week | WeekAdda'
+    )
+  })
+})
+
+describe('buildSitemap', () => {
+  const map = buildSitemap(data)
+
+  it('includes a hub that clears the threshold and omits one that does not', () => {
+    // Netflix has 4 entries here, ZEE5 only 1
+    expect(map).toContain('<loc>https://weekadda.com/ott/netflix</loc>')
+    expect(map).not.toContain('<loc>https://weekadda.com/ott/zee5</loc>')
+  })
+
+  it('lists every title page exactly once across all three pools', () => {
+    const locs = [...map.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+    expect(new Set(locs).size).toBe(locs.length)
+    expect(locs).toContain('https://weekadda.com/movie/n1/netflix-one')
+  })
+
+  it('never advertises the private dashboard', () => {
+    expect(map).not.toContain('/stats')
+  })
+
+  it('keeps a reviewed title listed after it leaves the release window', () => {
+    const withReview = buildSitemap(data, [
+      {
+        id: 'p1',
+        ts: new Date().toISOString(),
+        author: 'Ravi',
+        title: 'Worth it',
+        body: 'Good.',
+        tag: { kind: 'movie', id: 'aged-out', label: 'Chennai Love Story', sub: '', poster: null },
+      },
+    ])
+    expect(withReview).toContain('/movie/aged-out/chennai-love-story')
+    // and does not duplicate one that is still in the cache
+    const dupes = buildSitemap(data, [
+      {
+        id: 'p2',
+        ts: new Date().toISOString(),
+        author: 'Ravi',
+        title: 'Worth it',
+        body: 'Good.',
+        tag: { kind: 'movie', id: 'n1', label: 'Netflix One', sub: '', poster: null },
+      },
+    ])
+    const locs = [...dupes.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
+    expect(new Set(locs).size).toBe(locs.length)
+  })
+
+  it('is well-formed XML with a single urlset', () => {
+    expect(map.startsWith('<?xml')).toBe(true)
+    expect([...map.matchAll(/<urlset/g)]).toHaveLength(1)
+    expect([...map.matchAll(/<url>/g)].length).toBe([...map.matchAll(/<\/url>/g)].length)
+  })
+})
+
+describe('buildTitlePage', () => {
+  const review = (id: string, title = 'Worth it') => ({
+    id: `p-${id}`,
+    ts: new Date().toISOString(),
+    author: 'Ravi',
+    title,
+    body: 'The second half earns the ending. Worth the ticket.',
+    tag: { kind: 'movie' as const, id, label: 'Chennai Love Story', sub: 'Telugu', poster: null },
+  })
+
+  it('returns null for an id with no cache row and nothing written about it', () => {
+    expect(buildTitlePage(data, 'gone')).toBeNull()
+    expect(buildTitlePage(data, 'gone', [])).toBeNull()
+  })
+
+  it('keeps a page alive for a film that aged out but has reviews', () => {
+    // The release row is gone; the reviews are not. The page that ranks for
+    // "<film> review" must not 404 and take them with it.
+    const page = buildTitlePage(data, 'aged-out', [review('aged-out')])!
+    expect(page).toBeTruthy()
+    expect(page.title).toContain('Chennai Love Story')
+    expect(page.title).toContain('Review')
+    expect(page.block).toContain('The second half earns the ending')
+    expect(page.canonical).toBe('https://weekadda.com/movie/aged-out/chennai-love-story')
+  })
+
+  it('the surviving page says what it no longer knows, rather than inventing it', () => {
+    const page = buildTitlePage(data, 'aged-out', [review('aged-out')])!
+    expect(page.block).toContain('no longer tracked')
+    // Nothing that would need the release row
+    expect(page.block).not.toMatch(/Release date:/)
+  })
+
+  it('carries Review schema on the surviving page too', () => {
+    const page = buildTitlePage(data, 'aged-out', [review('aged-out')])!
+    const movie = schemas(page.block).find((s) => s['@type'] === 'Movie')
+    expect(movie.review).toHaveLength(1)
+    expect(movie.review[0]['@type']).toBe('Review')
+    // The stars measure how useful the review was, not a verdict on the film
+    expect(movie.review[0].reviewRating).toBeUndefined()
+  })
+
+  it('ignores reviews of a different title', () => {
+    expect(buildTitlePage(data, 'aged-out', [review('some-other-film')])).toBeNull()
+  })
+
+  it('puts a film under its platform hub — the only link from a title back in', () => {
+    const page = buildTitlePage(data, 'n1')!
+    expect(page.block).toContain('href="/ott/netflix"')
+  })
+
+  it('does not invent a hub for a theatre release', () => {
+    const page = buildTitlePage(data, 'theatre-1')!
+    expect(page.block).not.toContain('/ott/')
+  })
+
+  it('keeps the meta description inside what search engines display', () => {
+    const page = buildTitlePage(data, 'n1')!
+    expect(page.description.length).toBeLessThanOrEqual(160)
+    expect(page.canonical).toBe('https://weekadda.com/movie/n1/netflix-one')
+  })
+})
+
+describe('every pre-render block', () => {
+  const blocks: Array<[string, string]> = [
+    ['movies', buildMoviesSeo(data)],
+    ['theatres', buildMoviesSeo(data, 'theatres')],
+    ['upcoming', buildMoviesSeo(data, 'upcoming')],
+    ['hub', buildPlatformSeo(data, 'netflix')!],
+    ['title', buildTitlePage(data, 'n1')!.block],
+  ]
+
+  it.each(blocks)('%s emits only valid JSON-LD', (_name, html) => {
+    expect(() => schemas(html)).not.toThrow()
+    for (const s of schemas(html)) expect(s['@context']).toBe('https://schema.org')
+  })
+
+  it.each(blocks)('%s is a balanced fragment', (_name, html) => {
+    expect(html.startsWith('<div id="wa-prerender"')).toBe(true)
+    expect(html.endsWith('</div>')).toBe(true)
+  })
+
+  it.each(blocks)('%s carries at least one crawlable link', (_name, html) => {
+    expect(html).toMatch(/<a href="\//)
+  })
+})

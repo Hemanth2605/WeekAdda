@@ -1027,10 +1027,6 @@ input {
   background: rgba(110, 160, 230, 0.88);
   color: #0a1526;
 }
-.release-flag.right {
-  left: auto;
-  right: 10px;
-}
 .release-flag.ott {
   background: rgba(10, 10, 14, 0.78);
   color: var(--gold-bright);
@@ -1039,6 +1035,31 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Upcoming on OTT: platform over timing in one block, like a ticket stub.
+   Deliberately stacked at every width rather than wrapping — the badge is then
+   the same shape on a phone as on a desktop, and the countdown can never be
+   pushed off or covered by a long platform name. */
+.release-flag.ott.stacked {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border-radius: 9px;
+  line-height: 1.2;
+}
+.release-flag.ott.stacked .flag-name {
+  padding: 4px 9px 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.release-flag.ott.stacked .flag-when {
+  padding: 3px 9px 4px;
+  /* Its own dark bar, so it stays legible on every platform's brand colour */
+  background: rgba(6, 8, 12, 0.85);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  color: #bcd8ff;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
 }
 /* Language picker above the booking buttons, on films playing in more than one.
    Reuses .genre-chip so it reads as the same control as the language filter. */
@@ -1183,6 +1204,84 @@ input {
   font-weight: 700;
   padding: 3px 0 4px;
   color: var(--text);
+}
+/* Arrived here from the mini player: flash the card it was showing.
+   !important beats the cards' own entry animation and its inline delay */
+.pip-focus {
+  animation: pip-focus 2.4s ease-out !important;
+}
+@keyframes pip-focus {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(232, 179, 75, 0);
+  }
+  15%,
+  55% {
+    box-shadow: 0 0 0 4px rgba(232, 179, 75, 0.55), 0 0 30px rgba(232, 179, 75, 0.3);
+  }
+  35%,
+  75% {
+    box-shadow: 0 0 0 2px rgba(232, 179, 75, 0.3), 0 0 16px rgba(232, 179, 75, 0.16);
+  }
+}
+
+/* Out today: the tile turns over to "New" and back, over and over */
+.date-cal-flip {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  transform-style: preserve-3d;
+  animation: cal-flip 5s ease-in-out infinite;
+}
+.date-cal-flip .date-cal {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.date-cal-flip .date-cal.back {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transform: rotateX(180deg);
+  background: linear-gradient(150deg, #2bf08c 0%, #00c96b 100%);
+  border-color: rgba(120, 255, 180, 0.8);
+  color: #05230f;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  animation: cal-glow 1.7s ease-in-out infinite;
+}
+@keyframes cal-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 7px rgba(0, 226, 122, 0.55), 0 0 16px rgba(0, 226, 122, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 13px rgba(0, 240, 130, 0.9), 0 0 30px rgba(0, 226, 122, 0.55),
+      0 0 46px rgba(0, 200, 110, 0.3);
+  }
+}
+@keyframes cal-flip {
+  0%,
+  34% {
+    transform: perspective(240px) rotateX(0deg);
+  }
+  43%,
+  77% {
+    transform: perspective(240px) rotateX(180deg);
+  }
+  86%,
+  100% {
+    transform: perspective(240px) rotateX(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .date-cal-flip,
+  .date-cal-flip .date-cal.back {
+    animation: none;
+  }
 }
 
 /* ---------------- release detail modal ---------------- */

@@ -21,6 +21,7 @@ import { countryFlag } from '../flags'
 import WeekTimeline from '../components/WeekTimeline'
 import PipShow from '../components/PipShow'
 import { useHomeTeam } from '../geo'
+import { useFocusTarget } from '../focusTarget'
 
 type Window = 'recent' | 'upcoming'
 
@@ -189,6 +190,9 @@ export default function Cricket() {
 
   const maxWeeks = weekInfo?.maxWeeks ?? 13
 
+  // ?match=<id> — arriving on one fixture or result the mini player was showing
+  useFocusTarget('match', 'match', !loading && matches.length > 0)
+
   // Mini-player slides: one card per match, exactly what the tab is showing.
   // The kicker reads "1st T20I · <series>" in one line; fixtures carry
   // date/time + venue, results carry the scores with who won in gold —
@@ -226,7 +230,8 @@ export default function Cricket() {
           badges: m.teams
             .map((t) => countryFlag(t.name) ?? t.logo ?? '')
             .filter(Boolean),
-          href: windowTab === 'recent' ? '/cricket/results' : '/cricket',
+          // The tab it is playing, and the match itself — not just the page
+          href: `${windowTab === 'recent' ? '/cricket/results' : '/cricket'}?match=${encodeURIComponent(m.id)}`,
         }
       })
   }, [matches, windowTab, homeTeam])
@@ -499,6 +504,7 @@ export default function Cricket() {
                 {section.items.map((m, i) => (
                   <a
                     key={m.id}
+                    id={`match-${m.id}`}
                     className={`match-card${m.url ? ' clickable' : ''}`}
                     style={{ animationDelay: `${Math.min(i * 45, 400)}ms` }}
                     href={m.url ?? undefined}

@@ -17,6 +17,7 @@ import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } fr
 import GoogleButton from '../components/GoogleButton'
 import PipShow from '../components/PipShow'
 import { usePageMeta } from '../seo'
+import { useFocusTarget } from '../focusTarget'
 
 interface ListingContact {
   name: string
@@ -123,7 +124,11 @@ function ListingCard({
   }
 
   return (
-    <article className="blog-card adda-card" style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}>
+    <article
+      id={`adda-${listing.id}`}
+      className="blog-card adda-card"
+      style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}
+    >
       <div className="blog-card-meta">
         <h2>{listing.title}</h2>
         <span className="blog-card-byline">
@@ -387,11 +392,15 @@ export default function Adda() {
         title: l.title,
         sub: `by ${l.author}`,
         lines: [l.details.length > 200 ? `${l.details.slice(0, 200)}…` : l.details],
-        href: '/adda',
+        // The listing that was on screen, not just the board
+        href: `/adda?post=${encodeURIComponent(l.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [listings]
   )
+
+  // ?post=<id> — arriving on one listing the mini player was showing
+  useFocusTarget('post', 'adda', !loading && visible.length > 0)
 
   return (
     <main>

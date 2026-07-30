@@ -419,13 +419,21 @@ export default function PipShow({
 
     root.addEventListener('click', () => {
       const s = show[i]
-      cleanup()
+      if (!s) return
+      // Say so in the floating window: the click landed, the tab is moving.
+      // Without this the only feedback is the window vanishing.
+      hint.textContent = `Opening ${s.title}…`
+      cardHint.textContent = `Opening ${s.title}…`
+      // Route the tab BEFORE taking the window down — tearing down the PiP
+      // document mid-click must never race the navigation that click asked for
+      navigate(s.href)
       try {
         window.focus()
       } catch {
         // best effort — the browser may keep focus where it is
       }
-      navigate(s.href)
+      // Closing hands focus back to the opener tab, now on the film's page
+      cleanup()
     })
   }
 

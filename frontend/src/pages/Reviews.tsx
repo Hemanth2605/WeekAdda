@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Feather,
   Film,
@@ -577,6 +578,7 @@ function PostCard({
 
   return (
     <article
+      id={`review-${post.id}`}
       className="blog-card"
       style={{ animationDelay: `${Math.min(index * 60, 400)}ms` }}
       onClick={() => onOpen(post)}
@@ -636,6 +638,8 @@ export default function Reviews() {
   const [ratings, setRatings] = useState<Record<string, RatingSummary>>({})
   const [selected, setSelected] = useState<BlogPost | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const wantedReview = params.get('review')
 
   // Rating summaries — refetched on sign-in/out so "your rating" stays right
   useEffect(() => {
@@ -657,6 +661,31 @@ export default function Reviews() {
   }, [user])
 
   const mineIds = useMemo(() => new Set((myPosts ?? []).map((p) => p.id)), [myPosts])
+
+  // ?review=<id> — arriving on one particular review (the mini player hands the
+  // slide's own id over, and the URL is shareable). Open it, and put its card
+  // under the reader when they close the modal. Runs again once the feed lands
+  // if the link was followed before the fetch came back.
+  useEffect(() => {
+    if (!wantedReview) return
+    const post =
+      posts.find((p) => p.id === wantedReview) ?? myPosts?.find((p) => p.id === wantedReview)
+    if (!post) return
+    // A review the current filter hides would open over an empty feed
+    if (filter !== 'all' && filter !== 'mine' && post.tag.kind !== filter) setFilter('all')
+    setSelected(post)
+    document
+      .getElementById(`review-${post.id}`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantedReview, posts, myPosts])
+
+  // Closing puts the URL back to the plain feed, so a refresh or a Back does
+  // not reopen what was just dismissed
+  const closeSelected = () => {
+    setSelected(null)
+    if (wantedReview) setParams({}, { replace: true })
+  }
 
   // Must stay identical to routeMeta['/reviews'] in backend/src/seo.ts — the
   // Worker writes those tags into the HTML and this overwrites them on mount,
@@ -695,7 +724,8 @@ export default function Reviews() {
           title: p.title,
           sub: `${p.author} · ${p.tag.label}`,
           lines: [p.body.length > 220 ? `${p.body.slice(0, 220)}…` : p.body],
-          href: '/reviews',
+          // Not just the page — the review that was on screen when it was clicked
+          href: `/reviews?review=${encodeURIComponent(p.id)}`,
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -852,7 +882,7 @@ export default function Reviews() {
           rating={ratings[selected.id]}
           own={mineIds.has(selected.id)}
           onRated={(postId, summary) => setRatings((r) => ({ ...r, [postId]: summary }))}
-          onClose={() => setSelected(null)}
+          onClose={closeSelected}
         />
       )}
     </main>

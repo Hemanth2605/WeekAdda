@@ -22,6 +22,14 @@ export function formatDate(iso: string) {
   })
 }
 
+/** "12 Nov" — for release dates too far out for a countdown to mean anything. */
+function formatShortDate(iso: string) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
 export function daysUntil(iso: string) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -56,6 +64,25 @@ export default function ReleaseCard({ release, index, onOpen, contextLanguage }:
     ? languageLabel(contextLanguage ?? release.language)
     : undefined
   const bookLabel = bookLanguage ?? release.languageLabel
+  const isToday = days === 0
+  // Short enough to survive a phone-width poster: a week out reads "In 6 days",
+  // anything further reads as the date itself — "In 84 days" is not a fact
+  // anyone acts on
+  const whenLabel =
+    days === 1 ? 'Tomorrow' : days <= 30 ? `In ${days} days` : formatShortDate(release.releaseDate)
+
+  const dateTile = (
+    <span className="date-cal" title={isToday ? undefined : formatDate(release.releaseDate)}>
+      <span className="date-cal-month">
+        {new Date(release.releaseDate + 'T00:00:00').toLocaleDateString('en-IN', {
+          month: 'short',
+        })}
+      </span>
+      <span className="date-cal-day">
+        {new Date(release.releaseDate + 'T00:00:00').getDate()}
+      </span>
+    </span>
+  )
 
   return (
     <article
@@ -69,16 +96,24 @@ export default function ReleaseCard({ release, index, onOpen, contextLanguage }:
         ) : (
           <span className="release-poster-title">{release.title}</span>
         )}
-        {isUpcoming && (
-          <span className={`release-flag soon${isOtt ? ' right' : ''}`}>
-            {days === 1 ? 'Tomorrow' : `In ${days} days`}
+        {/* Where it lands and when are one fact, so they are one badge. Two
+            pills at opposite ends of the poster overlapped on a phone — a long
+            platform name ran straight under the countdown and buried it. */}
+        {isOtt ? (
+          <span
+            className={`release-flag ott ${platformClass(release.platforms![0])}${
+              isUpcoming ? ' stacked' : ''
+            }`}
+            title={isUpcoming ? `${release.platforms!.join(', ')} · ${whenLabel}` : undefined}
+          >
+            <span className="flag-name">
+              {release.platforms![0]}
+              {release.platforms!.length > 1 && ` +${release.platforms!.length - 1}`}
+            </span>
+            {isUpcoming && <span className="flag-when">{whenLabel}</span>}
           </span>
-        )}
-        {isOtt && (
-          <span className={`release-flag ott ${platformClass(release.platforms![0])}`}>
-            {release.platforms![0]}
-            {release.platforms!.length > 1 && ` +${release.platforms!.length - 1}`}
-          </span>
+        ) : (
+          isUpcoming && <span className="release-flag soon">{whenLabel}</span>
         )}
         {release.contentType === 'series' && <span className="release-kind">Series</span>}
         {isPanIndia && (
@@ -141,16 +176,20 @@ export default function ReleaseCard({ release, index, onOpen, contextLanguage }:
       <div className="release-info">
         <h4>{release.title}</h4>
         <p>
-          <span className="date-cal" title={formatDate(release.releaseDate)}>
-            <span className="date-cal-month">
-              {new Date(release.releaseDate + 'T00:00:00').toLocaleDateString('en-IN', {
-                month: 'short',
-              })}
+          {isToday ? (
+            // Out today: the tile keeps turning over to say so, then back to the date
+            <span
+              className="date-cal-flip"
+              title={`Out today — ${formatDate(release.releaseDate)}`}
+            >
+              {dateTile}
+              <span className="date-cal back" aria-hidden="true">
+                New
+              </span>
             </span>
-            <span className="date-cal-day">
-              {new Date(release.releaseDate + 'T00:00:00').getDate()}
-            </span>
-          </span>
+          ) : (
+            dateTile
+          )}
           <button
             className="card-share"
             title={`Share ${release.title}`}

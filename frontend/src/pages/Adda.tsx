@@ -507,29 +507,40 @@ export default function Adda() {
             ))}
           </div>
         ) : visible.length === 0 ? (
+          // One panel, read top to bottom: what this is, what to write, then
+          // what it will look like.
           <div className="adda-empty-wrap">
+            <span className="adda-empty-icon">
+              <HandHeart size={24} />
+            </span>
+            <h3>The board is empty — start it</h3>
             <p className="adda-empty-lead">
-              No posts yet — here&apos;s how a listing looks. Post yours and it shows up right here.
+              Offer a spare ticket at face value, find someone to watch with, or put a question to
+              fellow fans. Yours would be the first post here.
             </p>
-            {/* What to write, not just what it looks like */}
-            <div className="starters">
-              <span className="starters-label">Start with one of these</span>
-              <div className="starters-row wrap">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s.chip}
-                    className="starter chip"
-                    title={`Post: ${s.hint}`}
-                    onClick={() => {
-                      setPreset(s.title)
-                      setComposerOpen(true)
-                    }}
-                  >
-                    {s.chip}
-                  </button>
-                ))}
-              </div>
+
+            {/* The actual ask, given the weight of a choice rather than a chip */}
+            <div className="adda-starter-grid">
+              {STARTERS.map((s) => (
+                <button
+                  key={s.chip}
+                  className="adda-starter"
+                  onClick={() => {
+                    setPreset(s.title)
+                    setComposerOpen(true)
+                  }}
+                >
+                  <span className="adda-starter-emoji">{s.chip.slice(0, 2).trim()}</span>
+                  <span className="adda-starter-label">{s.chip.slice(2).trim()}</span>
+                  <small>{s.hint}</small>
+                </button>
+              ))}
             </div>
+
+            <div className="adda-empty-rule">
+              <span>and this is how it will look</span>
+            </div>
+
             <ExampleCard onPost={() => setComposerOpen(true)} />
             <Link className="empty-onward" to="/movies">
               Or see what released this week <ArrowRight size={14} />

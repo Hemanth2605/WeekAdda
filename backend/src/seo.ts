@@ -152,9 +152,9 @@ export function routeMeta(pathname: string): { title: string; description: strin
         'Honest reviews of this week\u2019s movies, OTT releases and cricket matches — written and rated out of five by the people who actually watched them.',
     },
     '/about': {
-      title: 'About WeekAdda — Built by Hemanth Mareedu',
+      title: 'About WeekAdda — Founded by Hemanth Mareedu',
       description:
-        'WeekAdda is built by Hemanth Mareedu, a software engineer and movie & cricket fan — weekly movie releases, OTT arrivals and cricket updates in one place.',
+        'WeekAdda was founded by Hemanth Mareedu, a software engineer and lifelong movie and cricket fan — weekly movie releases, OTT arrivals and cricket in one place.',
     },
     '/adda': {
       title: 'The Adda — Ask, Offer & Find Company | WeekAdda',
@@ -261,6 +261,34 @@ function platformCrumb(r: OttRelease): { name: string; href: string } | null {
   return null
 }
 
+/**
+ * When the *page* was last refreshed — said visibly and in schema.
+ *
+ * Every other date on a listing page belongs to a film or a match, and with
+ * nothing saying otherwise Google dates the page from those: a cricket page
+ * swept this morning was showing as "3 days ago" in search results, because
+ * the oldest result on it was three days old. For a site whose entire pitch is
+ * being current, that snippet is the worst thing it can say.
+ *
+ * Both halves matter. `dateModified` alone is a claim; a visible `<time>` is
+ * the corroboration, and Google is documented as preferring pages where the
+ * two agree. Extracted so no listing page can be built without one — /movies
+ * had this and cricket did not, which is exactly how the bug survived.
+ */
+function pageFreshness(fetchedAt: string, name: string): { line: string; ld: string } {
+  const updated = /^\d{4}-\d{2}-\d{2}/.test(fetchedAt) ? fetchedAt : ''
+  if (!updated) return { line: '', ld: '' }
+  return {
+    line: `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`,
+    ld: jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name,
+      dateModified: updated,
+    }),
+  }
+}
+
 /** Shared by /movies and the /ott hubs — an empty list emits nothing at all. */
 const itemListLd = (name: string, items: Array<Release | OttRelease>) =>
   items.length === 0
@@ -339,27 +367,12 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
     )
     .join('')
 
-  /**
-   * When the page itself was last refreshed.
-   *
-   * Every other date in this markup belongs to a film, and with nothing saying
-   * otherwise Google dated the page from those: a homepage swept this morning
-   * was being shown as "4 days ago", which is the one thing a weekly listings
-   * site cannot afford to look like. A visible <time> plus dateModified is how
-   * you say "the page, not the films".
-   */
-  const updated = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt : ''
-  const updatedLine = updated
-    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`
-    : ''
-  const pageLd = updated
-    ? jsonLd({
-        '@context': 'https://schema.org',
-        '@type': 'CollectionPage',
-        name: 'WeekAdda — OTT & theatre releases this week in India',
-        dateModified: updated,
-      })
-    : ''
+  // See pageFreshness: without this Google dates the page from the film dates
+  // on it and shows a page swept this morning as days old
+  const { line: updatedLine, ld: pageLd } = pageFreshness(
+    data.fetchedAt,
+    'WeekAdda — OTT & theatre releases this week in India'
+  )
 
   const ld = itemListLd('New OTT releases this week in India', ott)
 
@@ -548,10 +561,7 @@ export function buildPlatformSeo(data: ReleaseCache, slug: string): string | nul
       )
   )
 
-  const updated = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt : ''
-  const updatedLine = updated
-    ? `<p>Updated <time datetime="${esc(updated)}">${esc(day(updated))}</time>, and every morning at 4 AM IST.</p>`
-    : ''
+  const fresh = pageFreshness(data.fetchedAt, `New releases on ${platform.name} in India`)
 
   const empty =
     streaming.length === 0 && upcoming.length === 0
@@ -567,19 +577,12 @@ export function buildPlatformSeo(data: ReleaseCache, slug: string): string | nul
     ]) +
     `<h1>New Movies &amp; Web Series on ${name} in India</h1>` +
     `<p>Everything that has recently started streaming on ${name} in India, newest first, with release dates and languages — plus what is announced for ${name} next. Updated every morning.</p>` +
-    updatedLine +
+    fresh.line +
     empty +
     streamingSections +
     upcomingSection +
     platformNav(platform.slug) +
-    (updated
-      ? jsonLd({
-          '@context': 'https://schema.org',
-          '@type': 'CollectionPage',
-          name: `New releases on ${platform.name} in India`,
-          dateModified: updated,
-        })
-      : '') +
+    fresh.ld +
     itemListLd(`New releases on ${platform.name} in India`, streaming) +
     '</div>'
   )
@@ -974,16 +977,21 @@ export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtu
   // /cricket/results — who won, not who plays next
   if (focus === 'results') {
     const indiaResults = results.filter(india)
+    // Results are the worst case for this: every date on the page is in the
+    // past, so with nothing else to go on Google dates the page from them
+    const fresh = pageFreshness(data.fetchedAt, 'WeekAdda — cricket results')
     return (
       WRAP_OPEN +
       '<h1>Cricket Results This Week — Scores &amp; Winners</h1>' +
       '<p>Completed cricket match results in the last few weeks — internationals and leagues, with the winner, the series and the date. India results first. Updated every morning.</p>' +
+      fresh.line +
       section('India cricket results', indiaResults.map((m) => {
         const winner = m.teams.find((t) => t.winner)
         return `${esc(m.name)} — ${esc(winner ? `${winner.name} won` : m.statusDetail || 'Completed')} (${esc(m.series)}, ${day(m.date)})`
       })) +
       resultsSection +
       NAV +
+      fresh.ld +
       '</div>'
     )
   }
@@ -1000,16 +1008,20 @@ export function buildCricketSeo(data: CricketCache, focus: CricketFocus = 'fixtu
         ? `Next match: ${esc(matchPhrase(next, true))}${next.venue ? `, ${esc(next.venue)}` : ''}. `
         : ''
 
+  const fresh = pageFreshness(data.fetchedAt, 'WeekAdda — cricket fixtures and results')
+
   return (
     WRAP_OPEN +
     `<h1>${h1}</h1>` +
     `<p>${lead}Upcoming fixtures with date, time (IST) and venue for every international series, today's and tomorrow's matches, and this week's completed results — updated daily.</p>` +
+    fresh.line +
     section('India cricket match today', indiaToday.map((m) => fixtureLine(m))) +
     section('India cricket match tomorrow', indiaTomorrow.map((m) => fixtureLine(m))) +
     indiaSeriesSections(indiaUpcoming) +
     resultsSection +
     section('Other upcoming international matches', others.map((m) => fixtureLine(m))) +
     NAV +
+    fresh.ld +
     ld +
     '</div>'
   )
@@ -1021,7 +1033,7 @@ export function buildAboutSeo(): string {
   return (
     WRAP_OPEN +
     '<h1>About WeekAdda — This Week in Movies, OTT &amp; Cricket</h1>' +
-    '<p>WeekAdda — live since July 2026 — puts the week&#39;s entertainment in one clean place, free, no account needed, refreshed automatically every morning:</p>' +
+    '<p>WeekAdda — live since July 2026 — puts the week’s entertainment in one clean place, free, no account needed, refreshed automatically every morning:</p>' +
     '<ul>' +
     '<li>New movie releases in Telugu, Hindi, Tamil, Malayalam, Kannada, English and 12+ languages, browsable week by week</li>' +
     '<li>Daily OTT arrivals on Netflix, Amazon Prime Video, JioHotstar, Sony LIV, ZEE5, Sun NXT, Apple TV and Aha, plus upcoming theatre and OTT release dates</li>' +
@@ -1029,19 +1041,31 @@ export function buildAboutSeo(): string {
     '<li>Reviews from people who actually watched, rated out of five and tagged to the film or match they are about</li>' +
     '<li>The Adda — a community board to ask, offer and find company: spare tickets at face value, someone to watch a movie or match with, honest asks between fellow fans</li>' +
     '</ul>' +
-    '<h2>Founder</h2>' +
-    '<p><strong>Hemanth Mareedu</strong> — a software engineer with 10+ years of experience and a lifelong movie and cricket fan who loves building things that are genuinely helpful to people. Connect with Hemanth on <a href="https://www.linkedin.com/in/hemanth-mareedu-a69271116/" rel="me">LinkedIn</a>.</p>' +
+    // Phrased as the question, because that is what gets lifted into an
+    // answer: "who is the founder of WeekAdda" wants a sentence saying so, not
+    // a heading called Founder above a biography that never uses the word.
+    '<h2>Who is the founder of WeekAdda?</h2>' +
+    '<p><strong>WeekAdda was founded by Hemanth Mareedu</strong>, a software engineer with 10+ years of experience and a lifelong movie and cricket fan who loves building things that are genuinely helpful to people. He built and runs WeekAdda single-handedly. Connect with Hemanth Mareedu on <a href="https://www.linkedin.com/in/hemanth-mareedu-a69271116/" rel="me">LinkedIn</a>.</p>' +
     NAV +
+    // ProfilePage is Google's type for a page about one person, and the @id is
+    // the same node the site-wide Organization names as its founder — so the
+    // photo and detail here strengthen that entity instead of forming a rival
     jsonLd({
       '@context': 'https://schema.org',
-      '@type': 'Person',
-      name: 'Hemanth Mareedu',
-      url: 'https://weekadda.com/about',
-      image: 'https://weekadda.com/founder.jpg',
-      jobTitle: 'Software Engineer',
-      sameAs: ['https://www.linkedin.com/in/hemanth-mareedu-a69271116/'],
-      knowsAbout: ['Movies', 'OTT platforms', 'Cricket'],
-      mainEntityOfPage: 'https://weekadda.com/about',
+      '@type': 'ProfilePage',
+      mainEntity: {
+        '@type': 'Person',
+        '@id': 'https://weekadda.com/about#hemanth-mareedu',
+        name: 'Hemanth Mareedu',
+        url: 'https://weekadda.com/about',
+        image: 'https://weekadda.com/founder.jpg',
+        jobTitle: 'Software Engineer',
+        description:
+          'Founder of WeekAdda — a software engineer with 10+ years of experience and a lifelong movie and cricket fan.',
+        sameAs: ['https://www.linkedin.com/in/hemanth-mareedu-a69271116/'],
+        knowsAbout: ['Movies', 'OTT platforms', 'Cricket'],
+        worksFor: { '@id': 'https://weekadda.com/#organization' },
+      },
     }) +
     '</div>'
   )
@@ -1081,7 +1105,7 @@ export function buildBlogSeo(posts: BlogPost[]): string {
   return (
     WRAP_OPEN +
     '<h1>Movie &amp; Cricket Reviews by Real Viewers</h1>' +
-    '<p>What people who actually watched thought of this week&#39;s films, OTT releases and cricket matches — each review tagged to the title or match it is about, and rated out of five.</p>' +
+    '<p>What people who actually watched thought of this week’s films, OTT releases and cricket matches — each review tagged to the title or match it is about, and rated out of five.</p>' +
     section(
       'Latest reviews',
       posts

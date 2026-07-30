@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { buildPlatformSeo, buildMoviesSeo, buildTitlePage, buildSitemap, routeMeta } from './seo'
+import {
+  buildPlatformSeo,
+  buildMoviesSeo,
+  buildTitlePage,
+  buildSitemap,
+  buildAboutSeo,
+  buildCricketSeo,
+  routeMeta,
+} from './seo'
 import { OTT_PLATFORMS, type ReleaseCache, type OttRelease, type Release } from './queries'
 
 /**
@@ -153,6 +161,42 @@ describe('routeMeta', () => {
       'New Movies &amp; Web Series on Netflix India This Week | WeekAdda'
     )
   })
+
+  /**
+   * These drifted once — the Worker said "Built by Hemanth Mareedu" while the
+   * SPA overwrote it with a title about movies and cricket, so one URL
+   * advertised two titles and the React one won in search results. Pinned to
+   * whatever usePageMeta in About.tsx says.
+   */
+  it('keeps /about identical to what the SPA sets on mount', () => {
+    expect(routeMeta('/about')!.title).toBe('About WeekAdda — Founded by Hemanth Mareedu')
+    expect(routeMeta('/about')!.description).toBe(
+      'WeekAdda was founded by Hemanth Mareedu, a software engineer and lifelong movie and cricket fan — weekly movie releases, OTT arrivals and cricket in one place.'
+    )
+  })
+})
+
+describe('buildAboutSeo', () => {
+  const html = buildAboutSeo()
+
+  it('answers the question in words, not only in markup', () => {
+    expect(html).toContain('Who is the founder of WeekAdda?')
+    expect(html).toContain('WeekAdda was founded by Hemanth Mareedu')
+  })
+
+  it('is one Person entity, sharing the @id the Organization names as founder', () => {
+    const profile = schemas(html).find((s) => s['@type'] === 'ProfilePage')
+    expect(profile).toBeTruthy()
+    expect(profile.mainEntity['@id']).toBe('https://weekadda.com/about#hemanth-mareedu')
+    expect(profile.mainEntity.sameAs).toContain(
+      'https://www.linkedin.com/in/hemanth-mareedu-a69271116/'
+    )
+  })
+
+  it('links out to the profile that corroborates the identity', () => {
+    expect(html).toContain('linkedin.com/in/hemanth-mareedu-a69271116')
+    expect(html).toContain('rel="me"')
+  })
 })
 
 describe('buildSitemap', () => {
@@ -271,6 +315,47 @@ describe('buildTitlePage', () => {
   })
 })
 
+/**
+ * Google showed a cricket page swept that morning as "3 days ago", because
+ * every date on it belonged to a match and the oldest was three days old. The
+ * fix existed on /movies and had never been applied to cricket — so this
+ * asserts it for every listing page at once, which is the only way it stays
+ * applied to the next one somebody adds.
+ */
+describe('page freshness', () => {
+  const cricket = {
+    fetchedAt: '2026-07-30T04:00:00.000Z',
+    source: 'sample' as const,
+    matches: [],
+  }
+  const pages: Array<[string, string]> = [
+    ['/movies', buildMoviesSeo(data)],
+    ['/movies/theatres', buildMoviesSeo(data, 'theatres')],
+    ['/movies/upcoming', buildMoviesSeo(data, 'upcoming')],
+    ['/ott/netflix', buildPlatformSeo(data, 'netflix')!],
+    ['/cricket', buildCricketSeo(cricket)],
+    ['/cricket/results', buildCricketSeo(cricket, 'results')],
+  ]
+
+  it.each(pages)('%s carries a visible <time> for the page itself', (_name, html) => {
+    expect(html).toMatch(/<time datetime="\d{4}-\d{2}-\d{2}[^"]*">/)
+  })
+
+  it.each(pages)('%s declares dateModified to match', (_name, html) => {
+    const page = schemas(html).find((s) => s.dateModified)
+    expect(page).toBeTruthy()
+    // The claim and the visible date have to agree, or neither is trusted
+    const visible = html.match(/<time datetime="([^"]*)">/)![1]
+    expect(page.dateModified).toBe(visible)
+  })
+
+  it('says nothing rather than something wrong when the sweep date is junk', () => {
+    const broken = buildCricketSeo({ ...cricket, fetchedAt: 'not-a-date' })
+    expect(broken).not.toContain('<time')
+    expect(broken).not.toContain('dateModified')
+  })
+})
+
 describe('every pre-render block', () => {
   const blocks: Array<[string, string]> = [
     ['movies', buildMoviesSeo(data)],
@@ -292,5 +377,30 @@ describe('every pre-render block', () => {
 
   it.each(blocks)('%s carries at least one crawlable link', (_name, html) => {
     expect(html).toMatch(/<a href="\//)
+  })
+
+  /**
+   * A double-escaped entity is the one HTML bug that looks fine in the source
+   * and renders as literal gibberish — "week&#39;s" on the page instead of an
+   * apostrophe. It happens the moment a string containing an entity meets
+   * esc(), which turns its & into &amp;. Prose here uses real characters (’ —
+   * &) precisely so that can never happen; this catches it if someone
+   * reintroduces one.
+   */
+  it.each(blocks)('%s never double-escapes an entity', (_name, html) => {
+    expect(html).not.toMatch(/&amp;(#\d+|[a-z]+);/)
+  })
+})
+
+describe('meta strings', () => {
+  it('carry real characters, not HTML entities that could be escaped twice', () => {
+    for (const path of ['/movies', '/movies/theatres', '/movies/upcoming', '/reviews', '/about', '/adda', '/privacy', '/cricket/results', '/ott/netflix']) {
+      const meta = routeMeta(path)!
+      expect(meta.description).not.toMatch(/&amp;(#\d+|[a-z]+);/)
+      expect(meta.title).not.toMatch(/&amp;(#\d+|[a-z]+);/)
+      // esc() turns a bare & into &amp;, which is correct and expected; what
+      // must never appear is an entity that was already an entity
+      expect(meta.description).not.toContain('&#39;')
+    }
   })
 })

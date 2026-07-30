@@ -53,12 +53,7 @@
         "alternateName": "WeekAdda Entertainment",
         "url": "https://weekadda.com/",
         "description": "OTT releases this week in India, new movie releases by language, and cricket fixtures & results.",
-        "author": {
-          "@type": "Person",
-          "name": "Hemanth Mareedu",
-          "url": "https://weekadda.com/about",
-          "sameAs": ["https://www.linkedin.com/in/hemanth-mareedu-a69271116/"]
-        },
+        "author": { "@id": "https://weekadda.com/about#hemanth-mareedu" },
         "publisher": { "@id": "https://weekadda.com/#organization" },
         "potentialAction": {
           "@type": "SearchAction",
@@ -92,13 +87,31 @@
         "image": "https://weekadda.com/og-cover.png",
         "description": "Weekly entertainment portal for India: OTT arrivals on Netflix, Prime Video, JioHotstar, ZEE5, Sony LIV and Aha, new movie releases by language, and cricket fixtures and results.",
         "foundingDate": "2026-07",
-        "founder": {
-          "@type": "Person",
-          "name": "Hemanth Mareedu",
-          "url": "https://weekadda.com/about"
-        },
+        "founder": { "@id": "https://weekadda.com/about#hemanth-mareedu" },
         "areaServed": { "@type": "Country", "name": "India" },
         "sameAs": ["https://www.youtube.com/channel/UCfBLAj6HDdkOKHlOJZ6wUig"]
+      }
+    </script>
+
+    <!--
+      The person behind the site, defined once and referenced by @id from both
+      the WebSite's author and the Organization's founder above. Previously
+      those were two separate inline Person objects and only one of them
+      carried sameAs, so there was nothing telling Google they were the same
+      human — which is the whole job of an entity: one node, one identity, one
+      set of profiles to corroborate it. /about adds the photo and detail
+      against this same @id, so the two merge rather than compete.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "@id": "https://weekadda.com/about#hemanth-mareedu",
+        "name": "Hemanth Mareedu",
+        "url": "https://weekadda.com/about",
+        "jobTitle": "Software Engineer",
+        "description": "Founder of WeekAdda, and a software engineer with 10+ years of experience.",
+        "sameAs": ["https://www.linkedin.com/in/hemanth-mareedu-a69271116/"]
       }
     </script>
 

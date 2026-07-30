@@ -5,9 +5,12 @@ import { usePageMeta } from '../seo'
 const LINKEDIN = 'https://www.linkedin.com/in/hemanth-mareedu-a69271116/'
 
 export default function About() {
+  // Must stay identical to routeMeta['/about'] in backend/src/seo.ts — the
+  // Worker writes those into the HTML and this overwrites them on mount, so
+  // the two disagreeing means one URL advertising two titles. They did.
   usePageMeta(
-    'About WeekAdda — This Week in Movies, OTT & Cricket',
-    'WeekAdda puts the week in one place: new movie releases in every Indian language, daily OTT arrivals and cricket updates. Built by Hemanth Mareedu.'
+    'About WeekAdda — Founded by Hemanth Mareedu',
+    'WeekAdda was founded by Hemanth Mareedu, a software engineer and lifelong movie and cricket fan — weekly movie releases, OTT arrivals and cricket in one place.'
   )
 
   return (
@@ -70,6 +73,13 @@ export default function About() {
           <img className="founder-photo" src="/founder.jpg" alt="Hemanth Mareedu" />
           <div>
             <h2>Hemanth Mareedu</h2>
+            {/* Says it outright, and matches the pre-render sentence: the
+                markup calls him the founder, so the page a reader sees has to
+                as well — and "founded by" is the phrasing the question uses */}
+            <p>
+              <strong>WeekAdda was founded by Hemanth Mareedu</strong>, who built and runs it
+              single-handedly.
+            </p>
             <p>
               Software engineer with 10+ years of experience, lifelong movie and cricket fan, and
               an enthusiast for building new things that are genuinely helpful to people —

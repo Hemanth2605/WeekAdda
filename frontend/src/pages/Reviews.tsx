@@ -22,6 +22,7 @@ import {
   fetchPosts,
   fetchMyPosts,
   fetchRatings,
+  fetchPost,
   fetchArticles,
   fetchArticle,
   fetchArticleLikes,
@@ -613,7 +614,14 @@ function Composer({
             <input
               value={tagSearch}
               onChange={(e) => setTagSearch(e.target.value)}
-              placeholder={kind === 'movie' ? 'Search the movie or series you watched…' : 'Search the match or series…'}
+              // Both used to start "Search the … or series", which read as
+              // unchanged when the toggle was flipped. Each now leads with the
+              // word that differs.
+              placeholder={
+                kind === 'movie'
+                  ? 'Search a movie or web series you watched…'
+                  : 'Search a cricket match or series…'
+              }
             />
           </div>
           <div className="blog-tag-options">
@@ -636,7 +644,13 @@ function Composer({
                 </span>
               </button>
             ))}
-            {suggestions.length === 0 && <p className="blog-tag-empty">Nothing found — try another name.</p>}
+            {suggestions.length === 0 && (
+              <p className="blog-tag-empty">
+                {kind === 'movie'
+                  ? 'No film found — try another name, or a shorter one.'
+                  : 'No match found — try a team name, like “India”.'}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -922,7 +936,7 @@ export default function Reviews() {
   const [isOwner, setIsOwner] = useState(false)
   const [articleLikes, setArticleLikes] = useState<Record<string, LikeSummary>>({})
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'movie' | 'match' | 'mine'>('all')
+  const [filter, setFilter] = useState<'all' | 'movie' | 'match'>('all')
   // The signed-in visitor's own contributions ("My takes")
   const user = useGoogleUser()
   const [myPosts, setMyPosts] = useState<BlogPost[] | null>(null)
@@ -937,6 +951,8 @@ export default function Reviews() {
   const wantedCompose = params.get('compose')
   // ?edit=<id> — set by "Edit" on your own article page
   const wantedEdit = params.get('edit')
+  // ?editReview=<id> — set by "Edit" on your own review's full page
+  const wantedEditReview = params.get('editReview')
   const [editing, setEditing] = useState<Article | null>(null)
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null)
   const [composeMode, setComposeMode] = useState<'review' | 'article'>('review')
@@ -961,6 +977,26 @@ export default function Reviews() {
       { replace: true }
     )
   }, [wantedEdit, setParams])
+
+  // Arriving from "Edit" on your own review's full page. Same shape as the
+  // article one above; the server decides ownership again when it is saved.
+  useEffect(() => {
+    if (!wantedEditReview) return
+    fetchPost(wantedEditReview)
+      .then((r) => {
+        setEditingPost(r.post)
+        setComposerOpen(true)
+      })
+      .catch(() => {})
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('editReview')
+        return next
+      },
+      { replace: true }
+    )
+  }, [wantedEditReview, setParams])
 
   // Arriving from "Write an article" opens the composer already on the article
   // side, then drops the key — so a refresh is a plain visit to /reviews rather
@@ -990,7 +1026,6 @@ export default function Reviews() {
     const fresh = user && refreshUser()
     if (!fresh) {
       setMyPosts(null)
-      setFilter((f) => (f === 'mine' ? 'all' : f))
       return
     }
     fetchMyPosts(fresh.token)
@@ -1014,7 +1049,7 @@ export default function Reviews() {
       posts.find((p) => p.id === wantedReview) ?? myPosts?.find((p) => p.id === wantedReview)
     if (!post) return
     // A review the current filter hides would open over an empty feed
-    if (filter !== 'all' && filter !== 'mine' && post.tag.kind !== filter) setFilter('all')
+    if (filter !== 'all' && post.tag.kind !== filter) setFilter('all')
     setSelected(post)
     document
       .getElementById(`review-${post.id}`)
@@ -1072,12 +1107,7 @@ export default function Reviews() {
       .catch(() => setMyArticles([]))
   }, [user])
 
-  const visible =
-    filter === 'all'
-      ? posts
-      : filter === 'mine'
-        ? (myPosts ?? [])
-        : posts.filter((p) => p.tag.kind === filter)
+  const visible = filter === 'all' ? posts : posts.filter((p) => p.tag.kind === filter)
 
   // Mini-player slides: one card per review — the reader rating leads as
   // "★ 4.2 / 5", then title, writer + what it's about, and the opening of
@@ -1114,11 +1144,9 @@ export default function Reviews() {
           detail:
             filter === 'all'
               ? 'Latest takes'
-              : filter === 'mine'
-                ? 'My takes'
-                : filter === 'movie'
-                  ? 'Movie reviews'
-                  : 'Match reviews',
+              : filter === 'movie'
+                ? 'Movie reviews'
+                : 'Match reviews',
         }}
       />
       <section className="community-hero">
@@ -1197,22 +1225,14 @@ export default function Reviews() {
               {label}
             </button>
           ))}
-          {user && myPosts !== null && (
-            <button
-              className={`genre-chip mine${filter === 'mine' ? ' active' : ''}`}
-              onClick={() => setFilter('mine')}
-            >
-              My reviews{myPosts.length > 0 && <span className="mine-count">{myPosts.length}</span>}
-            </button>
+          {/* A link out, not a filter in place: your own reviews want sorting
+              and searching, which a shared feed cannot give them */}
+          {user && myPosts !== null && myPosts.length > 0 && (
+            <Link className="genre-chip mine" to="/my-reviews">
+              My reviews<span className="mine-count">{myPosts.length}</span>
+            </Link>
           )}
         </div>
-
-        {filter === 'mine' && myPosts !== null && myPosts.length > 0 && (
-          <p className="mine-summary">
-            You&apos;ve written {myPosts.length} review{myPosts.length === 1 ? '' : 's'} on
-            WeekAdda — thanks for helping people decide.
-          </p>
-        )}
 
         <div className="blog-layout">
           <div className="blog-main">
@@ -1227,15 +1247,7 @@ export default function Reviews() {
                 <Feather size={54} />
                 {/* An empty page should say what belongs here and why it is worth
                     adding, rather than only reporting that nothing is here */}
-                {filter === 'mine' ? (
-                  <>
-                    <h3>You haven’t reviewed anything yet</h3>
-                    <p>
-                      Pick something you’ve watched this week, rate it out of five and say what you
-                      actually thought. Everything you write shows up here under your name.
-                    </p>
-                  </>
-                ) : filter === 'movie' ? (
+                {filter === 'movie' ? (
                   <>
                     <h3>No film reviews yet</h3>
                     <p>

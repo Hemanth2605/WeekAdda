@@ -95,6 +95,38 @@ homepage. Those links are text, not filter chips, deliberately: the toolbar's
 chips filter in place, these leave the page, and giving both the same shape
 promises the wrong thing.
 
+### Tier 2b — a page per piece of writing (**done**, 31 July 2026)
+
+`/review/:id/:slug` and `/article/:id/:slug`. Not a hub tier — these are leaf
+pages — but they follow the same rules and are worth recording here because
+they are the first routes whose **id is not in any release cache**.
+
+Shape, both built the same way as `buildTitlePage`:
+
+- `buildReviewPage` / `buildArticlePage` in `seo.ts` return
+  `{ block, title, description, canonical, image? }`; the Worker injects the
+  block and stamps the meta.
+- Matched by **regex**, not by a `SPA_ROUTES` entry — `REVIEW_ROUTE` and
+  `ARTICLE_ROUTE`, the same trick `MOVIE_ROUTE` uses, because the id is
+  unbounded. This is the one exception to point 2 of the coupling below.
+- `Article` / `Review` + `BreadcrumbList` JSON-LD, `og:type: article`, the
+  article's cover as `og:image` when it is an absolute URL. A *relative* upload
+  path is meaningless to a scraper fetching from another host, so it is omitted
+  rather than advertised.
+- Listed in `buildSitemap`, dated by the piece's own `ts`. A take written three
+  weeks ago did not change because the release cache refreshed this morning.
+- An id that resolves to nothing returns a **404**, not the 200 shell. See the
+  soft-404 note below — this was missed on the first pass for all three of
+  `/movie/`, `/review/` and `/article/`.
+
+**Every article page is reachable without the sitemap**: `/reviews` lists them
+in its pre-render, and each article links its related ones. Principle 5 applies
+to leaf pages exactly as it does to hubs.
+
+Not indexed, deliberately: `/my-reviews`, `/my-articles` and `/stats` are real
+pages that are empty for anyone but their owner. They are in `NOINDEX_PAGES` in
+`worker.ts`, served `noindex, nofollow`, and absent from `buildSitemap`.
+
 ### Tier 3 — per-language hubs (**not started**)
 
 `/movies/telugu`, `/movies/hindi`, `/movies/tamil`, `/movies/malayalam`,
@@ -125,7 +157,11 @@ invisible to everyone including Google.
 
 1. `frontend/src/App.tsx` — the `<Route>` table
 2. `backend/src/worker.ts` — `SPA_ROUTES` (else the edge 404s it) **and**
-   `SEO_PAGES` (else no pre-render)
+   `SEO_PAGES` (else no pre-render). A route with an **unbounded id** cannot be
+   a `SPA_ROUTES` string: add a regex beside `MOVIE_ROUTE` / `REVIEW_ROUTE` /
+   `ARTICLE_ROUTE`, include it in `isKnownRoute`, and give it a branch in the
+   pre-render `if` — three edits, not one. A page nobody should index goes in
+   `NOINDEX_PAGES` instead of `SEO_PAGES`.
 3. `backend/src/seo.ts` — `routeMeta` (title/description), the `seoBlockFor`
    branch in `worker.ts`, and the static list in `buildSitemap`
 4. The page's `usePageMeta` call — `PAGE_META` in `Releases.tsx`, `RESULTS_META`
@@ -176,19 +212,38 @@ Shipped 25–26 July 2026, all live and verified:
 - [x] JSON-LD lifted into `<head>` — see the Gotchas in CLAUDE.md, this one
       silently voided every schema block on the site
 
-Shipped 30 July 2026, built and verified locally — **not yet deployed**:
+Shipped 30 July 2026:
 
 - [x] **Tier 2** — eight `/ott/<slug>` hubs, threshold gating, `noindex` below
       it, sitemap entries, cross-links from `/movies` and between hubs
+
+Shipped 31 July 2026, deployed and verified in production:
+
+- [x] **Tier 2b** — `/review/:id/:slug` and `/article/:id/:slug`, pre-rendered,
+      in the sitemap, cross-linked; `og:type: article`; `Article` schema carries
+      the cover
+- [x] Soft-404 closed for **ids that resolve to nothing** — `/movie/`,
+      `/review/` and `/article/` were all serving a 200 empty page. Verified in
+      production over six consecutive polls; the flapping before that was a
+      half-propagated deploy, not a bug
+- [x] `/reviews` meta rewritten — the page hosts articles now, and its title
+      still said reviews only. Changed in **both** places (`routeMeta` and the
+      page's `usePageMeta`), per point 4 above
+- [x] The stale static `frontend/public/sitemap.xml` deleted. A July snapshot
+      with no articles in it, shipped as a real asset, invisible only because
+      the Worker intercepts `/sitemap.xml` before assets are served. If that
+      ordering ever changed it would have served a sitemap missing everything,
+      and nothing would have errored
 
 Not started:
 
 - [ ] **Tier 3** — `/movies/<language>` hubs
 - [ ] **Tier 4** — cross products (only if 2 and 3 earn impressions)
-- [ ] Per-review URLs (`/reviews/:id/:slug`) — worth it once there are enough
-      reviews that individual pages are not thin
 - [ ] A verdict-out-of-five field in the review composer, which is what would
       make `reviewRating` honest and unlock star snippets
+- [ ] `dateModified` on articles — deliberately absent: edits record no
+      timestamp, and a field with nothing real behind it costs more than the
+      warning it silences
 
 ### Owner actions still outstanding
 

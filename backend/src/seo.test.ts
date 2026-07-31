@@ -33,14 +33,21 @@ import {
 const iso = (daysFromToday: number) =>
   new Date(Date.now() + daysFromToday * 86_400_000).toISOString().slice(0, 10)
 
+/**
+ * A poster and a real synopsis by default, because that is what a title from
+ * TMDB normally carries — and because a fixture thinner than the index
+ * threshold would quietly opt every test out of the sitemap. Override either
+ * to test the thin gate itself.
+ */
 const release = (over: Partial<Release> & { id: string }): Release => ({
   title: over.id,
   originalTitle: over.id,
   language: 'te',
   languageLabel: 'Telugu',
   releaseDate: iso(-1),
-  overview: 'An overview.',
-  poster: null,
+  overview:
+    'A long enough synopsis to clear the indexing threshold: a village, a family, and a debt that nobody in it is able to explain away.',
+  poster: 'https://image.tmdb.org/t/p/w500/poster.jpg',
   rating: 0,
   votes: 0,
   ...over,
@@ -334,6 +341,57 @@ describe('buildSitemap', () => {
     const locs = [...map.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
     expect(new Set(locs).size).toBe(locs.length)
     expect(locs).toContain('https://weekadda.com/movie/n1/netflix-one')
+  })
+
+  /**
+   * Almost everything on a title page comes from TMDB, which a hundred other
+   * aggregators also carry. Submitting a thousand poster-less stubs is how a
+   * domain gets read as derivative — so the same threshold the platform hubs
+   * use applies here, and the Worker sends `noindex, follow` to match.
+   */
+  describe('thin titles', () => {
+    const thinData: ReleaseCache = {
+      ...data,
+      releases: [
+        release({ id: 'no-poster', title: 'No Poster', poster: null }),
+        release({ id: 'no-words', title: 'No Words', overview: 'Short.' }),
+        release({ id: 'proper', title: 'Proper Film' }),
+      ],
+      ott: [],
+      ottUpcoming: [],
+    }
+
+    it('leaves out a title with no poster or barely a synopsis', () => {
+      const map = buildSitemap(thinData)
+      expect(map).toContain('/movie/proper/proper-film')
+      expect(map).not.toContain('/movie/no-poster/')
+      expect(map).not.toContain('/movie/no-words/')
+    })
+
+    it('keeps a thin title once somebody has reviewed it', () => {
+      const map = buildSitemap(thinData, [
+        post({
+          id: 'p-1',
+          tag: { kind: 'movie', id: 'no-poster', label: 'No Poster', sub: '', poster: null },
+        }),
+      ])
+      // A review is writing that exists nowhere else — the page earns its place
+      expect(map).toContain('/movie/no-poster/no-poster')
+    })
+
+    it('tells the Worker the same thing it tells the sitemap', () => {
+      expect(buildTitlePage(thinData, 'proper')!.indexable).toBe(true)
+      expect(buildTitlePage(thinData, 'no-poster')!.indexable).toBe(false)
+      expect(buildTitlePage(thinData, 'no-words')!.indexable).toBe(false)
+      // and a review lifts it, exactly as in the sitemap
+      const reviewed = buildTitlePage(thinData, 'no-poster', [
+        post({
+          id: 'p-1',
+          tag: { kind: 'movie', id: 'no-poster', label: 'No Poster', sub: '', poster: null },
+        }),
+      ])!
+      expect(reviewed.indexable).toBe(true)
+    })
   })
 
   it('never advertises the private dashboard', () => {

@@ -6,6 +6,7 @@ import { authEnabled, refreshUser, useGoogleUser } from '../auth'
 import GoogleButton from '../components/GoogleButton'
 import OfficialStamp from '../components/OfficialStamp'
 import { timeAgo } from '../components/ReviewBits'
+import { ArticleCardsSkeleton } from '../components/Skeletons'
 import { articlePath, usePageMeta } from '../seo'
 import { Article, LikeSummary } from '../types'
 
@@ -91,13 +92,15 @@ export default function MyArticles() {
       <header className="my-articles-head">
         <div>
           <h1>Your articles</h1>
+          {articles === null ? (
+            <div className="sk sk-line" style={{ width: 150, marginTop: 8 }} aria-hidden="true" />
+          ) : (
           <p>
-            {articles === null
-              ? 'Loading…'
-              : total === 0
+            {total === 0
                 ? 'Nothing published yet.'
                 : `${total} published${shown.length !== total ? ` · ${shown.length} shown` : ''}`}
           </p>
+          )}
         </div>
         <Link className="community-cta" to="/reviews?compose=article">
           <PenLine size={18} /> Write an article
@@ -154,7 +157,9 @@ export default function MyArticles() {
         </div>
       )}
 
-      {articles !== null && total === 0 ? (
+      {articles === null ? (
+        <ArticleCardsSkeleton />
+      ) : total === 0 ? (
         <div className="empty-state">
           <PenLine size={54} />
           <h3>You haven’t written an article yet</h3>
@@ -166,7 +171,7 @@ export default function MyArticles() {
             Write your first one
           </Link>
         </div>
-      ) : shown.length === 0 && articles !== null ? (
+      ) : shown.length === 0 ? (
         <p className="my-articles-none">Nothing matches that. Try a different search or filter.</p>
       ) : (
         <div className="my-articles-grid">

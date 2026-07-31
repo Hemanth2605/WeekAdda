@@ -13,6 +13,7 @@ import {
   findTitle,
   relatedTitles,
   titleUrl,
+  titleIsThin,
   reviewUrl,
   relatedReviews,
   articleUrl,
@@ -556,7 +557,7 @@ export function buildMoviesSeo(data: ReleaseCache, focus: MoviesFocus = 'all'): 
 function buildReviewedTitlePage(
   id: string,
   reviews: BlogPost[]
-): { block: string; title: string; description: string; canonical: string; image?: string } | null {
+): TitlePage | null {
   const own = reviews.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === id)
   if (own.length === 0) return null
   const tag = own[0].tag!
@@ -612,6 +613,8 @@ function buildReviewedTitlePage(
     description: esc(description.slice(0, 160)),
     canonical: `https://weekadda.com${titleUrl({ id, title: name })}`,
     ...(poster ? { image: poster } : {}),
+    // Reviews are writing that exists nowhere else — never thin
+    indexable: true,
   }
 }
 
@@ -720,11 +723,24 @@ function platformNav(current: string): string {
  * A dedicated crawlable page per movie/series — the unit Google prefers to
  * rank for "[movie] OTT release date" / "where to watch [movie]" queries.
  */
+/**
+ * What a title page hands the Worker. `indexable` is false for a page too thin
+ * to submit — it still serves, but gets `noindex, follow` and no sitemap entry.
+ */
+export interface TitlePage {
+  block: string
+  title: string
+  description: string
+  canonical: string
+  image?: string
+  indexable: boolean
+}
+
 export function buildTitlePage(
   data: ReleaseCache,
   id: string,
   reviews: BlogPost[] = []
-): { block: string; title: string; description: string; canonical: string; image?: string } | null {
+): TitlePage | null {
   const found = findTitle(data, id)
   // A film leaves the 13-week cache; the reviews people wrote about it do not.
   // Without this the page that ranks for "<film> review" 404s a few months
@@ -868,6 +884,10 @@ export function buildTitlePage(
     description: esc(description),
     canonical: `https://weekadda.com${titleUrl(r)}`,
     image: r.poster ?? undefined,
+    // Serve it either way; a page with no poster and half a sentence of TMDB
+    // synopsis is kept out of the index. Reviews of the title lift it out of
+    // thin, which is why they are counted here and not just rendered.
+    indexable: !titleIsThin(r, ownReviews.length),
   }
 }
 
@@ -902,9 +922,18 @@ export function buildSitemap(
     (p) => `<url><loc>${base}${p}</loc>${mod}<changefreq>daily</changefreq><priority>${p === '/' || p === '/movies' ? '1.0' : '0.8'}</priority></url>`
   )
   const seen = new Set<string>()
+  // Which titles somebody has written about — a reviewed page is never thin
+  const reviewed = new Set(
+    reviews.map((p) => (p.tag?.kind === 'movie' ? p.tag.id : '')).filter(Boolean)
+  )
   for (const r of [...data.ott, ...data.ottUpcoming, ...data.releases] as Release[]) {
     if (seen.has(r.id)) continue
     seen.add(r.id)
+    // A poster-less title with half a sentence of TMDB synopsis is a
+    // near-duplicate of the same film on a hundred stronger domains. It still
+    // serves; submitting a thousand of them is what makes a domain look
+    // derivative. Same gate the Worker applies as `noindex, follow`.
+    if (titleIsThin(r, reviewed.has(r.id) ? 1 : 0)) continue
     urls.push(`<url><loc>${base}${titleUrl(r)}</loc>${mod}</url>`)
   }
   // Titles that have left the release window but still have reviews keep a

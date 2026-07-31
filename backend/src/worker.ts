@@ -337,6 +337,7 @@ const SPA_ROUTES = new Set([
   '/privacy',
   '/stats',
   '/my-articles',
+  '/my-reviews',
 ])
 
 /**
@@ -345,7 +346,7 @@ const SPA_ROUTES = new Set([
  * including a crawler. Both are absent from SEO_PAGES and buildSitemap too —
  * this header is what covers crawlers that ignore robots.txt.
  */
-const NOINDEX_PAGES = new Set(['/stats', '/my-articles'])
+const NOINDEX_PAGES = new Set(['/stats', '/my-articles', '/my-reviews'])
 
 /** Title pages carry an id and an optional slug: /movie/:id[/:slug]. */
 const MOVIE_ROUTE = /^\/movie\/[^/]+(\/[^/]*)?$/
@@ -516,6 +517,10 @@ const routes = {
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }
             canonical = page.canonical
+            // Almost everything here comes from TMDB; a page with no poster and
+            // barely a sentence of it is a near-duplicate of stronger domains.
+            // Serves normally, stays out of the index. Matches buildSitemap.
+            if (!page.indexable) thin = true
           } else if (isReviewPage) {
             // A review we no longer hold is not a page: the shell still serves
             // so the app's own not-found state renders, but with a 404 status.

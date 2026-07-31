@@ -86,6 +86,53 @@ cd frontend && npm run build
   linked from `buildBlogSeo` — those links are the **only** crawlable path to an
   article, so if that section stops rendering every article becomes an island.
   Adding the table needs `supabase/schema.sql` run by hand before deploying.
+- **What an article carries beyond text** (all July 2026, all optional):
+  - **A cover**, uploaded to the Supabase `article-images` bucket (local dev
+    writes `cache/uploads/` and serves `/api/articles/image/:name`). Framed
+    *after* upload by `imagePosition` (a CSS `object-position`) and `imageFit` —
+    the bytes are never re-encoded, so re-framing is free and reversible. A
+    portrait in a wide banner almost always needs the focal point moved up.
+    Upload is **sign-in gated, 4 MB, five types**; the stored filename is
+    generated, and the saved URL is re-validated even though we made it, because
+    it comes back through the browser.
+  - **`films[]`** — `{ id?, title, platforms: [{ name, url? }] }`. The platform
+    is **stated, not looked up**: the release cache holds thirteen weeks and an
+    article is usually about something far older, so no lookup would ever find
+    it. `url` is the exact title page and beats the search `watchUrl` builds.
+    Badges render *beside the film where the prose names it* (first mention, on
+    a word boundary — or "83" matches inside "1983"); only films the prose never
+    names fall through to a "Where to watch" block.
+  - **A heart, not a rating** (`article_likes`): one per account, toggled, no
+    liking your own, celebrated with a burst on the **first** like only. This is
+    the one sanctioned exception to the no-ratings-elsewhere rule below —
+    explicitly asked for, and a single count cannot be misread as a verdict on
+    the film the way the review stars can.
+  - **The ✓ WeekAdda stamp** — set server-side from `isOwnerEmail`, never from
+    the request body, and declinable by the owner (`official: false`) so a
+    personal piece is not forced out as the masthead. The byline itself is
+    reserved: `resolveAuthor` in `queries.ts` refuses "WeekAdda" from anyone
+    else, on reviews too. A stamped article shows the stamp **alone** — no
+    writer name behind it, no "You" badge.
+- **Editing and deleting your own** (July 2026, articles *and* reviews):
+  `PATCH`/`DELETE` on `/api/articles/:id` and `/api/blog/:id`. Rules that are
+  enforced, not merely intended: only the verified writer (`canEditArticle` /
+  `canEditPost`), **404 for someone else's, never 403** — a 403 confirms the id
+  exists to an account with no claim on it; identity (id, ts, author, email,
+  stamp) is not editable, so `applyArticleEdit`/`applyPostEdit` rebuild field by
+  field rather than merging; a **cleared** cover or film must be written as an
+  explicit `null` in the Worker's PATCH or the removal silently does nothing;
+  and deleting a review takes its ratings with it. An **anonymous** post has no
+  email, belongs to nobody, and can never be claimed. Controls live on the
+  piece's own page (and the review modal), never on a list row — a destructive
+  control on every row of a hundred is a mis-tap waiting to happen.
+- **`/my-articles` and `/my-reviews`** (July 2026): a writer's own body of work,
+  with search, topic filter and sort (Newest / Oldest / Most liked · Best rated).
+  They replaced an in-place filter — a chip in the rail or the feed works at
+  three items and collapses at a hundred. **Personal, not private**: each shows
+  only what the asking account wrote, but there is nothing there for a crawler,
+  so both are in `NOINDEX_PAGES` in `worker.ts` and out of `buildSitemap`.
+  Cards carry `state={{ from, fromLabel }}`, which is how a piece's own back
+  link and its post-delete redirect return where you actually came from.
 - **Per-review pages** (`/review/:id/:slug`, `ReviewDetail.tsx`, July 2026): the
   feed can only ever show an opening, so each review has its own URL — shareable,
   pre-rendered by `buildReviewPage` in `seo.ts` and listed in `buildSitemap`
@@ -190,11 +237,17 @@ cd frontend && npm run build
   table. Built frontend ships as Worker static assets with SPA fallback. Worker
   secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`) set via `wrangler secret put`.
 - **Database**: Supabase (Mumbai), schema in `supabase/schema.sql` (`caches`,
-  `clicks`, `posts`, `post_ratings`, `listings`, `listing_interests`; RLS on, no
+  `clicks`, `posts`, `post_ratings`, `articles`, `article_likes`, `listings`,
+  `listing_interests`, `push_subscriptions`; RLS on, no
   public policies — service key only). New tables/columns must be added to
   schema.sql AND run manually in the Supabase SQL Editor before the Worker code
   that uses them is deployed (schema.sql ships idempotent `add column if not exists`
-  migrations for the auth/ratings/Adda additions).
+  migrations for the auth/ratings/Adda/articles additions).
+- **Article covers need a Storage bucket, and SQL cannot make one.** Storage →
+  New bucket → `article-images` → **Public** → Create. It has to be public: the
+  Worker uploads with the service key, but readers and social-preview crawlers
+  fetch the object URL directly, so a private bucket 403s every cover and every
+  `og:image`.
 - **`GOOGLE_CLIENT_ID` is a Worker var** (plaintext in wrangler.jsonc, not a secret —
   OAuth client IDs are public), so it deploys with the Worker; no `wrangler secret
   put` needed for it.
@@ -249,7 +302,19 @@ cd frontend && npm run build
   name is the fallback). See the Auth and Adda architecture bullets for the flow.
 - **Blog-post ratings** (owner-requested, July 2026): 5 stars, sign-in required, one
   rating per account (upsert), no self-rating. NB an earlier *movie* ratings feature
-  was deliberately removed — don't add ratings anywhere else unless asked.
+  was deliberately removed — don't add ratings anywhere else unless asked. **Article
+  hearts are the one sanctioned exception** (owner-requested, 31 July 2026), and they
+  are a like rather than a rating on purpose.
+- **Your own work gets a page, not a filter** (owner decision, 31 July 2026): the rail's
+  "Yours N" and the feed's "My reviews" both **navigate** to `/my-articles` and
+  `/my-reviews`. The in-place filters they replaced were removed rather than kept
+  alongside — two doors to the same room is worse than either one.
+- **Titles are written the way people search** (31 July 2026). The title is the
+  `<title>`, the `<h1>`, the `og:title` and the URL slug, so it is the single biggest
+  lever on whether a piece is ever found. "Ten Telugu films of the last decade" was
+  invisible for *best telugu movies*; renaming is safe on a published piece because
+  lookup is by id and the slug is decorative. Head terms (*2013 world cup*) belong to
+  Wikipedia and ESPN — don't promise them.
 - **The Adda hosts nothing against any service's terms** (owner rule, July 2026): no
   account/subscription sharing, tickets at face value only. The board deliberately
   connects people only — no in-app payments or chat; contact reveal is mutual and
@@ -330,6 +395,31 @@ cd frontend && npm run build
 
 ## Gotchas
 
+- **An id-shaped URL with nothing behind it must 404.** `/movie/`, `/review/` and
+  `/article/` all matched their route regex, found no record, and fell through to
+  `return asset` — the 200 shell. That is a soft 404: Google indexes the empty page
+  and keeps returning to it. The `gone()` helper in `worker.ts` serves the same shell
+  with a 404 status, so the app's not-found state still renders. Any new
+  id-shaped route needs the same treatment.
+- **Two CSS rules at equal specificity: the later one wins, silently.**
+  `.blog-index-item:hover .blog-index-go` (fills the circle gold) and
+  `.blog-index-item.write .blog-index-go` (tints the icon gold) both score 0,3,0 —
+  so on hover the icon vanished into its own background. Fixed by *raising*
+  specificity (`.write:hover`), not by reordering: ordering fixes hold until
+  someone moves a block.
+- **A flex child will not shrink below its longest word.** The review page's title
+  ran straight out of the card because `.blog-card-meta` had no `min-width: 0`.
+  Any long string in a flex row needs that plus `overflow-wrap: anywhere`.
+- **Google's popup only opens from a real click.** `ArticleImagePicker` asked for
+  sign-in from the file input's `change` event — by then the OS file dialog had spent
+  the user gesture and the browser refused with `popup_failed_to_open`. Sign-in is now
+  its own button press, *then* the file picker. `auth.ts` says this in its doc comment;
+  believe it.
+- **Removing a team name from a series string needs word boundaries.** "India" sits
+  inside "West Indies", so stripping the label's teams out of a match subtitle
+  mangled it to "West es". `matchSubtitle` in `ReviewBits.tsx` matches on `\b…\b` and
+  removes the longest name first, then drops the stranded connector ("in", "tour of").
+  It runs at **render**, so reviews already written are fixed too.
 - **JSON-LD goes in `<head>`, never inside `<div id="root">`.** React empties the
   root on mount, so structured data injected there exists in the raw HTML and is
   gone the instant the bundle boots — and Google's *rendering* pass is what

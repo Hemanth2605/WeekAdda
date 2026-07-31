@@ -1,23 +1,54 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Releases from './pages/Releases'
-import MovieDetail from './pages/MovieDetail'
-import PlatformHub from './pages/PlatformHub'
-import About from './pages/About'
-import Adda from './pages/Adda'
-import Privacy from './pages/Privacy'
-import Cricket from './pages/Cricket'
-import Reviews from './pages/Reviews'
-import ReviewDetail from './pages/ReviewDetail'
-import ArticleDetail from './pages/ArticleDetail'
-import MyArticles from './pages/MyArticles'
-import Stats from './pages/Stats'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ShareSheet from './components/ShareSheet'
 import NotifySheet from './components/NotifySheet'
 import NotifyPrompt from './components/NotifyPrompt'
 import BackToTop from './components/BackToTop'
+
+/**
+ * Every page but the landing one is split out of the main bundle.
+ *
+ * `Releases` stays eagerly imported on purpose: it is where `/` sends everyone,
+ * so lazy-loading it would put a second network round-trip in front of the
+ * thing the largest-contentful-paint is measured on. Everything else is
+ * fetched when someone actually goes there — the composer, the mini player's
+ * heavier pages, the owner dashboard and the two personal pages were all being
+ * downloaded by every first-time visitor who never opened them.
+ */
+const MovieDetail = lazy(() => import('./pages/MovieDetail'))
+const PlatformHub = lazy(() => import('./pages/PlatformHub'))
+const About = lazy(() => import('./pages/About'))
+const Adda = lazy(() => import('./pages/Adda'))
+const Privacy = lazy(() => import('./pages/Privacy'))
+const Cricket = lazy(() => import('./pages/Cricket'))
+const Reviews = lazy(() => import('./pages/Reviews'))
+const ReviewDetail = lazy(() => import('./pages/ReviewDetail'))
+const ArticleDetail = lazy(() => import('./pages/ArticleDetail'))
+const MyArticles = lazy(() => import('./pages/MyArticles'))
+const MyReviews = lazy(() => import('./pages/MyReviews'))
+const Stats = lazy(() => import('./pages/Stats'))
+
+/**
+ * Shown only while a route's chunk is in flight — usually a few hundred
+ * milliseconds on a cold navigation, nothing at all once cached. Deliberately
+ * plain: a detailed skeleton here would guess at a layout it cannot know, and
+ * each page already draws its own while its data loads.
+ */
+function RouteFallback() {
+  return (
+    <main className="route-loading" aria-busy="true">
+      <span className="sr-only" role="status">
+        Loading
+      </span>
+      <div className="sk sk-line" style={{ width: '45%', height: 26 }} aria-hidden="true" />
+      <div className="sk sk-line" style={{ width: '70%' }} aria-hidden="true" />
+      <div className="sk sk-line" style={{ width: '60%' }} aria-hidden="true" />
+    </main>
+  )
+}
 
 /** Start every page from the top when the route changes (SPA keeps scroll otherwise). */
 function ScrollToTop() {
@@ -38,6 +69,7 @@ export default function App() {
       {/* Mounted outside the routes, so the landing ask is timed once per
           visit rather than restarting on every navigation */}
       <NotifyPrompt />
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<Navigate to="/movies" replace />} />
         <Route path="/movies" element={<Releases />} />
@@ -69,6 +101,7 @@ export default function App() {
             shows what the asking account wrote — but there is nothing here for
             a crawler, so the Worker serves it noindex. */}
         <Route path="/my-articles" element={<MyArticles />} />
+        <Route path="/my-reviews" element={<MyReviews />} />
         {/* Renamed from /blog in July 2026 — the content was always reviews,
             and "review" is what people search. The Worker 301s the old path;
             this covers any in-app link still pointing at it. */}
@@ -81,6 +114,7 @@ export default function App() {
         <Route path="/stats" element={<Stats />} />
         <Route path="*" element={<Navigate to="/movies" replace />} />
       </Routes>
+      </Suspense>
       <BackToTop />
       <Footer />
     </>

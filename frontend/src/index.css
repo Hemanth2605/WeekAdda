@@ -1921,6 +1921,37 @@ input {
     transform: translateX(100%);
   }
 }
+/* Loading placeholders shaped like what is coming, so the page does not jump
+   when it lands. Same shimmer as the feed's card skeletons. */
+.sk-line {
+  display: block;
+  height: 13px;
+  border-radius: 6px;
+  margin-bottom: 9px;
+}
+/* Between a route's chunk being requested and arriving — usually invisible */
+.route-loading {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 42px 24px;
+}
+.sk-thumb {
+  flex-shrink: 0;
+  width: 78px;
+  height: 104px;
+  border-radius: 9px;
+}
+.sk-cover {
+  height: 220px;
+  border-radius: 14px;
+  margin: 18px 0 22px;
+}
+.sk-body {
+  margin-top: 20px;
+}
+.sk-body .sk-line {
+  margin-bottom: 12px;
+}
 .sk-poster {
   flex: 0 0 175px;
   width: 175px;
@@ -4879,6 +4910,28 @@ a.article-watch-title:hover {
 a.blog-index-mine {
   text-decoration: none;
 }
+a.genre-chip.mine {
+  text-decoration: none;
+}
+/* Match reviews have two flags instead of a poster */
+.my-article-thumb.fallback.flags {
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+.my-article-thumb.fallback.flags img {
+  width: 100%;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.my-article-rating {
+  font-style: normal;
+  color: var(--gold);
+}
+.my-article-rating svg {
+  vertical-align: -1px;
+}
 
 /* Other takes, under the one just read */
 .review-related {
@@ -4982,11 +5035,24 @@ a.blog-index-mine {
   gap: 16px;
   align-items: center;
 }
+/* min-width:0 or this flex child refuses to shrink below its longest word and
+   a long headline runs straight out of the card */
+.review-article-head .blog-card-meta {
+  min-width: 0;
+}
 .review-article-head .blog-card-meta h1 {
   font-family: var(--font-display);
   font-size: clamp(23px, 3vw, 31px);
   line-height: 1.2;
   margin: 5px 0 3px;
+  overflow-wrap: anywhere;
+}
+.article-article-head h1 {
+  overflow-wrap: anywhere;
+}
+.review-article-head .blog-card-byline,
+.article-article-head .blog-card-byline {
+  flex-wrap: wrap;
 }
 .review-article-body {
   margin: 20px 0 4px;

@@ -1,13 +1,29 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, CalendarDays, Film, Trophy } from 'lucide-react'
-import { fetchPost, fetchMyPosts, fetchRatings, fetchArticles, fetchArticleLikes } from '../api'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Film,
+  Pencil,
+  Trash2,
+  Trophy,
+} from 'lucide-react'
+import {
+  fetchPost,
+  fetchMyPosts,
+  fetchRatings,
+  fetchArticles,
+  fetchArticleLikes,
+  deletePost,
+} from '../api'
 import { refreshUser, useGoogleUser } from '../auth'
 import { matchFlags } from '../flags'
 import { usePageMeta, titlePath, reviewPath } from '../seo'
 import { Article, BlogPost, LikeSummary, RatingSummary } from '../types'
 import Breadcrumbs from '../components/Breadcrumbs'
 import ArticleIndex from '../components/ArticleIndex'
+import { ArticlePageSkeleton } from '../components/Skeletons'
 import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
 
 /**
@@ -26,6 +42,29 @@ export default function ReviewDetail() {
   const [missing, setMissing] = useState(false)
   const [rating, setRating] = useState<RatingSummary | undefined>()
   const [mine, setMine] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const navigate = useNavigate()
+  // Where this was opened from, when the link said so; a shared link or a
+  // direct visit has no history to honour and falls back to the feed
+  const origin = useLocation().state as { from?: string; fromLabel?: string } | null
+  const backTo = origin?.from ?? '/reviews'
+  const backLabel = origin?.fromLabel ?? 'All reviews'
+
+  const remove = async () => {
+    const fresh = refreshUser()
+    if (!fresh || !id || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await deletePost(id, fresh.token)
+      navigate(backTo, { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete — please try again')
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     setPost(null)
@@ -95,10 +134,13 @@ export default function ReviewDetail() {
   }
 
   if (!post) {
+    // A review carries no cover, so the skeleton does not promise one
     return (
-      <main className="movie-page">
-        <div className="movie-page-missing">
-          <p>Loading…</p>
+      <main className="article-page review-page">
+        <div className="blog-layout">
+          <div className="blog-main">
+            <ArticlePageSkeleton cover={false} />
+          </div>
         </div>
       </main>
     )
@@ -109,8 +151,8 @@ export default function ReviewDetail() {
 
   return (
     <main className="article-page review-page">
-      <Link className="movie-back" to="/reviews">
-        <ArrowLeft size={15} /> All reviews
+      <Link className="movie-back" to={backTo}>
+        <ArrowLeft size={15} /> {backLabel}
       </Link>
       <Breadcrumbs
         trail={[
@@ -162,6 +204,33 @@ export default function ReviewDetail() {
           own={mine}
           onRated={(_postId, summary) => setRating(summary)}
         />
+        {/* Only on your own review; the server checks the verified email again
+            when either one is actually used */}
+        {mine && (
+          <div className="article-owner-tools">
+            <Link
+              className="article-owner-btn"
+              to={`/reviews?editReview=${encodeURIComponent(post.id)}`}
+            >
+              <Pencil size={14} /> Edit
+            </Link>
+            {confirming ? (
+              <>
+                <button className="article-owner-btn danger" onClick={remove} disabled={busy}>
+                  <Trash2 size={14} /> {busy ? 'Deleting…' : 'Yes, delete it'}
+                </button>
+                <button className="article-owner-btn" onClick={() => setConfirming(false)}>
+                  Keep it
+                </button>
+              </>
+            ) : (
+              <button className="article-owner-btn" onClick={() => setConfirming(true)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            )}
+            {error && <span className="blog-error">{error}</span>}
+          </div>
+        )}
       </article>
       {/* Two ways onward, so the end of one review is never the end of the
           visit: the film it is about, and everyone else's takes. */}

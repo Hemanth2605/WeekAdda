@@ -44,9 +44,25 @@ link opens where the sender was.
   ("Full page") and crawled by search engines via the sitemap.
 - ✍️ **Reviews** (`/reviews`) — visitors write their own reviews and **tag the movie or match**
   they're talking about (poster or team flags shown on the card), each with a 5-star
-  **rating**. The full take opens in a modal. Reading is open to all; **publishing or
-  rating needs a one-click Google sign-in** (keeps it spam-free — display names stay
-  self-chosen). Signed-in writers get a **"My takes"** view of their contributions.
+  **rating**. The full take opens in a modal, and every review also has **its own page**
+  (`/review/:id/:slug`) carrying related takes — other opinions on the same title first.
+  Reading is open to all; **publishing or rating needs a one-click Google sign-in**
+  (keeps it spam-free — display names stay self-chosen). Writers can **edit or delete
+  their own** reviews, and `/my-reviews` collects everything they've written with
+  search, Movies/Cricket filters and Newest / Oldest / Best-rated sorting.
+- 📰 **Articles** (`/article/:id/:slug`) — the other kind of writing: the pieces with no
+  release date to hang on. The 1983 World Cup final, a best-of-the-decade list, an old
+  film worth another look. **Deliberately kept apart from reviews** — a review answers
+  "is this week's film worth it" and would bury an article within a week — so they live
+  in a rail beside the reviews feed rather than in it, and have their own store, pages
+  and composer. An article carries an optional **cover image** (re-framed after upload
+  by dragging a focal point, no re-encoding), a **Where to watch** list whose platform
+  badges sit beside each film *where the prose names it*, and a **heart** — a like, not
+  a rating, celebrated with a small burst on the first one. Pasted links render as the
+  service's own button (Netflix, Prime Video, JioHotstar, Sun NXT, YouTube and more).
+  Pieces published from the owner account carry a **✓ WeekAdda** stamp, which reads a
+  server-set flag rather than the author name — the byline itself is reserved, so nobody
+  else can wear it. `/my-articles` does for articles what `/my-reviews` does for reviews.
 - 🤝 **The Adda** (`/adda`) — a community board to **ask, offer and find company**: a
   spare ticket at face value, a movie plan that needs one more person, an honest
   question for fellow fans. Anyone can read; posting or clicking **"I'm interested"**
@@ -220,6 +236,18 @@ Cricket needs no key.
 | GET    | `/api/blog/mine`        | The signed-in user's own posts (Bearer token required) |
 | GET    | `/api/blog/ratings`     | Per-post rating summaries `{ avg, count, mine? }` (a token adds the viewer's own rating) |
 | POST   | `/api/blog/rate`        | Rate a post 1–5 (Bearer required; one per account, upsert; no self-rating) |
+| GET    | `/api/blog/:id`         | One review + the related row under it — feeds `/review/:id/:slug` |
+| PATCH  | `/api/blog/:id`         | Edit your own review (Bearer required). Someone else's answers **404**, never 403 |
+| DELETE | `/api/blog/:id`         | Delete your own review, and its ratings with it (Bearer required) |
+| GET    | `/api/articles`         | Latest articles (newest first, capped at 200) |
+| POST   | `/api/articles`         | Publish an article (Bearer when configured): `{ author?, title, body, topic, films?, image?, imagePosition?, imageFit? }` |
+| GET    | `/api/articles/mine`    | Your own articles + `owner` — whether this account may publish under the WeekAdda byline |
+| GET    | `/api/articles/likes`   | Per-article like counts `{ count, mine? }`; counts are public, a token adds your own |
+| POST   | `/api/articles/:id/like`| Toggle the heart (Bearer required; one per account, no liking your own) |
+| POST   | `/api/articles/image`   | Upload a cover — raw body, own `Content-Type`, JPEG/PNG/WebP/AVIF/GIF, 4 MB cap, sign-in required |
+| GET    | `/api/articles/:id`     | One article + the related rail beside it |
+| PATCH  | `/api/articles/:id`     | Edit your own article. Identity (id, timestamp, author, stamp) is not editable |
+| DELETE | `/api/articles/:id`     | Delete your own article |
 | GET    | `/api/adda`             | Open board listings (a token also reveals your own + contacts you've unlocked) |
 | POST   | `/api/adda`             | Post a listing (Bearer required): `{ title, details, author?, whatsapp? }` |
 | POST   | `/api/adda/:id/interest`| Express interest (Bearer required) — returns the poster's contact |
@@ -244,14 +272,21 @@ backend/
     sweep.ts               # the daily gather (GitHub Actions)
     notify.ts              # the hourly send, separate from the sweep
     pushSender.ts          # Web Push via VAPID; 9 AM in each subscriber's zone
-  cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json
+  cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json,
+                           #   articles.json, article-likes.json, uploads/ (local covers)
 frontend/
   src/
     pages/                 # Releases, Cricket, Reviews, MovieDetail, PlatformHub (/ott/:slug),
-                           #   Adda, About, Privacy, Stats
+                           #   Adda, About, Privacy, Stats,
+                           #   ReviewDetail + ArticleDetail (one piece per page),
+                           #   MyReviews + MyArticles (your own work, searchable and sortable)
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
                            #   NotifyBell / NotifyCard / NotifySheet / NotifyPrompt, BackToTop,
-                           #   PipShow (mini player), WeekTimeline (week chips), PlatformLinks
+                           #   PipShow (mini player), WeekTimeline (week chips), PlatformLinks,
+                           #   ArticleIndex (the rail), ReviewBits (shared review pieces),
+                           #   Prose (paragraphs + link-to-platform-button), LikeButton,
+                           #   OfficialStamp, ArticleImagePicker, FilmWatchPicker, Skeletons
+    filmLinks.ts           # which URL a platform badge points at; finds films named in prose
     platforms.ts           # the /ott hub list — mirrors OTT_PLATFORMS in backend queries.ts
     focusTarget.ts         # ?match= / ?post= → scroll that card into view and flash it
     geo.ts                 # country/state → home language + national team, one cached lookup
@@ -263,8 +298,9 @@ frontend/
   public/sw.js             # service worker: notifications only, deliberately no caching
   public/flags/            # 69 bundled country flags served from our own domain
 .github/workflows/         # sweep.yml (daily) + notify.yml (9 AM per timezone)
-supabase/schema.sql        # caches, clicks, posts, post_ratings, listings, listing_interests,
-                           #   push_subscriptions
+supabase/schema.sql        # caches, clicks, posts, post_ratings, articles, article_likes,
+                           #   listings, listing_interests, push_subscriptions
+                           #   (+ the article-images Storage bucket, made by hand)
 SEO-PLAN.md                # URL taxonomy roadmap + the four-place route coupling
 PUSH-PLAN.md               # notification design, send rules and deploy order
 ```
@@ -305,15 +341,30 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
   recording anonymously.
 - **Real 404s**: paths the app doesn't have (`/wp-login.php`, typos) return 404 instead
   of the SPA shell, so bot probes and mistyped URLs stop looking like indexable pages.
+  The same applies to an **id that resolves to nothing** — `/movie/`, `/review/` and
+  `/article/` with a dead id serve the app's not-found state with a 404 status rather
+  than a 200 empty page, which Google would index and keep returning to.
+- **A page per piece of writing**: every review (`/review/:id/:slug`) and every article
+  (`/article/:id/:slug`) is pre-rendered in full with `Article`/`Review` and breadcrumb
+  JSON-LD, `og:type: article`, the cover as `og:image` where there is one, and its own
+  entry in the sitemap dated by the piece's own timestamp — not the sweep's, since a
+  take written weeks ago did not change because the release cache refreshed.
+- **Nothing is reachable only from the sitemap**: `/reviews` links every article in its
+  pre-render, each article links its related ones, and each review links the other takes
+  on the same title. A page only the sitemap knows about is an orphan.
+- **Personal pages are kept out**: `/my-reviews`, `/my-articles` and `/stats` are real
+  pages that are empty for anyone but their owner, so the Worker serves them
+  `noindex, nofollow` and `buildSitemap` never lists them.
 - **Per-title pages** (`/movie/:id/:slug`, built by `buildTitlePage`): the first line
   answers the query ("*X* is streaming on Netflix — OTT release date …"), with
   Movie/TVSeries JSON-LD (poster + aggregate rating) and per-title canonical. Titles
   age out with the cache window and then 404 out of the index.
 - **Dynamic sitemap**: `/sitemap.xml` is generated by the Worker (`buildSitemap`) —
   the static routes (incl. /adda, /about, /privacy), every platform hub that clears the
-  threshold, plus every current title page (~1,200 URLs), `lastmod` set to the last
-  sweep, so crawlers see daily change. The static `public/sitemap.xml` is an unused
-  fallback.
+  threshold, every current title page (~1,200 URLs), and every review and article,
+  each dated by its own timestamp rather than the sweep's. There is deliberately **no
+  static `public/sitemap.xml`**: it was a snapshot that could only ever go stale,
+  shipped as a real asset and hidden only by the Worker intercepting the path first.
 - The Worker stamps route-specific `<title>`/description/canonical **and Open Graph +
   Twitter tags** into the raw HTML (`routeMeta`; movie pages get the poster as
   `og:image`), so shared links preview the right page. The SPA then sets the **same**
@@ -383,9 +434,11 @@ free tiers plus the domain:
   SEO-PLAN.md Tier 3
 - IndexNow pings after each sweep so Bing indexes new title pages the same day
 - Per-series cricket pages (`/cricket/india-vs-australia`) on the movie-page pattern
-- Hard 404 status for expired `/movie/…` URLs (currently a soft 404 shell)
-- Per-review URLs (`/reviews/:id/:slug`) with their own meta tags + AggregateRating schema,
-  so individual takes (and their star ratings) can rank in search and be shared directly
+- A verdict-out-of-five field in the review composer — the one thing that would make
+  `reviewRating` honest and unlock star snippets. Today's five stars measure how useful
+  readers found the *review*, not the writer's verdict on the film, so mapping them
+  would be inaccurate markup
+- `dateModified` on articles, once an edit actually records a timestamp
 - A visible "showing X first — change" control so a detected language/team can be
   overridden by hand (today the only override is the language filter itself)
 - Per-week counts on the week timeline chips, so it's obvious which past weeks are worth

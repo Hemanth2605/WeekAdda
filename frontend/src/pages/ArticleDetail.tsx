@@ -28,6 +28,7 @@ import ArticleIndex from '../components/ArticleIndex'
 import Prose from '../components/Prose'
 import OfficialStamp from '../components/OfficialStamp'
 import LikeButton from '../components/LikeButton'
+import { ArticlePageSkeleton } from '../components/Skeletons'
 import { timeAgo } from '../components/ReviewBits'
 
 const TOPIC_LABEL: Record<Article['topic'], string> = { movie: 'Movies', match: 'Cricket' }
@@ -142,10 +143,13 @@ export default function ArticleDetail() {
   }
 
   if (!article) {
+    // Shaped like the article that is coming, so nothing jumps when it lands
     return (
-      <main className="movie-page">
-        <div className="movie-page-missing">
-          <p>Loading…</p>
+      <main className="article-page">
+        <div className="blog-layout">
+          <div className="blog-main">
+            <ArticlePageSkeleton />
+          </div>
         </div>
       </main>
     )

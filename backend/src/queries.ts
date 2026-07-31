@@ -346,6 +346,31 @@ export function titleUrl(r: { id: string; title: string }): string {
   return `/movie/${r.id}/${slugify(r.title)}`
 }
 
+/** Below this a synopsis is a fragment, not a page worth submitting. */
+export const TITLE_MIN_OVERVIEW = 120
+
+/**
+ * Is this title page too thin to be worth indexing?
+ *
+ * Almost everything on a title page comes from TMDB — the same feed a hundred
+ * aggregators carry — so a page with no poster and barely a sentence of
+ * synopsis is a near-duplicate of pages on far stronger domains. It still
+ * serves (someone following a link gets a working page) but it is kept out of
+ * the sitemap and sent `noindex, follow`, exactly as a below-threshold platform
+ * hub is. Submitting a thousand of them is how a domain is judged derivative.
+ *
+ * A reviewed title is never thin: a review is writing that exists nowhere else,
+ * which is the whole reason the page earns a place.
+ */
+export function titleIsThin(
+  r: { poster: string | null; overview?: string; rating?: number },
+  reviewCount = 0
+): boolean {
+  if (reviewCount > 0) return false
+  if (!r.poster) return true
+  return (r.overview ?? '').trim().length < TITLE_MIN_OVERVIEW
+}
+
 /**
  * Route of one review's own page. The slug is decorative like a title's —
  * lookup is by id — so an edited heading never orphans a shared link.

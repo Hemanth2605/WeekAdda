@@ -6,6 +6,7 @@ import releaseRoutes from './routes/releases'
 import cricketRoutes from './routes/cricket'
 import trackRoutes from './routes/track'
 import blogRoutes from './routes/blog'
+import articleRoutes from './routes/articles'
 import addaRoutes from './routes/adda'
 import pushRoutes from './routes/push'
 import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
@@ -43,6 +44,7 @@ app.get('/api/ott/:slug', (req, res) => {
 app.use('/api/cricket', cricketRoutes)
 app.use('/api/track', trackRoutes)
 app.use('/api/blog', blogRoutes)
+app.use('/api/articles', articleRoutes)
 app.use('/api/adda', addaRoutes)
 app.use('/api/push', pushRoutes)
 

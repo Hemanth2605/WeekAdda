@@ -65,9 +65,41 @@ cd frontend && npm run build
   always reviews and "review" is what people search; the Worker 301s the old path,
   and the **API, table, cache file and `.blog-*` CSS keep the old name on purpose**
   — renaming those is churn no visitor would ever see):
-  `/api/blog` GET/POST (+ `/mine`, `/rate`, `/ratings`), shared `buildPost`
+  `/api/blog` GET/POST (+ `/mine`, `/rate`, `/ratings`, and `/:id` for one
+  review — declared **after** the literal paths in both Express and the Worker
+  so none of them is read as an id), shared `buildPost`
   sanitizer in `queries.ts`; local store `backend/cache/blog.json` (+ `ratings.json`),
-  production Supabase `posts` / `post_ratings` tables.
+  production Supabase `posts` / `post_ratings` tables. `StarRow`/`TagLine`/`timeAgo`
+  live in `components/ReviewBits.tsx` so the feed and the per-review page cannot
+  drift into rendering the same review differently.
+- **Articles** (`/article/:id/:slug`, `ArticleDetail.tsx`, July 2026): the second
+  kind of writing — the 1983 final, a top-ten list, an old film revisited.
+  **Not a variant of a review**: an article has no `tag`, so it gets its own
+  `Article` type, its own `articles` table, its own `cache/articles.json` and its
+  own `/api/articles` routes. That separation is the feature — "articles never
+  mix into the reviews feed" is then true by construction rather than by a
+  filter someone can forget. Filed under one `topic` (`movie` | `match`), which
+  is all `relatedArticles` in `queries.ts` needs. **No star ratings** — see the
+  ratings note below. The composer on `/reviews` switches between Review and
+  Article (`.blog-mode`); articles get a 20 000-character body, reviews keep
+  5 000. Pre-rendered by `buildArticlePage`, listed in `buildSitemap`, and
+  linked from `buildBlogSeo` — those links are the **only** crawlable path to an
+  article, so if that section stops rendering every article becomes an island.
+  Adding the table needs `supabase/schema.sql` run by hand before deploying.
+- **Per-review pages** (`/review/:id/:slug`, `ReviewDetail.tsx`, July 2026): the
+  feed can only ever show an opening, so each review has its own URL — shareable,
+  pre-rendered by `buildReviewPage` in `seo.ts` and listed in `buildSitemap`
+  (dated by the review's own `ts`, not the sweep's). Same id[/slug] shape as a
+  title page and gated the same way: `REVIEW_ROUTE` in `worker.ts` must match,
+  or the edge 404s the path. The Worker's `loadPost` falls back to a by-id
+  Supabase query, because its cached list holds only the 200 newest and an older
+  review still has a page. No `reviewRating` in the markup, for the reason in
+  the Gotchas below. The **right-hand rail (`ArticleIndex`, `.blog-index`)
+  carries articles, never reviews** — owner decision, since the feed beside it
+  already is the reviews. Same component on both pages: articles on `/reviews`,
+  related ones on an article page. The modal's "Full page" link is therefore the
+  only in-app link to `/review/:id`, and what keeps those pages from being
+  orphans.
 - **Auth is Google-only, and only for writing** (added July 2026). Browsing everything
   is account-free. Sign-in uses Google Identity Services' **OAuth token flow** (custom
   `GoogleButton.tsx` + `frontend/src/auth.ts`; app-wide state via `useGoogleUser`), NOT

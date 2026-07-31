@@ -4,8 +4,11 @@ import path from 'path'
 import {
   BlogPost,
   PostRating,
+  applyPostEdit,
   buildPost,
+  canEditPost,
   publicPost,
+  relatedReviews,
   sanitizeRating,
   summarizeRatings,
   verifyGoogleToken,
@@ -106,6 +109,68 @@ router.post('/rate', async (req: Request, res: Response) => {
   res.json(summarizeRatings(ratings, profile.email)[postId])
 })
 
+// One review, for its own page at /review/:id/:slug. Declared after the literal
+// routes above so /mine and /ratings are never read as an id.
+router.get('/:id', (req: Request, res: Response) => {
+  const all = loadPosts()
+  const post = all.find((p) => p.id === req.params.id)
+  if (!post) return res.status(404).json({ error: 'Review not found' })
+  // Related in the same round trip — the row under the review is part of the
+  // page, not something it should have to fetch the whole feed to build
+  res.json({
+    post: publicPost(post),
+    related: relatedReviews(all, post.id).map(publicPost),
+  })
+})
+
+/** The signed-in writer, or null. Shared by the two owner-gated routes below. */
+async function writer(req: Request) {
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  if (!clientId) return null
+  const token = bearer(req)
+  return token ? await verifyGoogleToken(token, clientId) : null
+}
+
+function savePosts(all: BlogPost[]) {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.writeFileSync(BLOG_FILE, JSON.stringify(all, null, 2))
+}
+
+// Edit one's own review. 404 rather than 403 for someone else's, so the API
+// never confirms an id exists to an account with no business knowing.
+router.patch('/:id', async (req: Request, res: Response) => {
+  const profile = await writer(req)
+  if (!profile) return res.status(401).json({ error: 'Please sign in with Google' })
+  const all = loadPosts()
+  const index = all.findIndex((p) => p.id === req.params.id)
+  if (index < 0 || !canEditPost(all[index], profile.email)) {
+    return res.status(404).json({ error: 'Review not found' })
+  }
+  const edited = applyPostEdit(all[index], req.body)
+  if (!edited) {
+    return res.status(400).json({ error: 'title, body and a tagged movie or match are required' })
+  }
+  all[index] = edited
+  savePosts(all)
+  res.json(publicPost(edited))
+})
+
+router.delete('/:id', async (req: Request, res: Response) => {
+  const profile = await writer(req)
+  if (!profile) return res.status(401).json({ error: 'Please sign in with Google' })
+  const all = loadPosts()
+  const found = all.find((p) => p.id === req.params.id)
+  if (!found || !canEditPost(found, profile.email)) {
+    return res.status(404).json({ error: 'Review not found' })
+  }
+  savePosts(all.filter((p) => p.id !== found.id))
+  // Ratings of a review that no longer exists are orphans that would still be
+  // counted if an id were ever reused
+  const ratings = loadRatings().filter((r) => r.postId !== found.id)
+  fs.writeFileSync(RATINGS_FILE, JSON.stringify(ratings, null, 2))
+  res.json({ deleted: found.id })
+})
+
 router.post('/', async (req: Request, res: Response) => {
   // Publishing requires Google sign-in once GOOGLE_CLIENT_ID is configured
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -118,7 +183,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Please sign in with Google to publish' })
     }
   }
-  const post = buildPost(req.body, profile)
+  const post = buildPost(req.body, profile, process.env.OWNER_EMAIL)
   if (!post) {
     return res.status(400).json({ error: 'title, body and a tagged movie or match are required' })
   }

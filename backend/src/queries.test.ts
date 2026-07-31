@@ -13,6 +13,18 @@ import {
   PLATFORM_MIN_TITLES,
   PAN_INDIA_CODE,
   titleUrl,
+  reviewUrl,
+  articleUrl,
+  applyArticleEdit,
+  buildArticle,
+  canEditArticle,
+  applyPostEdit,
+  canEditPost,
+  relatedReviews,
+  summarizeLikes,
+  imageExtension,
+  publicArticle,
+  relatedArticles,
   type ReleaseCache,
   type OttRelease,
   type Release,
@@ -422,5 +434,454 @@ describe('titleUrl', () => {
 
   it('survives a title with no latin characters', () => {
     expect(titleUrl({ id: 'x', title: 'అమితా' })).toMatch(/^\/movie\/x\//)
+  })
+})
+
+describe('buildArticle', () => {
+  const ok = { title: 'The 1983 final', body: 'Sixty overs and no chance.', topic: 'match' }
+
+  it('accepts an article with no tag — that is the whole point of one', () => {
+    const a = buildArticle(ok)!
+    expect(a.topic).toBe('match')
+    expect(a.author).toBe('Anonymous')
+    expect(a.id.startsWith('a-')).toBe(true)
+  })
+
+  it('rejects a missing or invented topic, so the rail can always group it', () => {
+    expect(buildArticle({ ...ok, topic: undefined })).toBeNull()
+    expect(buildArticle({ ...ok, topic: 'politics' })).toBeNull()
+  })
+
+  it('rejects an empty title or body', () => {
+    expect(buildArticle({ ...ok, title: '   ' })).toBeNull()
+    expect(buildArticle({ ...ok, body: '' })).toBeNull()
+  })
+
+  it('keeps the writer email server-side but records it', () => {
+    const a = buildArticle(ok, { email: 'r@example.com', name: 'Ravi' } as never)!
+    expect(a.authorEmail).toBe('r@example.com')
+    expect(publicArticle(a)).not.toHaveProperty('authorEmail')
+  })
+
+  it('keeps attached films, on a cricket article too', () => {
+    // The 1983 piece is filed under cricket and still points at the film of it
+    const a = buildArticle({
+      ...ok,
+      films: [{ title: '83', platforms: ['Netflix', 'Netflix', 'ZEE5'] }],
+    })!
+    // Bare strings still accepted — the shape the picker sent before deep links
+    expect(a.films).toEqual([{ title: '83', platforms: [{ name: 'Netflix' }, { name: 'ZEE5' }] }])
+  })
+
+  it('keeps a deep link, and refuses one that is not https', () => {
+    const a = buildArticle({
+      ...ok,
+      films: [
+        {
+          title: 'RRR',
+          platforms: [
+            { name: 'Netflix', url: 'https://www.netflix.com/in/title/81476453' },
+            // eslint-disable-next-line no-script-url
+            { name: 'ZEE5', url: 'javascript:alert(1)' },
+          ],
+        },
+      ],
+    })!
+    expect(a.films![0].platforms).toEqual([
+      { name: 'Netflix', url: 'https://www.netflix.com/in/title/81476453' },
+      { name: 'ZEE5' },
+    ])
+  })
+
+  it('drops a film with no name, and caps how many can ride along', () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ title: `F${i}`, platforms: [] }))
+    expect(buildArticle({ ...ok, films: [{ platforms: ['Netflix'] }] })!.films).toBeUndefined()
+    expect(buildArticle({ ...ok, films: many })!.films).toHaveLength(6)
+  })
+
+  /**
+   * The cover ends up in an <img src>, and it reaches the server through the
+   * browser like any other field — so it is input, not a value we can trust
+   * because we happen to have generated it a moment earlier.
+   */
+  describe('the cover image', () => {
+    it('keeps a local upload path and an https URL', () => {
+      expect(buildArticle({ ...ok, image: '/api/articles/image/abc123.jpg' })!.image).toBe(
+        '/api/articles/image/abc123.jpg'
+      )
+      expect(buildArticle({ ...ok, image: 'https://cdn.example.com/a.png' })!.image).toBe(
+        'https://cdn.example.com/a.png'
+      )
+    })
+
+    it('drops anything that could execute or smuggle a payload', () => {
+      // eslint-disable-next-line no-script-url
+      for (const bad of ['javascript:alert(1)', 'data:image/svg+xml;base64,PHN2Zz4=', 'http://x/a.png', '/etc/passwd', '../secret']) {
+        expect(buildArticle({ ...ok, image: bad })!.image).toBeUndefined()
+      }
+    })
+
+    it('refuses a path that tries to climb out of the upload folder', () => {
+      expect(
+        buildArticle({ ...ok, image: '/api/articles/image/../../../../.env' })!.image
+      ).toBeUndefined()
+    })
+
+    it('keeps a focal point and a fit chosen after upload', () => {
+      const a = buildArticle({
+        ...ok,
+        image: '/api/articles/image/a.jpg',
+        imagePosition: '40% 25%',
+        imageFit: 'contain',
+      })!
+      expect(a.imagePosition).toBe('40% 25%')
+      expect(a.imageFit).toBe('contain')
+    })
+
+    it('clamps a focal point and ignores a malformed one', () => {
+      const framed = (imagePosition: unknown) =>
+        buildArticle({ ...ok, image: '/api/articles/image/a.jpg', imagePosition })!.imagePosition
+      expect(framed('900% 12%')).toBe('100% 12%')
+      expect(framed('half way')).toBeUndefined()
+      expect(framed('30%')).toBeUndefined()
+    })
+
+    it('drops framing when there is no picture to frame', () => {
+      const a = buildArticle({ ...ok, imagePosition: '10% 10%', imageFit: 'contain' })!
+      expect(a.imagePosition).toBeUndefined()
+      expect(a.imageFit).toBeUndefined()
+    })
+
+    it('accepts only the five image types, whatever charset rides along', () => {
+      expect(imageExtension('image/jpeg')).toBe('jpg')
+      expect(imageExtension('image/PNG')).toBe('png')
+      expect(imageExtension('image/webp; charset=binary')).toBe('webp')
+      expect(imageExtension('image/avif')).toBe('avif')
+      expect(imageExtension('image/svg+xml')).toBeNull()
+      expect(imageExtension('text/html')).toBeNull()
+      expect(imageExtension(undefined)).toBeNull()
+    })
+  })
+
+  it('gives an article room to be an essay', () => {
+    const a = buildArticle({ ...ok, body: 'x'.repeat(30000) })!
+    expect(a.body.length).toBe(20000)
+  })
+})
+
+/**
+ * The stamp says "the site wrote this". It is worth only as much as the thing
+ * it reads, so it reads the verified email — never the author field, which is
+ * typed and therefore evidence of nothing.
+ */
+describe('the WeekAdda byline', () => {
+  const ok = { title: 'The 1983 final', body: 'Sixty overs and no chance.', topic: 'match' }
+  const owner = { email: 'owner@example.com', name: 'Owner' } as never
+  const visitor = { email: 'someone@example.com', name: 'Ravi' } as never
+
+  it('stamps an article published from the owner account', () => {
+    const a = buildArticle({ ...ok, author: 'WeekAdda' }, owner, 'owner@example.com')!
+    expect(a.official).toBe(true)
+    expect(a.author).toBe('WeekAdda')
+  })
+
+  it('can be declined by the owner, for a piece written personally', () => {
+    const a = buildArticle(
+      { ...ok, author: 'Hemanth', official: false },
+      owner,
+      'owner@example.com'
+    )!
+    expect(a.official).toBeUndefined()
+    expect(a.author).toBe('Hemanth')
+  })
+
+  it('cannot be claimed by asking for it in the body', () => {
+    const a = buildArticle({ ...ok, official: true }, visitor, 'owner@example.com')!
+    expect(a.official).toBeUndefined()
+  })
+
+  it('cannot be worn by typing the name as a display name', () => {
+    const a = buildArticle({ ...ok, author: 'WeekAdda' }, visitor, 'owner@example.com')!
+    expect(a.official).toBeUndefined()
+    expect(a.author).toBe('Ravi')
+    // spacing and case are not a way around it either
+    expect(buildArticle({ ...ok, author: 'week adda' }, visitor, 'owner@example.com')!.author).toBe(
+      'Ravi'
+    )
+  })
+
+  it('credits the Google account name when the writer chose none', () => {
+    // Blank, whitespace, or the field simply absent — all mean "use my name"
+    for (const author of ['', '   ', undefined]) {
+      expect(buildArticle({ ...ok, author }, visitor, 'owner@example.com')!.author).toBe('Ravi')
+    }
+    // and a review is credited the same way
+    expect(
+      buildPost(
+        { title: 'Good', body: 'Worth it.', tag: { kind: 'movie', label: 'X' } },
+        visitor,
+        'owner@example.com'
+      )!.author
+    ).toBe('Ravi')
+  })
+
+  it('falls back to Anonymous only when there is no Google name either', () => {
+    const nameless = { email: 'x@example.com' } as never
+    expect(buildArticle(ok, nameless)!.author).toBe('Anonymous')
+  })
+
+  it('falls back to Anonymous when the Google name is the reserved one', () => {
+    const impostor = { email: 'x@example.com', name: 'WeekAdda' } as never
+    expect(buildArticle(ok, impostor, 'owner@example.com')!.author).toBe('Anonymous')
+  })
+
+  it('reserves the name on reviews too, which carry no stamp of their own', () => {
+    const post = buildPost(
+      { title: 'Good', body: 'Worth it.', author: 'WeekAdda', tag: { kind: 'movie', label: 'X' } },
+      visitor,
+      'owner@example.com'
+    )!
+    expect(post.author).toBe('Ravi')
+  })
+
+  it('stamps nothing when no owner is configured — it fails closed', () => {
+    expect(buildArticle(ok, owner, undefined)!.official).toBeUndefined()
+  })
+})
+
+/**
+ * Editing is the first thing on this site that can destroy someone's work, so
+ * the rules are asserted rather than assumed: only the verified writer, and an
+ * edit changes what a piece says, never who published it.
+ */
+describe('editing an article', () => {
+  const stored = buildArticle(
+    { title: 'The 1983 final', body: 'Sixty overs.', topic: 'match', author: 'WeekAdda' },
+    { email: 'owner@example.com', name: 'Owner' } as never,
+    'owner@example.com'
+  )!
+
+  it('lets the verified writer edit, and nobody else', () => {
+    expect(canEditArticle(stored, 'owner@example.com')).toBe(true)
+    expect(canEditArticle(stored, 'someone@example.com')).toBe(false)
+    expect(canEditArticle(stored, undefined)).toBe(false)
+  })
+
+  it('never lets an anonymous article be claimed', () => {
+    const anon = buildArticle({ title: 'T', body: 'Body here.', topic: 'movie' })!
+    expect(anon.authorEmail).toBeUndefined()
+    expect(canEditArticle(anon, 'anyone@example.com')).toBe(false)
+  })
+
+  it('keeps identity while changing the writing', () => {
+    const edited = applyArticleEdit(stored, {
+      title: 'A better title',
+      body: 'Rewritten entirely.',
+      topic: 'movie',
+    })!
+    expect(edited.title).toBe('A better title')
+    expect(edited.topic).toBe('movie')
+    // identity is not editable
+    expect(edited.id).toBe(stored.id)
+    expect(edited.ts).toBe(stored.ts)
+    expect(edited.author).toBe('WeekAdda')
+    expect(edited.authorEmail).toBe('owner@example.com')
+    expect(edited.official).toBe(true)
+  })
+
+  it('cannot be used to steal the byline or the stamp', () => {
+    const edited = applyArticleEdit(stored, {
+      title: 'T',
+      body: 'Body here.',
+      topic: 'match',
+      author: 'Someone Else',
+      official: false,
+      authorEmail: 'thief@example.com',
+      id: 'a-other',
+    })!
+    expect(edited.author).toBe('WeekAdda')
+    expect(edited.official).toBe(true)
+    expect(edited.authorEmail).toBe('owner@example.com')
+    expect(edited.id).toBe(stored.id)
+  })
+
+  it('actually removes a cover or a film that was cleared', () => {
+    const withExtras = applyArticleEdit(stored, {
+      title: 'T',
+      body: 'Body here.',
+      topic: 'match',
+      image: '/api/articles/image/a.jpg',
+      imagePosition: '10% 10%',
+      films: [{ title: '83', platforms: [{ name: 'Netflix' }] }],
+    })!
+    expect(withExtras.image).toBeTruthy()
+    const cleared = applyArticleEdit(withExtras, { title: 'T', body: 'Body here.', topic: 'match' })!
+    expect(cleared.image).toBeUndefined()
+    expect(cleared.imagePosition).toBeUndefined()
+    expect(cleared.films).toBeUndefined()
+  })
+
+  it('refuses an edit that would empty the article', () => {
+    expect(applyArticleEdit(stored, { title: '', body: 'x', topic: 'match' })).toBeNull()
+    expect(applyArticleEdit(stored, { title: 'T', body: '', topic: 'match' })).toBeNull()
+    expect(applyArticleEdit(stored, { title: 'T', body: 'x', topic: 'politics' })).toBeNull()
+  })
+})
+
+describe('editing a review', () => {
+  const stored = buildPost(
+    {
+      title: 'Worth the ticket',
+      body: 'The second half earns it.',
+      author: 'Ravi',
+      tag: { kind: 'movie', id: 'n1', label: 'Netflix One' },
+    },
+    { email: 'ravi@example.com', name: 'Ravi' } as never
+  )!
+
+  it('lets the verified writer edit, and nobody else', () => {
+    expect(canEditPost(stored, 'ravi@example.com')).toBe(true)
+    expect(canEditPost(stored, 'someone@example.com')).toBe(false)
+    expect(canEditPost(stored, undefined)).toBe(false)
+  })
+
+  it('never lets an anonymous review be claimed', () => {
+    const anon = buildPost({
+      title: 'T',
+      body: 'Body here.',
+      tag: { kind: 'movie', label: 'X' },
+    })!
+    expect(anon.authorEmail).toBeUndefined()
+    expect(canEditPost(anon, 'anyone@example.com')).toBe(false)
+  })
+
+  it('keeps identity while changing the writing and the tag', () => {
+    const edited = applyPostEdit(stored, {
+      title: 'Actually, no',
+      body: 'Changed my mind entirely.',
+      tag: { kind: 'match', id: 'm1', label: 'India vs Zimbabwe' },
+    })!
+    expect(edited.title).toBe('Actually, no')
+    expect(edited.tag.kind).toBe('match')
+    expect(edited.id).toBe(stored.id)
+    expect(edited.ts).toBe(stored.ts)
+    expect(edited.author).toBe('Ravi')
+    expect(edited.authorEmail).toBe('ravi@example.com')
+  })
+
+  it('cannot be used to reassign the review to somebody else', () => {
+    const edited = applyPostEdit(stored, {
+      title: 'T',
+      body: 'Body here.',
+      author: 'Thief',
+      authorEmail: 'thief@example.com',
+      id: 'p-other',
+      tag: { kind: 'movie', label: 'X' },
+    })!
+    expect(edited.author).toBe('Ravi')
+    expect(edited.authorEmail).toBe('ravi@example.com')
+    expect(edited.id).toBe(stored.id)
+  })
+
+  it('refuses an edit that would leave it untagged or empty', () => {
+    expect(applyPostEdit(stored, { title: 'T', body: 'x' })).toBeNull()
+    expect(applyPostEdit(stored, { title: '', body: 'x', tag: { kind: 'movie', label: 'X' } })).toBeNull()
+  })
+})
+
+describe('relatedReviews', () => {
+  const review = (id: string, tagId: string, ts: string) => ({
+    id,
+    ts,
+    author: 'Ravi',
+    title: id,
+    body: 'x',
+    tag: { kind: 'movie' as const, id: tagId, label: tagId, sub: '', poster: null },
+  })
+  const all = [
+    review('p1', 'film-a', '2026-03-01T00:00:00Z'),
+    review('p2', 'film-b', '2026-04-01T00:00:00Z'),
+    review('p3', 'film-a', '2026-05-01T00:00:00Z'),
+    review('p4', 'film-b', '2026-06-01T00:00:00Z'),
+  ]
+
+  it('puts other takes on the same title first, and never the review itself', () => {
+    const out = relatedReviews(all, 'p1').map((p) => p.id)
+    expect(out[0]).toBe('p3')
+    expect(out).not.toContain('p1')
+  })
+
+  it('tops up from everything else rather than showing a short row', () => {
+    expect(relatedReviews(all, 'p1').map((p) => p.id)).toEqual(['p3', 'p4', 'p2'])
+  })
+
+  it('still returns something for an id it does not hold', () => {
+    expect(relatedReviews(all, 'gone')).toHaveLength(4)
+  })
+})
+
+describe('summarizeLikes', () => {
+  const rows = [
+    { articleId: 'a1', userEmail: 'x@example.com' },
+    { articleId: 'a1', userEmail: 'y@example.com' },
+    { articleId: 'a2', userEmail: 'x@example.com' },
+  ]
+
+  it('counts hearts per article', () => {
+    const out = summarizeLikes(rows)
+    expect(out.a1.count).toBe(2)
+    expect(out.a2.count).toBe(1)
+  })
+
+  it('says which are yours only when it knows who is asking', () => {
+    expect(summarizeLikes(rows).a1.mine).toBeUndefined()
+    expect(summarizeLikes(rows, 'x@example.com').a1.mine).toBe(true)
+    expect(summarizeLikes(rows, 'z@example.com').a1.mine).toBeUndefined()
+  })
+
+  it('never leaks who liked what — counts only', () => {
+    expect(JSON.stringify(summarizeLikes(rows, 'x@example.com'))).not.toContain('@example.com')
+  })
+})
+
+describe('relatedArticles', () => {
+  const a = (id: string, topic: 'movie' | 'match', ts: string) => ({ id, topic, ts })
+  const all = [
+    a('a1', 'match', '2026-03-01T00:00:00Z'),
+    a('a2', 'movie', '2026-04-01T00:00:00Z'),
+    a('a3', 'match', '2026-05-01T00:00:00Z'),
+    a('a4', 'movie', '2026-06-01T00:00:00Z'),
+  ]
+
+  it('puts the same topic first, newest first, and never the article itself', () => {
+    const out = relatedArticles(all, 'a1').map((x) => x.id)
+    expect(out[0]).toBe('a3')
+    expect(out).not.toContain('a1')
+  })
+
+  it('tops up from the other topic rather than leaving the rail half empty', () => {
+    // Only one other match article exists; the movie ones fill the rest
+    expect(relatedArticles(all, 'a1')).toHaveLength(3)
+    expect(relatedArticles(all, 'a1').map((x) => x.topic)).toEqual(['match', 'movie', 'movie'])
+  })
+
+  it('still returns something for an id it does not hold', () => {
+    expect(relatedArticles(all, 'gone').map((x) => x.id)).toEqual(['a4', 'a3', 'a2', 'a1'])
+  })
+})
+
+describe('reviewUrl', () => {
+  it('slugs the heading and keeps the id as the lookup key', () => {
+    expect(reviewUrl({ id: 'p-7', title: 'Worth the ticket!' })).toBe('/review/p-7/worth-the-ticket')
+  })
+
+  it('never collides with a title page', () => {
+    expect(reviewUrl({ id: 'p-7', title: 'x' }).startsWith('/movie/')).toBe(false)
+  })
+})
+
+describe('articleUrl', () => {
+  it('gets its own namespace, distinct from reviews and titles', () => {
+    expect(articleUrl({ id: 'a-3', title: 'My top 10 films!' })).toBe('/article/a-3/my-top-10-films')
   })
 })

@@ -9,27 +9,49 @@ import {
   X,
   PenLine,
   CalendarDays,
-  Tag,
-  Star,
   ArrowRight,
+  Star,
+  Newspaper,
+  ExternalLink,
+  Eye,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
-import { api, fetchPosts, fetchMyPosts, fetchRatings, ratePost, createPost } from '../api'
-import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } from '../auth'
+import {
+  api,
+  fetchPosts,
+  fetchMyPosts,
+  fetchRatings,
+  fetchArticles,
+  fetchArticle,
+  fetchArticleLikes,
+  fetchMyArticles,
+  updateArticle,
+  createPost,
+  updatePost,
+  deletePost,
+  createArticle,
+} from '../api'
+import { authEnabled, refreshUser, signOut, useGoogleUser } from '../auth'
 import GoogleButton from '../components/GoogleButton'
 import { matchFlags } from '../flags'
-import { usePageMeta, titlePath } from '../seo'
-import { BlogPost, BlogTag, RatingSummary, Release, CricketMatch } from '../types'
+import { usePageMeta, reviewPath } from '../seo'
+import {
+  Article,
+  ArticleFilm,
+  BlogPost,
+  BlogTag,
+  LikeSummary,
+  RatingSummary,
+  Release,
+  CricketMatch,
+} from '../types'
 import PipShow from '../components/PipShow'
-
-function timeAgo(iso: string) {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
-  if (mins < 60) return mins < 1 ? 'just now' : `${mins} min ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.round(hours / 24)
-  if (days < 30) return `${days} day${days === 1 ? '' : 's'} ago`
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+import ArticleIndex from '../components/ArticleIndex'
+import FilmWatchPicker from '../components/FilmWatchPicker'
+import ArticleImagePicker, { DEFAULT_POSITION } from '../components/ArticleImagePicker'
+import Prose from '../components/Prose'
+import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
 
 // Tiny letter tiles drifting down behind the page — pure decoration
 const RAIN_GLYPHS = 'సినిమాక్రికెట్వారంఅడ్డాCINEMAOTTCRICKETREVIEW★🎬🏏'
@@ -263,46 +285,89 @@ function ReviewStarters({ onPick }: { onPick: (tag: BlogTag) => void }) {
  * reviews — finally gets an internal link from every review written about it.
  * Matches have no page of their own, so they stay plain text.
  */
-function TagLine({ tag }: { tag: BlogTag }) {
-  const inner = (
-    <>
-      <Tag size={12} /> {tag.label}
-      {tag.sub && <em> · {tag.sub}</em>}
-    </>
-  )
-  if (tag.kind !== 'movie' || !tag.id) return <span className="blog-card-tag">{inner}</span>
-  return (
-    <Link
-      className="blog-card-tag linked"
-      to={titlePath({ id: tag.id, title: tag.label })}
-      // The card behind this opens the review; the link must win
-      onClick={(e) => e.stopPropagation()}
-      title={`Everything about ${tag.label}`}
-    >
-      {inner}
-    </Link>
-  )
-}
-
 function Composer({
   open,
   onClose,
   onPublished,
+  onArticlePublished,
   preset,
+  startMode,
+  canPublishAsSite,
+  editing,
+  onEdited,
+  editingPost,
+  onPostEdited,
 }: {
   open: boolean
   onClose: () => void
   onPublished: (post: BlogPost) => void
+  onArticlePublished: (article: Article) => void
   /** Opened from a starter — the film is already chosen. */
   preset?: BlogTag | null
+  /** Which side of the switch to open on, when the way in already said. */
+  startMode?: 'review' | 'article'
+  /** Owner account: may publish under the WeekAdda byline, or decline it. */
+  canPublishAsSite?: boolean
+  /** Set when the composer is editing an existing article rather than writing. */
+  editing?: Article | null
+  onEdited?: (article: Article) => void
+  /** Set when the composer is editing an existing review rather than writing. */
+  editingPost?: BlogPost | null
+  onPostEdited?: (post: BlogPost) => void
 }) {
+  // Two things can be written here, and they are not variants of each other: a
+  // review is pinned to something this week's caches hold, an article is not.
+  // The switch is first because it changes every field below it.
+  const [mode, setMode] = useState<'review' | 'article'>('review')
   const [kind, setKind] = useState<'movie' | 'match'>('movie')
   const [tag, setTag] = useState<BlogTag | null>(null)
+  const [topic, setTopic] = useState<Article['topic']>('movie')
+  const [films, setFilms] = useState<ArticleFilm[]>([])
+  const [image, setImage] = useState<string | undefined>()
+  const [imagePosition, setImagePosition] = useState(DEFAULT_POSITION)
+  const [imageFit, setImageFit] = useState<'cover' | 'contain'>('cover')
+  // Owner only. Defaults on, so the site's own pieces keep the byline they
+  // have always had; unticking it publishes under the writer's own name.
+  const [asSite, setAsSite] = useState(true)
+
+  // "Write an article" must open the article side of the switch. Keyed on the
+  // mode itself, not just on `open`, so it cannot re-apply and yank someone
+  // back after they have switched by hand.
+  useEffect(() => {
+    if (open && startMode) setMode(startMode)
+  }, [open, startMode])
+
+  // Load an article being edited into the fields. Keyed on its id, so typing
+  // does not get overwritten by this effect re-running.
+  useEffect(() => {
+    if (!editing) return
+    setMode('article')
+    setTopic(editing.topic)
+    setTitle(editing.title)
+    setBody(editing.body)
+    setFilms(editing.films ?? [])
+    setImage(editing.image)
+    setImagePosition(editing.imagePosition ?? DEFAULT_POSITION)
+    setImageFit(editing.imageFit ?? 'cover')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing?.id])
+
+  // Same for a review: keyed on its id so typing is not overwritten
+  useEffect(() => {
+    if (!editingPost) return
+    setMode('review')
+    setKind(editingPost.tag.kind)
+    setTag(editingPost.tag)
+    setTitle(editingPost.title)
+    setBody(editingPost.body)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingPost?.id])
 
   // Adopt the starter's film when the composer opens on one, and only then —
   // it must never overwrite a tag the writer has since picked themselves
   useEffect(() => {
     if (open && preset) {
+      setMode('review')
       setKind(preset.kind)
       setTag(preset)
     }
@@ -341,8 +406,9 @@ function Composer({
 
   const publish = () => {
     if (sending) return
-    if (!tag) return setError(`Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`)
-    if (!title.trim()) return setError('Give your review a title')
+    if (mode === 'review' && !tag)
+      return setError(`Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`)
+    if (!title.trim()) return setError(`Give your ${mode} a title`)
     if (body.trim().length < 20) return setError('Write a little more — at least a few sentences')
     let token: string | undefined
     if (authEnabled) {
@@ -357,20 +423,48 @@ function Composer({
     } catch {
       // remembering the name is best-effort
     }
-    createPost({ author: author.trim(), title: title.trim(), body: body.trim(), tag }, token)
-      .then((post) => {
-        onPublished(post)
-        onClose()
-        setTag(null)
-        setTagSearch('')
-        setTitle('')
-        setBody('')
-      })
-      .catch((err: Error) => {
-        if (err.message.toLowerCase().includes('sign in')) signOut()
-        setError(err.message || 'Could not publish right now — please try again')
-      })
-      .finally(() => setSending(false))
+    const done = () => {
+      onClose()
+      setTag(null)
+      setTagSearch('')
+      setTitle('')
+      setBody('')
+      setFilms([])
+      setImage(undefined)
+      setImagePosition(DEFAULT_POSITION)
+      setImageFit('cover')
+    }
+    const failed = (err: Error) => {
+      if (err.message.toLowerCase().includes('sign in')) signOut()
+      setError(err.message || 'Could not publish right now — please try again')
+    }
+    const payload = { author: author.trim(), title: title.trim(), body: body.trim() }
+    const framing = {
+      topic,
+      films,
+      image,
+      // Framing only travels with a picture to frame
+      ...(image ? { imagePosition, imageFit } : {}),
+    }
+    const sent =
+      editingPost && token
+        ? updatePost(editingPost.id, { ...payload, tag: tag! }, token).then((p) =>
+            onPostEdited?.(p)
+          )
+        : editing && token
+        ? updateArticle(editing.id, { ...payload, ...framing }, token).then((a) => onEdited?.(a))
+        : mode === 'article'
+          ? createArticle(
+              {
+                ...payload,
+                ...framing,
+                // Only ever sent to decline the byline; the server grants it
+                ...(canPublishAsSite && !asSite ? { official: false } : {}),
+              },
+              token
+            ).then(onArticlePublished)
+          : createPost({ ...payload, tag: tag! }, token).then(onPublished)
+    sent.then(done).catch(failed).finally(() => setSending(false))
   }
 
   if (!open) return null
@@ -379,13 +473,96 @@ function Composer({
     <section className="blog-composer">
       <div className="blog-composer-head">
         <h2>
-          <Feather size={17} /> Your take
+          <Feather size={17} />{' '}
+          {editingPost
+            ? 'Edit your review'
+            : editing
+              ? 'Edit your article'
+              : mode === 'article'
+                ? 'Your article'
+                : 'Your take'}
         </h2>
         <button className="share-close" onClick={onClose} aria-label="Close composer">
           <X size={16} />
         </button>
       </div>
 
+      {/* Hidden while editing: an article and a review are different stores, so
+          switching sides mid-edit would have nowhere to save */}
+      <div
+        className="blog-mode"
+        role="tablist"
+        aria-label="What are you writing?"
+        hidden={Boolean(editing || editingPost)}
+      >
+        <button
+          role="tab"
+          aria-selected={mode === 'review'}
+          className={`blog-mode-btn${mode === 'review' ? ' active' : ''}`}
+          onClick={() => setMode('review')}
+        >
+          <Star size={14} /> Review
+          <em>Something out this week</em>
+        </button>
+        <button
+          role="tab"
+          aria-selected={mode === 'article'}
+          className={`blog-mode-btn${mode === 'article' ? ' active' : ''}`}
+          onClick={() => setMode('article')}
+        >
+          <Newspaper size={14} /> Article
+          <em>Anything else — the 1983 final, a top ten, an old favourite</em>
+        </button>
+      </div>
+
+      {mode === 'article' ? (
+        <div className="blog-kind">
+          <button
+            className={`genre-chip${topic === 'movie' ? ' active' : ''}`}
+            onClick={() => setTopic('movie')}
+          >
+            <Film size={14} /> Movies
+          </button>
+          <button
+            className={`genre-chip${topic === 'match' ? ' active' : ''}`}
+            onClick={() => setTopic('match')}
+          >
+            <Trophy size={14} /> Cricket
+          </button>
+        </div>
+      ) : null}
+
+      {/* Owner only. Owning the site permits the byline; it should not force
+          every personal piece to go out as the masthead. */}
+      {/* Not offered while editing: the byline was settled at publish time and
+          an edit changes what the piece says, never who published it */}
+      {mode === 'article' && canPublishAsSite && !editing && (
+        <label className="compose-as-site">
+          <input type="checkbox" checked={asSite} onChange={(e) => setAsSite(e.target.checked)} />
+          <span>
+            Publish as <b>WeekAdda</b>
+            <em>{asSite ? 'Carries the site stamp' : `Goes out under “${author || 'your name'}”`}</em>
+          </span>
+        </label>
+      )}
+
+      {/* Articles only — a review would only ever be borrowing a poster */}
+      {mode === 'article' && (
+        <ArticleImagePicker
+          image={image}
+          position={imagePosition}
+          fit={imageFit}
+          onChange={setImage}
+          onPositionChange={setImagePosition}
+          onFitChange={setImageFit}
+        />
+      )}
+
+      {/* Offered on both topics: a piece about the 1983 final is filed under
+          cricket and still wants to point at the film of it */}
+      {mode === 'article' && <FilmWatchPicker films={films} onChange={setFilms} />}
+
+      {mode === 'article' ? null : (
       <div className="blog-kind">
         <button
           className={`genre-chip${kind === 'movie' ? ' active' : ''}`}
@@ -406,8 +583,9 @@ function Composer({
           <Trophy size={14} /> About a match
         </button>
       </div>
+      )}
 
-      {tag ? (
+      {mode === 'article' ? null : tag ? (
         <div className="blog-tag-picked">
           {tag.poster ? (
             <img src={tag.poster} alt="" />
@@ -468,16 +646,41 @@ function Composer({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={120}
-        placeholder="Review title — e.g. “This one deserves a second week in theatres”"
+        placeholder={
+          mode === 'article'
+            ? topic === 'match'
+              ? 'Article title — e.g. “The 1983 final still doesn’t make sense”'
+              : 'Article title — e.g. “My ten favourite Telugu films of the decade”'
+            : 'Review title — e.g. “This one deserves a second week in theatres”'
+        }
       />
       <textarea
         className="blog-textarea"
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        maxLength={5000}
-        rows={6}
-        placeholder="What did you feel about it? The moments that worked, the ones that didn't…"
+        // An article has room to be an essay; a review is about one thing
+        maxLength={mode === 'article' ? 20000 : 5000}
+        rows={mode === 'article' ? 12 : 6}
+        placeholder={
+          mode === 'article'
+            ? 'Take your time — no release date, no word limit worth worrying about.'
+            : "What did you feel about it? The moments that worked, the ones that didn't…"
+        }
       />
+      {/* Links become platform buttons only when the article renders, so
+          without this the writer cannot tell whether a pasted URL was
+          recognised until after publishing — by which time fixing it means
+          editing a live page. Same component the article page uses, so what
+          is shown here is what will actually be published. */}
+      {mode === 'article' && body.trim().length > 0 && (
+        <div className="compose-preview">
+          <span className="film-picker-label">
+            <Eye size={13} /> Preview
+          </span>
+          <Prose className="review-article-body" text={body} films={films} />
+        </div>
+      )}
+
       <div className="blog-composer-foot">
         <input
           className="blog-input author"
@@ -488,12 +691,21 @@ function Composer({
             authEnabled ? 'Display name shown on your post' : 'Your name — blank posts as Anonymous'
           }
         />
-        <span className="blog-count">{body.length}/5000</span>
+        <span className="blog-count">
+          {body.length}/{mode === 'article' ? 20000 : 5000}
+        </span>
         {needsSignIn ? (
           <GoogleButton onError={setError} />
         ) : (
           <button className="share-wa sm" onClick={publish} disabled={sending}>
-            <Send size={14} /> {sending ? 'Publishing…' : 'Publish'}
+            <Send size={14} />{' '}
+            {sending
+              ? editing || editingPost
+                ? 'Saving…'
+                : 'Publishing…'
+              : editing || editingPost
+                ? 'Save changes'
+                : 'Publish'}
           </button>
         )}
       </div>
@@ -508,94 +720,6 @@ function Composer({
   )
 }
 
-/**
- * 5-star rating row on a post. Reading is free; the first click from a
- * signed-out visitor opens the Google popup, then their rating applies.
- * Authors can see their post's average but can't rate it themselves.
- */
-function StarRow({
-  post,
-  summary,
-  own,
-  onRated,
-}: {
-  post: BlogPost
-  summary?: RatingSummary
-  own: boolean
-  onRated: (postId: string, summary: RatingSummary) => void
-}) {
-  const [hover, setHover] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
-  const interactive = authEnabled && !own
-
-  const shown = hover || summary?.mine || Math.round(summary?.avg ?? 0)
-
-  const rate = async (value: number) => {
-    if (!interactive || busy) return
-    setBusy(true)
-    setNote('')
-    try {
-      let token = refreshUser()?.token
-      if (!token) token = (await signInWithGoogle()).token
-      const fresh = await ratePost(post.id, value, token)
-      onRated(post.id, fresh)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : ''
-      if (message !== 'popup_closed' && message !== 'popup_closed_by_user') {
-        setNote(message || 'Could not save your rating — please try again')
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    // Rating clicks must not bubble into the card's open-modal click
-    <div className="post-rating" onClick={(e) => e.stopPropagation()}>
-      <span
-        className={`post-stars${interactive ? ' interactive' : ''}`}
-        onMouseLeave={() => setHover(0)}
-        role={interactive ? 'radiogroup' : undefined}
-        aria-label={interactive ? 'Rate this take' : undefined}
-      >
-        {[1, 2, 3, 4, 5].map((value) => (
-          <button
-            key={value}
-            className={`post-star${value <= shown ? ' filled' : ''}${summary?.mine ? ' mine' : ''}`}
-            disabled={!interactive || busy}
-            onMouseEnter={() => interactive && setHover(value)}
-            onClick={() => rate(value)}
-            title={
-              own
-                ? 'Your take — others rate it'
-                : summary?.mine
-                  ? `Your rating: ${summary.mine} — click to change`
-                  : `Rate ${value} star${value === 1 ? '' : 's'}`
-            }
-          >
-            <Star size={15} fill={value <= shown ? 'currentColor' : 'none'} />
-          </button>
-        ))}
-      </span>
-      <span className="post-rating-meta">
-        {summary && summary.count > 0 ? (
-          <>
-            {summary.avg.toFixed(1)} · {summary.count} rating{summary.count === 1 ? '' : 's'}
-            {own && <em> · your take</em>}
-            {summary.mine ? <em> · you rated {summary.mine}</em> : null}
-          </>
-        ) : own ? (
-          <em>your take — no ratings yet</em>
-        ) : (
-          <em>be the first to rate</em>
-        )}
-      </span>
-      {note && <span className="post-rating-note">{note}</span>}
-    </div>
-  )
-}
-
 /** Full take in a modal — same pattern as movie cards, no grid reflow. */
 function PostModal({
   post,
@@ -603,13 +727,36 @@ function PostModal({
   own,
   onRated,
   onClose,
+  onEdit,
+  onDeleted,
 }: {
   post: BlogPost
   rating?: RatingSummary
   own: boolean
   onRated: (postId: string, summary: RatingSummary) => void
   onClose: () => void
+  onEdit: (post: BlogPost) => void
+  onDeleted: (postId: string) => void
 }) {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const remove = async () => {
+    const fresh = refreshUser()
+    if (!fresh || busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await deletePost(post.id, fresh.token)
+      onDeleted(post.id)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete — please try again')
+      setBusy(false)
+    }
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -657,6 +804,36 @@ function PostModal({
           ))}
         </div>
         <StarRow post={post} summary={rating} own={own} onRated={onRated} />
+        {/* The review's own page — shareable, and the only in-app link to it
+            now that the rail beside the feed carries articles instead. Without
+            this every /review/:id page would be an orphan. */}
+        <Link className="blog-modal-full" to={reviewPath(post)}>
+          Full page <ExternalLink size={13} />
+        </Link>
+        {/* Only on your own review, and the server checks the verified email
+            again when either one is actually used */}
+        {own && (
+          <div className="article-owner-tools">
+            <button className="article-owner-btn" onClick={() => onEdit(post)}>
+              <Pencil size={14} /> Edit
+            </button>
+            {confirming ? (
+              <>
+                <button className="article-owner-btn danger" onClick={remove} disabled={busy}>
+                  <Trash2 size={14} /> {busy ? 'Deleting…' : 'Yes, delete it'}
+                </button>
+                <button className="article-owner-btn" onClick={() => setConfirming(false)}>
+                  Keep it
+                </button>
+              </>
+            ) : (
+              <button className="article-owner-btn" onClick={() => setConfirming(true)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            )}
+            {error && <span className="blog-error">{error}</span>}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -738,6 +915,12 @@ function PostCard({
 
 export default function Reviews() {
   const [posts, setPosts] = useState<BlogPost[]>([])
+  const [articles, setArticles] = useState<Article[]>([])
+  const [myArticles, setMyArticles] = useState<Article[] | null>(null)
+  // Whether this account may publish under the site's byline; decided server-
+  // side from OWNER_EMAIL, which never reaches the browser
+  const [isOwner, setIsOwner] = useState(false)
+  const [articleLikes, setArticleLikes] = useState<Record<string, LikeSummary>>({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'movie' | 'match' | 'mine'>('all')
   // The signed-in visitor's own contributions ("My takes")
@@ -750,6 +933,51 @@ export default function Reviews() {
   const [preset, setPreset] = useState<BlogTag | null>(null)
   const [params, setParams] = useSearchParams()
   const wantedReview = params.get('review')
+  // ?compose=article — set by "Write an article" in the rail on an article page
+  const wantedCompose = params.get('compose')
+  // ?edit=<id> — set by "Edit" on your own article page
+  const wantedEdit = params.get('edit')
+  const [editing, setEditing] = useState<Article | null>(null)
+  const [editingPost, setEditingPost] = useState<BlogPost | null>(null)
+  const [composeMode, setComposeMode] = useState<'review' | 'article'>('review')
+
+  // Arriving from "Edit" on your own article: fetch it, open the composer on
+  // it, and drop the key so a refresh is a plain visit to /reviews. The server
+  // decides ownership all over again when the edit is saved.
+  useEffect(() => {
+    if (!wantedEdit) return
+    fetchArticle(wantedEdit)
+      .then((r) => {
+        setEditing(r.article)
+        setComposerOpen(true)
+      })
+      .catch(() => {})
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('edit')
+        return next
+      },
+      { replace: true }
+    )
+  }, [wantedEdit, setParams])
+
+  // Arriving from "Write an article" opens the composer already on the article
+  // side, then drops the key — so a refresh is a plain visit to /reviews rather
+  // than a form reopening itself forever.
+  useEffect(() => {
+    if (wantedCompose !== 'article' && wantedCompose !== 'review') return
+    setComposeMode(wantedCompose)
+    setComposerOpen(true)
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('compose')
+        return next
+      },
+      { replace: true }
+    )
+  }, [wantedCompose, setParams])
 
   // Rating summaries — refetched on sign-in/out so "your rating" stays right
   useEffect(() => {
@@ -771,6 +999,10 @@ export default function Reviews() {
   }, [user])
 
   const mineIds = useMemo(() => new Set((myPosts ?? []).map((p) => p.id)), [myPosts])
+  const mineArticleIds = useMemo(
+    () => new Set((myArticles ?? []).map((a) => a.id)),
+    [myArticles]
+  )
 
   // ?review=<id> — arriving on one particular review (the mini player hands the
   // slide's own id over, and the URL is shareable). Open it, and put its card
@@ -801,8 +1033,8 @@ export default function Reviews() {
   // Worker writes those tags into the HTML and this overwrites them on mount,
   // so the two disagreeing means one URL advertising two titles
   usePageMeta(
-    'Movie & Cricket Reviews by Real Viewers | WeekAdda',
-    'Honest reviews of this week’s movies, OTT releases and cricket matches — written and rated out of five by the people who actually watched them.'
+    'Movie & Cricket Reviews & Articles by Viewers | WeekAdda',
+    'Honest reviews of this week’s movies, OTT releases and cricket matches — written by the people who watched them, plus articles worth going back to.'
   )
 
   useEffect(() => {
@@ -811,6 +1043,34 @@ export default function Reviews() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  // The rail is its own fetch: articles are a separate store, and a failure
+  // to load them must not take the reviews feed down with it
+  useEffect(() => {
+    fetchArticles()
+      .then((r) => setArticles(r.articles))
+      .catch(() => setArticles([]))
+  }, [])
+
+  // Counts are public; the token only adds whether this reader liked each
+  useEffect(() => {
+    fetchArticleLikes(user ? refreshUser()?.token : undefined)
+      .then((r) => setArticleLikes(r.likes))
+      .catch(() => {})
+  }, [user])
+
+  // Which of them the signed-in visitor wrote. Asked by id rather than matched
+  // on the display name, which two people can share.
+  useEffect(() => {
+    const fresh = user && refreshUser()
+    if (!fresh) return setMyArticles(null)
+    fetchMyArticles(fresh.token)
+      .then((r) => {
+        setMyArticles(r.articles)
+        setIsOwner(Boolean(r.owner))
+      })
+      .catch(() => setMyArticles([]))
+  }, [user])
 
   const visible =
     filter === 'all'
@@ -874,7 +1134,15 @@ export default function Reviews() {
           </p>
         </div>
         {!composerOpen && (
-          <button className="community-cta" onClick={() => setComposerOpen(true)}>
+          <button
+            className="community-cta"
+            onClick={() => {
+              // This button says review, so it must open on review — whatever
+              // the last visit to the composer happened to be
+              setComposeMode('review')
+              setComposerOpen(true)
+            }}
+          >
             <PenLine size={18} /> Write a review
           </button>
         )}
@@ -887,10 +1155,29 @@ export default function Reviews() {
           onClose={() => {
             setComposerOpen(false)
             setPreset(null)
+            setEditing(null)
+            setEditingPost(null)
           }}
           onPublished={(post) => {
             setPosts((p) => [post, ...p])
             if (user) setMyPosts((mine) => [post, ...(mine ?? [])])
+          }}
+          onArticlePublished={(article) => {
+            setArticles((a) => [article, ...a])
+            // Marked as yours straight away, rather than only after a reload
+            if (user) setMyArticles((mine) => [article, ...(mine ?? [])])
+          }}
+          startMode={composeMode}
+          canPublishAsSite={isOwner}
+          editing={editing}
+          onEdited={(article) => {
+            setArticles((a) => a.map((x) => (x.id === article.id ? article : x)))
+            setMyArticles((mine) => (mine ?? []).map((x) => (x.id === article.id ? article : x)))
+          }}
+          editingPost={editingPost}
+          onPostEdited={(post) => {
+            setPosts((all) => all.map((p) => (p.id === post.id ? post : p)))
+            setMyPosts((mine) => (mine ?? []).map((p) => (p.id === post.id ? post : p)))
           }}
         />
 
@@ -927,81 +1214,94 @@ export default function Reviews() {
           </p>
         )}
 
-        {loading ? (
-          <div className="blog-feed" aria-hidden>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="sk blog-card-sk" />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          <div className="empty-state">
-            <Feather size={54} />
-            {/* An empty page should say what belongs here and why it is worth
-                adding, rather than only reporting that nothing is here */}
-            {filter === 'mine' ? (
-              <>
-                <h3>You haven’t reviewed anything yet</h3>
-                <p>
-                  Pick something you’ve watched this week, rate it out of five and say what you
-                  actually thought. Everything you write shows up here under your name.
-                </p>
-              </>
-            ) : filter === 'movie' ? (
-              <>
-                <h3>No film reviews yet</h3>
-                <p>
-                  Seen something on OTT or in a theatre this week? Tell everyone whether it was
-                  worth it — a couple of lines and a rating is plenty.
-                </p>
-              </>
-            ) : filter === 'match' ? (
-              <>
-                <h3>No match reviews yet</h3>
-                <p>
-                  Watched a game worth talking about? Say what turned it — a couple of lines and a
-                  rating is plenty.
-                </p>
-              </>
+        <div className="blog-layout">
+          <div className="blog-main">
+            {loading ? (
+              <div className="blog-feed" aria-hidden>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="sk blog-card-sk" />
+                ))}
+              </div>
+            ) : visible.length === 0 ? (
+              <div className="empty-state">
+                <Feather size={54} />
+                {/* An empty page should say what belongs here and why it is worth
+                    adding, rather than only reporting that nothing is here */}
+                {filter === 'mine' ? (
+                  <>
+                    <h3>You haven’t reviewed anything yet</h3>
+                    <p>
+                      Pick something you’ve watched this week, rate it out of five and say what you
+                      actually thought. Everything you write shows up here under your name.
+                    </p>
+                  </>
+                ) : filter === 'movie' ? (
+                  <>
+                    <h3>No film reviews yet</h3>
+                    <p>
+                      Seen something on OTT or in a theatre this week? Tell everyone whether it was
+                      worth it — a couple of lines and a rating is plenty.
+                    </p>
+                  </>
+                ) : filter === 'match' ? (
+                  <>
+                    <h3>No match reviews yet</h3>
+                    <p>
+                      Watched a game worth talking about? Say what turned it — a couple of lines and
+                      a rating is plenty.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3>Nobody has reviewed anything yet</h3>
+                    <p>
+                      Yours would be the first. Someone deciding what to watch tonight will read it
+                      — that is the whole point of this page.
+                    </p>
+                  </>
+                )}
+                {/* Two ways out, so an empty page is never a dead end: name
+                    something they may have watched, or send them to the films. */}
+                {filter !== 'match' && (
+                  <ReviewStarters
+                    onPick={(tag) => {
+                      setPreset(tag)
+                      setComposeMode('review')
+                      setComposerOpen(true)
+                    }}
+                  />
+                )}
+                <Link className="empty-onward" to="/movies">
+                  See what released this week <ArrowRight size={14} />
+                </Link>
+              </div>
             ) : (
-              <>
-                <h3>Nobody has reviewed anything yet</h3>
-                <p>
-                  Yours would be the first. Someone deciding what to watch tonight will read it —
-                  that is the whole point of this page.
-                </p>
-              </>
+              <div className="blog-feed">
+                {visible.map((post, i) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    index={i}
+                    mine={mineIds.has(post.id)}
+                    rating={ratings[post.id]}
+                    onRated={(postId, summary) =>
+                      setRatings((r) => ({ ...r, [postId]: summary }))
+                    }
+                    onOpen={setSelected}
+                  />
+                ))}
+              </div>
             )}
-            {/* Two ways out, so an empty page is never a dead end: name
-                something they may have watched, or send them to the films. */}
-            {filter !== 'match' && (
-              <ReviewStarters
-                onPick={(tag) => {
-                  setPreset(tag)
-                  setComposerOpen(true)
-                }}
-              />
-            )}
-            <Link className="empty-onward" to="/movies">
-              See what released this week <ArrowRight size={14} />
-            </Link>
           </div>
-        ) : (
-          <div className="blog-feed">
-            {visible.map((post, i) => (
-              <PostCard
-                key={post.id}
-                post={post}
-                index={i}
-                mine={mineIds.has(post.id)}
-                rating={ratings[post.id]}
-                onRated={(postId, summary) =>
-                  setRatings((r) => ({ ...r, [postId]: summary }))
-                }
-                onOpen={setSelected}
-              />
-            ))}
-          </div>
-        )}
+          {/* Articles, never reviews: the feed to the left already is the
+              reviews, and an article has no release to date it. */}
+          <ArticleIndex
+            articles={articles}
+            mineIds={mineArticleIds}
+            likes={articleLikes}
+            empty="Nothing here yet — the 1983 final, a top ten, an old favourite. Write one from “Write a review”."
+          />
+        </div>
       </div>
       {selected && (
         <PostModal
@@ -1010,6 +1310,17 @@ export default function Reviews() {
           own={mineIds.has(selected.id)}
           onRated={(postId, summary) => setRatings((r) => ({ ...r, [postId]: summary }))}
           onClose={closeSelected}
+          onEdit={(post) => {
+            // Close the modal first — the composer is above the feed, and
+            // leaving an overlay open over it would hide what was opened
+            closeSelected()
+            setEditingPost(post)
+            setComposerOpen(true)
+          }}
+          onDeleted={(postId) => {
+            setPosts((all) => all.filter((p) => p.id !== postId))
+            setMyPosts((mine) => (mine ?? []).filter((p) => p.id !== postId))
+          }}
         />
       )}
     </main>

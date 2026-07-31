@@ -3,12 +3,22 @@ import {
   buildPlatformSeo,
   buildMoviesSeo,
   buildTitlePage,
+  buildReviewPage,
+  buildArticlePage,
+  buildBlogSeo,
   buildSitemap,
   buildAboutSeo,
   buildCricketSeo,
   routeMeta,
 } from './seo'
-import { OTT_PLATFORMS, type ReleaseCache, type OttRelease, type Release } from './queries'
+import {
+  OTT_PLATFORMS,
+  type Article,
+  type BlogPost,
+  type ReleaseCache,
+  type OttRelease,
+  type Release,
+} from './queries'
 
 /**
  * The pre-render is a string, which is exactly why it needs tests: every bug it
@@ -56,6 +66,24 @@ const data: ReleaseCache = {
   ],
   ottUpcoming: [ott({ id: 'n4', title: 'Netflix Soon', releaseDate: iso(6) })],
 }
+
+const post = (over: Partial<BlogPost> & { id: string }): BlogPost => ({
+  ts: new Date().toISOString(),
+  author: 'Ravi',
+  title: 'Worth the ticket',
+  body: 'The second half earns the ending.\n\nStay for the last twenty minutes.',
+  tag: { kind: 'movie', id: 'n1', label: 'Netflix One', sub: 'Telugu', poster: null },
+  ...over,
+})
+
+const article = (over: Partial<Article> & { id: string }): Article => ({
+  ts: new Date().toISOString(),
+  author: 'Ravi',
+  topic: 'match',
+  title: 'The 1983 final still does not make sense',
+  body: 'Sixty overs, and nobody gave them a chance.\n\nKapil did not agree.',
+  ...over,
+})
 
 /** Every route that ships a title/description, hubs included. */
 const ALL_META_PATHS = [
@@ -339,6 +367,20 @@ describe('buildSitemap', () => {
     expect(new Set(locs).size).toBe(locs.length)
   })
 
+  it('lists every review page, dated by the review rather than by the sweep', () => {
+    const withReview = buildSitemap(data, [post({ id: 'p-1', ts: '2026-01-09T10:00:00.000Z' })])
+    expect(withReview).toContain(
+      '<loc>https://weekadda.com/review/p-1/worth-the-ticket</loc><lastmod>2026-01-09</lastmod>'
+    )
+  })
+
+  it('lists every article page too', () => {
+    const withArticle = buildSitemap(data, [], [article({ id: 'a-1', ts: '2026-02-03T08:00:00Z' })])
+    expect(withArticle).toContain(
+      '<loc>https://weekadda.com/article/a-1/the-1983-final-still-does-not-make-sense</loc><lastmod>2026-02-03</lastmod>'
+    )
+  })
+
   it('is well-formed XML with a single urlset', () => {
     expect(map.startsWith('<?xml')).toBe(true)
     expect([...map.matchAll(/<urlset/g)]).toHaveLength(1)
@@ -406,6 +448,259 @@ describe('buildTitlePage', () => {
     const page = buildTitlePage(data, 'n1')!
     expect(page.description.length).toBeLessThanOrEqual(160)
     expect(page.canonical).toBe('https://weekadda.com/movie/n1/netflix-one')
+  })
+})
+
+describe('buildReviewPage', () => {
+  it('returns null for a review that is no longer held', () => {
+    expect(buildReviewPage([], 'p-gone')).toBeNull()
+    expect(buildReviewPage([post({ id: 'p-1' })], 'p-2')).toBeNull()
+  })
+
+  it('carries the whole take, not the opening the feed shows', () => {
+    const page = buildReviewPage([post({ id: 'p-1' })], 'p-1')!
+    expect(page.block).toContain('The second half earns the ending')
+    expect(page.block).toContain('Stay for the last twenty minutes')
+    expect(page.canonical).toBe('https://weekadda.com/review/p-1/worth-the-ticket')
+  })
+
+  it('links back to the film it is about, and to the rest of the reviews', () => {
+    const page = buildReviewPage([post({ id: 'p-1' })], 'p-1')!
+    expect(page.block).toContain('href="/movie/n1/netflix-one"')
+    expect(page.block).toContain('href="/reviews"')
+  })
+
+  it('marks the review up without a rating — the stars are not a verdict', () => {
+    const page = buildReviewPage([post({ id: 'p-1' })], 'p-1')!
+    const review = schemas(page.block).find((s) => s['@type'] === 'Review')
+    expect(review.author.name).toBe('Ravi')
+    expect(review.itemReviewed['@type']).toBe('Movie')
+    // Same rule as the title pages: the five stars measure how useful readers
+    // found the review, so mapping them to a score out of five would be a lie
+    expect(review.reviewRating).toBeUndefined()
+  })
+
+  it('invents no itemReviewed type for a match review', () => {
+    const match = post({
+      id: 'p-m',
+      tag: { kind: 'match', id: 'm1', label: 'India vs Zimbabwe', sub: '', poster: null },
+    })
+    const page = buildReviewPage([match], 'p-m')!
+    expect(page.block).toContain('India vs Zimbabwe')
+    // The breadcrumb still emits its own schema; what must not appear is a
+    // Review pointing at a made-up itemReviewed type for a cricket match
+    expect(schemas(page.block).some((s) => s['@type'] === 'Review')).toBe(false)
+    // and no /movie/ link, which would point at a page that does not exist
+    expect(page.block).not.toContain('href="/movie/')
+  })
+
+  it('keeps the meta description inside what search engines display', () => {
+    const long = post({ id: 'p-long', body: 'Very good film. '.repeat(60) })
+    const page = buildReviewPage([long], 'p-long')!
+    expect(page.description.length).toBeLessThanOrEqual(160)
+    expect(page.title).toContain('Netflix One')
+  })
+})
+
+describe('buildArticlePage', () => {
+  it('carries the whole article and canonicalises to its own path', () => {
+    const page = buildArticlePage(article({ id: 'a-1' }))!
+    expect(page.block).toContain('nobody gave them a chance')
+    expect(page.block).toContain('Kapil did not agree')
+    expect(page.canonical).toBe(
+      'https://weekadda.com/article/a-1/the-1983-final-still-does-not-make-sense'
+    )
+  })
+
+  it('is an Article, not a Review — nothing here is being rated', () => {
+    const page = buildArticlePage(article({ id: 'a-1' }))!
+    const ld = schemas(page.block).find((s) => s['@type'] === 'Article')
+    expect(ld.author.name).toBe('Ravi')
+    expect(ld.headline).toContain('1983')
+    expect(schemas(page.block).some((s) => s['@type'] === 'Review')).toBe(false)
+  })
+
+  /**
+   * The related rail is the only crawlable path from one article to the next —
+   * nothing else on the site links to them individually. If it stops being
+   * rendered, every article becomes an island that only the sitemap knows.
+   */
+  it('links to the related articles beside it', () => {
+    const page = buildArticlePage(article({ id: 'a-1' }), [
+      article({ id: 'a-2', title: 'Ten films that hold up' }),
+    ])!
+    expect(page.block).toContain('href="/article/a-2/ten-films-that-hold-up"')
+  })
+
+  it('keeps the meta description inside what search engines display', () => {
+    const page = buildArticlePage(article({ id: 'a-1', body: 'Very long. '.repeat(80) }))!
+    expect(page.description.length).toBeLessThanOrEqual(160)
+  })
+
+  /**
+   * A pasted link is the whole point of "watch it here" — as plain text it is
+   * a string the reader has to select and copy. The client renders these the
+   * same way (Prose.tsx); if the two disagree, a crawler and a reader are
+   * looking at different pages.
+   */
+  describe('where to watch', () => {
+    it('links each named platform, and the film page when we still hold it', () => {
+      const page = buildArticlePage(
+        article({
+          id: 'a-1',
+          films: [
+            { id: 'n1', title: 'Netflix One', platforms: [{ name: 'Netflix' }] },
+            { title: '83', platforms: [{ name: 'Netflix' }] },
+          ],
+        })
+      )!
+      expect(page.block).toContain('Where to watch')
+      expect(page.block).toContain('href="/movie/n1/netflix-one"')
+      expect(page.block).toContain('https://www.netflix.com/search?q=83')
+      // A film outside the release window has no page to link to
+      expect(page.block).toContain('<strong>83</strong>')
+    })
+
+    it('names a film with no platform rather than dropping it', () => {
+      const page = buildArticlePage(
+        article({ id: 'a-1', films: [{ title: 'Sholay', platforms: [] }] })
+      )!
+      expect(page.block).toContain('Sholay')
+    })
+
+    it('says nothing at all when no film is attached', () => {
+      expect(buildArticlePage(article({ id: 'a-1' }))!.block).not.toContain('Where to watch')
+    })
+
+    it('prefers the writer’s exact title page over a search', () => {
+      const page = buildArticlePage(
+        article({
+          id: 'a-1',
+          films: [
+            {
+              title: 'RRR',
+              platforms: [{ name: 'Netflix', url: 'https://www.netflix.com/in/title/81476453' }],
+            },
+          ],
+        })
+      )!
+      expect(page.block).toContain('https://www.netflix.com/in/title/81476453')
+      expect(page.block).not.toContain('netflix.com/search')
+    })
+
+    /**
+     * The useful place for "watch it here" is beside the title being talked
+     * about. A ten-film list would otherwise make the reader scroll past all
+     * ten to a block at the bottom and match them up by eye.
+     */
+    it('badges a film where the prose names it, instead of only underneath', () => {
+      const page = buildArticlePage(
+        article({
+          id: 'a-1',
+          body: 'Rangasthalam is sound design as a character.',
+          films: [
+            {
+              title: 'Rangasthalam',
+              platforms: [{ name: 'Amazon Prime Video', url: 'https://www.primevideo.com/detail/X' }],
+            },
+          ],
+        })
+      )!
+      expect(page.block).toContain('Rangasthalam (<a href="https://www.primevideo.com/detail/X"')
+      // and is not then repeated in a block below
+      expect(page.block).not.toContain('Where to watch')
+    })
+
+    it('does not find a film inside a longer word or number', () => {
+      const page = buildArticlePage(
+        article({
+          id: 'a-1',
+          // "83" must not match inside "1983"
+          body: 'The 1983 final was the whole point.',
+          films: [{ title: '83', platforms: [{ name: 'Netflix' }] }],
+        })
+      )!
+      expect(page.block).toContain('The 1983 final')
+      expect(page.block).not.toContain('1983 <a')
+      // unnamed, so it falls through to the block instead
+      expect(page.block).toContain('Where to watch')
+    })
+
+    it('badges only the first mention, however often a film comes up', () => {
+      const page = buildArticlePage(
+        article({
+          id: 'a-1',
+          body: 'RRR opens loud.\n\nRRR closes louder.',
+          films: [{ title: 'RRR', platforms: [{ name: 'Netflix' }] }],
+        })
+      )!
+      expect([...page.block.matchAll(/netflix\.com\/search/g)]).toHaveLength(1)
+    })
+  })
+
+  describe('links a writer pastes', () => {
+    const withLink = (body: string) => buildArticlePage(article({ id: 'a-1', body }))!.block
+
+    it('become real links, marked as visitor-supplied', () => {
+      const html = withLink('Watch it: https://www.netflix.com/in/title/81144147')
+      expect(html).toContain('<a href="https://www.netflix.com/in/title/81144147"')
+      expect(html).toContain('rel="nofollow ugc noopener noreferrer"')
+      expect(html).toContain('target="_blank"')
+    })
+
+    it('are labelled by the service instead of showing a raw URL', () => {
+      const html = withLink(
+        'Film: https://www.netflix.com/in/title/81144147 and highlights: https://www.youtube.com/watch?v=abc'
+      )
+      expect(html).toContain('>Netflix</a>')
+      expect(html).toContain('>YouTube</a>')
+      // the href is still the real link, only the visible text changed
+      expect(html).toContain('href="https://www.netflix.com/in/title/81144147"')
+    })
+
+    it('matches on the domain, not on the URL merely containing the word', () => {
+      const html = withLink('https://example.com/netflix/review')
+      expect(html).not.toContain('>Netflix</a>')
+      expect(html).toContain('>https://example.com/netflix/review</a>')
+    })
+
+    it('leave the sentence its full stop', () => {
+      const html = withLink('See https://example.com/a.')
+      expect(html).toContain('<a href="https://example.com/a"')
+      expect(html).toContain('</a>.')
+    })
+
+    it('cannot smuggle markup through the body', () => {
+      const html = withLink('<script>alert(1)</script> and <a href="x">no</a>')
+      expect(html).not.toContain('<script>')
+      expect(html).not.toContain('<a href="x"')
+      expect(html).toContain('&lt;script&gt;')
+    })
+
+    it('do not turn a bare domain or a javascript: URL into a link', () => {
+      expect(withLink('go to example.com now')).not.toContain('<a href="example.com')
+      // eslint-disable-next-line no-script-url
+      expect(withLink('javascript:alert(1)')).not.toContain('<a href="javascript:')
+    })
+  })
+})
+
+describe('buildBlogSeo', () => {
+  it('links the articles beside the feed, so they are not orphans', () => {
+    const block = buildBlogSeo([post({ id: 'p-1' })], [article({ id: 'a-1' })])
+    expect(block).toContain('href="/article/a-1/')
+    expect(block).toContain('Articles')
+  })
+
+  it('says nothing about articles when there are none', () => {
+    const block = buildBlogSeo([post({ id: 'p-1' })])
+    expect(block).not.toContain('/article/')
+  })
+
+  it('never lists an article as though it were a review', () => {
+    const block = buildBlogSeo([post({ id: 'p-1' })], [article({ id: 'a-1' })])
+    const reviews = block.slice(block.indexOf('Latest reviews'), block.indexOf('Articles'))
+    expect(reviews).not.toContain('1983')
   })
 })
 
@@ -477,6 +772,8 @@ describe('every pre-render block', () => {
     ['upcoming', buildMoviesSeo(data, 'upcoming')],
     ['hub', buildPlatformSeo(data, 'netflix')!],
     ['title', buildTitlePage(data, 'n1')!.block],
+    ['review', buildReviewPage([post({ id: 'p-1' })], 'p-1')!.block],
+    ['article', buildArticlePage(article({ id: 'a-1' }), [article({ id: 'a-2' })])!.block],
   ]
 
   it.each(blocks)('%s emits only valid JSON-LD', (_name, html) => {

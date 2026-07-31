@@ -79,6 +79,72 @@ export interface BlogPost {
   tag: BlogTag
 }
 
+/**
+ * The other kind of writing: no release to hang on, so no tag — the 1983
+ * final, a top-ten list, an old film revisited. Its own type, not a variant of
+ * BlogPost, which is what keeps it out of the reviews feed by construction.
+ * No star ratings, unlike a review.
+ */
+export interface Article {
+  id: string
+  ts: string
+  author: string
+  /**
+   * Published by the site itself rather than a visitor. Server-set from the
+   * verified email against OWNER_EMAIL — never from anything the browser
+   * sends, so the stamp cannot be earned by typing "WeekAdda" as a name.
+   */
+  official?: boolean
+  topic: 'movie' | 'match'
+  title: string
+  body: string
+  /** Movie articles: films the piece is about, and where to watch them. */
+  films?: ArticleFilm[]
+  /** Cover image, uploaded with the article. Articles only, never reviews. */
+  image?: string
+  /**
+   * How the cover is framed, chosen after upload rather than baked into the
+   * file. `imagePosition` is a CSS object-position ("50% 30%") naming the point
+   * that must stay visible when the crop bites; `imageFit: 'contain'` shows the
+   * whole picture instead. Neither touches the stored bytes.
+   */
+  imagePosition?: string
+  imageFit?: 'cover' | 'contain'
+}
+
+/**
+ * Platforms are stated by the writer, not looked up: articles are usually
+ * about older films, and the release cache only holds thirteen weeks. When the
+ * film IS in the cache the composer fills these in and keeps its `id`, which
+ * is what lets the block link to the film's own WeekAdda page.
+ */
+export interface ArticleFilm {
+  id?: string
+  title: string
+  platforms: ArticleWatch[]
+}
+
+/**
+ * One place to watch a film. `url` is the exact title page when the writer has
+ * it — always better than a search, which can land on the wrong film or on
+ * nothing. Without one we search that platform for the title instead.
+ */
+export interface ArticleWatch {
+  name: string
+  url?: string
+}
+
+/**
+ * Hearts on an article. A like, not a rating: an article is liked or it isn't,
+ * and a single count can never be read as a verdict on the film or match it
+ * discusses — which is the confusion the review stars have to keep explaining.
+ */
+export interface LikeSummary {
+  count: number
+  /** Whether the signed-in reader has liked it; absent when signed out. */
+  mine?: boolean
+}
+
 export interface RatingSummary {
   avg: number
   count: number

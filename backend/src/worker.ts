@@ -7,6 +7,19 @@ import {
   countMembers,
   MemberActivity,
   buildPost,
+  applyPostEdit,
+  canEditPost,
+  publicPost,
+  relatedReviews,
+  buildArticle,
+  applyArticleEdit,
+  canEditArticle,
+  publicArticle,
+  relatedArticles,
+  summarizeLikes,
+  imageExtension,
+  MAX_IMAGE_BYTES,
+  Article,
   findTitle,
   relatedTitles,
   verifyGoogleToken,
@@ -32,6 +45,8 @@ import {
   buildAddaSeo,
   buildPrivacySeo,
   buildTitlePage,
+  buildReviewPage,
+  buildArticlePage,
   buildSitemap,
   routeMeta,
   cricketMeta,
@@ -49,6 +64,9 @@ import {
  */
 
 const CANONICAL_HOST = 'weekadda.com'
+
+/** Supabase Storage bucket for article covers. Must exist and be public. */
+const IMAGE_BUCKET = 'article-images'
 
 interface Env {
   SUPABASE_URL: string
@@ -189,6 +207,45 @@ async function loadPosts(env: Env): Promise<{ posts: BlogPost[] }> {
   return value
 }
 
+async function loadArticles(env: Env): Promise<{ articles: Article[] }> {
+  const hit = memory.get('article-list')
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as { articles: Article[] }
+  const res = await sb(env, 'articles?select=id,ts,author,topic,title,body,official,films,image,imagePosition:image_position,imageFit:image_fit&order=ts.desc&limit=200')
+  const articles = res.ok ? ((await res.json()) as Article[]) : []
+  const value = { articles }
+  memory.set('article-list', { at: Date.now(), value })
+  return value
+}
+
+/** One article by id, with the same off-the-end fallback as loadPost. */
+async function loadArticle(env: Env, id: string): Promise<Article | null> {
+  const cached = (await loadArticles(env)).articles.find((a) => a.id === id)
+  if (cached) return cached
+  const res = await sb(
+    env,
+    `articles?id=eq.${encodeURIComponent(id)}&select=id,ts,author,topic,title,body,official,films,image,imagePosition:image_position,imageFit:image_fit&limit=1`
+  )
+  const rows = res.ok ? ((await res.json()) as Article[]) : []
+  return rows[0] ?? null
+}
+
+/**
+ * One review by id, for its own page. The cached list above holds only the 200
+ * newest, so an older review has to be fetched directly — without this, a page
+ * that is indexed and shared quietly 404s the day it falls off the end of the
+ * list, which is the worst kind of dead link: one we created.
+ */
+async function loadPost(env: Env, id: string): Promise<BlogPost | null> {
+  const cached = (await loadPosts(env)).posts.find((p) => p.id === id)
+  if (cached) return cached
+  const res = await sb(
+    env,
+    `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,title,body,tag&limit=1`
+  )
+  const rows = res.ok ? ((await res.json()) as BlogPost[]) : []
+  return rows[0] ?? null
+}
+
 /** Pages that get a pre-rendered content block inside <div id="root">. */
 const SEO_PAGES = new Set([
   '/',
@@ -211,7 +268,8 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
     return buildCricketSeo(cricket, pathname === '/cricket/results' ? 'results' : 'fixtures')
   }
   if (pathname === '/reviews') {
-    return buildBlogSeo((await loadPosts(env)).posts)
+    const [{ posts }, { articles }] = await Promise.all([loadPosts(env), loadArticles(env)])
+    return buildBlogSeo(posts, articles)
   }
   if (pathname === '/about') {
     return buildAboutSeo()
@@ -264,10 +322,25 @@ const SPA_ROUTES = new Set([
   '/adda',
   '/privacy',
   '/stats',
+  '/my-articles',
 ])
+
+/**
+ * Real pages that must never be indexed. /stats is the owner's dashboard;
+ * /my-articles is one writer's own body of work and is empty for anyone else,
+ * including a crawler. Both are absent from SEO_PAGES and buildSitemap too —
+ * this header is what covers crawlers that ignore robots.txt.
+ */
+const NOINDEX_PAGES = new Set(['/stats', '/my-articles'])
 
 /** Title pages carry an id and an optional slug: /movie/:id[/:slug]. */
 const MOVIE_ROUTE = /^\/movie\/[^/]+(\/[^/]*)?$/
+
+/** One review's own page, same shape: /review/:id[/:slug]. */
+const REVIEW_ROUTE = /^\/review\/[^/]+(\/[^/]*)?$/
+
+/** One article's own page, same shape again: /article/:id[/:slug]. */
+const ARTICLE_ROUTE = /^\/article\/[^/]+(\/[^/]*)?$/
 
 /**
  * /ott/<slug>, and only for a platform we actually serve — /ott/hulu has to
@@ -279,7 +352,13 @@ function ottHubSlug(pathname: string): string | null {
 }
 
 function isKnownRoute(pathname: string): boolean {
-  return SPA_ROUTES.has(pathname) || MOVIE_ROUTE.test(pathname) || ottHubSlug(pathname) !== null
+  return (
+    SPA_ROUTES.has(pathname) ||
+    MOVIE_ROUTE.test(pathname) ||
+    REVIEW_ROUTE.test(pathname) ||
+    ARTICLE_ROUTE.test(pathname) ||
+    ottHubSlug(pathname) !== null
+  )
 }
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -353,11 +432,12 @@ const routes = {
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') {
       // Posts too: a reviewed title keeps its page after it leaves the release
       // window, so it has to keep its sitemap entry. Both reads are cached.
-      const [data, { posts }] = await Promise.all([
+      const [data, { posts }, { articles }] = await Promise.all([
         loadCache(env, 'releases', EMPTY_RELEASES),
         loadPosts(env),
+        loadArticles(env),
       ])
-      return new Response(buildSitemap(data, posts), {
+      return new Response(buildSitemap(data, posts, articles), {
         headers: { 'Content-Type': 'application/xml', 'Cache-Control': 'no-cache' },
       })
     }
@@ -376,20 +456,26 @@ const routes = {
       ) {
         return new Response(asset.body, { status: 404, headers: asset.headers })
       }
-      // The private owner dashboard is never pre-rendered and never indexed —
-      // the header covers crawlers that ignore robots.txt or don't run JS.
-      if (url.pathname === '/stats') {
+      // Never pre-rendered and never indexed — the header covers crawlers that
+      // ignore robots.txt or don't run JS.
+      if (NOINDEX_PAGES.has(url.pathname)) {
         const headers = new Headers(asset.headers)
         headers.set('X-Robots-Tag', 'noindex, nofollow')
         return new Response(asset.body, { status: asset.status, headers })
       }
       const isMoviePage = /^\/movie\/[^/]+/.test(url.pathname)
+      const isReviewPage = REVIEW_ROUTE.test(url.pathname)
+      const isArticlePage = ARTICLE_ROUTE.test(url.pathname)
       const hubSlug = ottHubSlug(url.pathname)
       // Edge pre-render: inject real content into the SPA shell so crawlers
       // see this week's titles. Any hiccup falls back to the untouched page.
       if (
         request.method === 'GET' &&
-        (SEO_PAGES.has(url.pathname) || isMoviePage || hubSlug) &&
+        (SEO_PAGES.has(url.pathname) ||
+          isMoviePage ||
+          isReviewPage ||
+          isArticlePage ||
+          hubSlug) &&
         (asset.headers.get('Content-Type') ?? '').includes('text/html')
       ) {
         try {
@@ -412,6 +498,30 @@ const routes = {
               loadPosts(env),
             ])
             const page = buildTitlePage(releases, id, posts)
+            if (!page) return asset
+            block = page.block
+            meta = { title: page.title, description: page.description, image: page.image }
+            canonical = page.canonical
+          } else if (isReviewPage) {
+            // A review we no longer hold is not a page: fall through to the
+            // untouched shell, where the app's own not-found state takes over.
+            const id = decodeURIComponent(url.pathname.split('/')[2] ?? '')
+            const one = await loadPost(env, id)
+            const page = one ? buildReviewPage([one], id) : null
+            if (!page) return asset
+            block = page.block
+            meta = { title: page.title, description: page.description, image: page.image }
+            canonical = page.canonical
+          } else if (isArticlePage) {
+            const id = decodeURIComponent(url.pathname.split('/')[2] ?? '')
+            // The related list is on the page for readers, so it is in the
+            // pre-render too — those links are the only crawlable path from
+            // one article to the next.
+            const [one, { articles }] = await Promise.all([
+              loadArticle(env, id),
+              loadArticles(env),
+            ])
+            const page = one ? buildArticlePage(one, relatedArticles(articles, id)) : null
             if (!page) return asset
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }
@@ -481,6 +591,11 @@ const routes = {
             swap(/(property="og:title" content=")[^"]*(")/, m.title)
             swap(/(property="og:description"\s+content=")[\s\S]*?("\s*\/?>)/, m.description)
             swap(/(property="og:url" content=")[^"]*(")/, canonical)
+            // A piece of writing is og:type "article", not "website" — the
+            // shell ships the site-wide default and nothing was overriding it
+            if (isArticlePage || isReviewPage) {
+              swap(/(property="og:type" content=")[^"]*(")/, 'article')
+            }
             swap(/(name="twitter:title" content=")[^"]*(")/, m.title)
             swap(/(name="twitter:description"\s+content=")[\s\S]*?("\s*\/?>)/, m.description)
             if (m.image) {
@@ -741,6 +856,310 @@ const routes = {
       return json(summary)
     }
 
+    // One review, for its own page. Checked after the literal /mine, /ratings
+    // and /rate paths above so none of them is ever read as an id. Served from
+    // the same cached list the feed uses — a page view costs no extra query.
+    if (url.pathname.startsWith('/api/blog/') && request.method === 'GET') {
+      const id = decodeURIComponent(url.pathname.slice('/api/blog/'.length))
+      const [post, { posts }] = await Promise.all([loadPost(env, id), loadPosts(env)])
+      if (!post) return json({ error: 'Review not found' }, 404)
+      return json({ post, related: relatedReviews(posts, post.id) })
+    }
+
+    // ---------------- articles ----------------
+
+    if (url.pathname === '/api/articles' && request.method === 'GET') {
+      return json(await loadArticles(env))
+    }
+
+    if (url.pathname === '/api/articles/mine' && request.method === 'GET') {
+      if (!env.GOOGLE_CLIENT_ID) return json({ articles: [] })
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ error: 'Please sign in with Google' }, 401)
+      const res = await sb(
+        env,
+        `articles?author_email=eq.${encodeURIComponent(profile.email)}&select=id,ts,author,topic,title,body,official,films,image,imagePosition:image_position,imageFit:image_fit&order=ts.desc&limit=200`
+      )
+      const articles = res.ok ? ((await res.json()) as Article[]) : []
+      // Whether this account may publish under the site's byline; the composer
+      // needs it to offer the choice, and OWNER_EMAIL never leaves the server
+      return json({ articles, owner: isOwnerEmail(profile.email, env.OWNER_EMAIL) })
+    }
+
+    /**
+     * Cover upload → Supabase Storage. The bucket must exist and be public
+     * (see supabase/schema.sql for the exact steps); until it does, this
+     * returns an error rather than silently publishing an article whose image
+     * points nowhere.
+     *
+     * Sign-in gated and capped exactly as the local route is: an open endpoint
+     * that stores whatever it is sent is a file host, not a feature.
+     */
+    if (url.pathname === '/api/articles/image' && request.method === 'POST') {
+      if (env.GOOGLE_CLIENT_ID) {
+        const authz = request.headers.get('Authorization') ?? ''
+        const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+        const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+        if (!profile) return json({ error: 'Please sign in with Google to upload' }, 401)
+      }
+      const contentType = request.headers.get('Content-Type')
+      const ext = imageExtension(contentType)
+      if (!ext) return json({ error: 'Use a JPEG, PNG, WebP, AVIF or GIF image' }, 415)
+      const bytes = await request.arrayBuffer()
+      if (bytes.byteLength === 0) return json({ error: 'No image received' }, 400)
+      if (bytes.byteLength > MAX_IMAGE_BYTES) {
+        return json({ error: 'Image is larger than 4 MB' }, 413)
+      }
+      const name = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const base = env.SUPABASE_URL.replace(/\/$/, '')
+      const put = await fetch(`${base}/storage/v1/object/${IMAGE_BUCKET}/${name}`, {
+        method: 'POST',
+        headers: {
+          apikey: env.SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+          'Content-Type': contentType as string,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+        body: bytes,
+      })
+      if (!put.ok) {
+        console.warn('Image upload failed:', put.status, await put.text())
+        return json({ error: 'Could not store the image' }, 502)
+      }
+      return json({ url: `${base}/storage/v1/object/public/${IMAGE_BUCKET}/${name}` }, 201)
+    }
+
+    if (url.pathname === '/api/articles' && request.method === 'POST') {
+      let profile = null
+      if (env.GOOGLE_CLIENT_ID) {
+        const authz = request.headers.get('Authorization') ?? ''
+        const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+        profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+        if (!profile) return json({ error: 'Please sign in with Google to publish' }, 401)
+      }
+      let body: unknown = {}
+      try {
+        body = await request.json()
+      } catch {
+        // fall through to validation
+      }
+      const article = buildArticle(body, profile, env.OWNER_EMAIL)
+      if (!article) {
+        return json({ error: 'A title, some writing and a topic are required' }, 400)
+      }
+      // authorEmail maps to the snake_case column and never leaves the DB; the
+      // framing fields are mapped for the same reason (the selects above alias
+      // them back), so a rename here means a rename there
+      const { authorEmail, imagePosition, imageFit, ...pub } = article
+      const insert = await sb(env, 'articles', {
+        ...pub,
+        ...(authorEmail ? { author_email: authorEmail } : {}),
+        ...(imagePosition ? { image_position: imagePosition } : {}),
+        ...(imageFit ? { image_fit: imageFit } : {}),
+      })
+      if (!insert.ok) return json({ error: 'Could not publish' }, 500)
+      memory.delete('article-list')
+      return json(publicArticle(article), 201)
+    }
+
+    // Like counts; with a valid token, whether this account liked each.
+    // Checked before the generic /api/articles/<id> below.
+    if (url.pathname === '/api/articles/likes' && request.method === 'GET') {
+      let email: string | undefined
+      if (env.GOOGLE_CLIENT_ID) {
+        const authz = request.headers.get('Authorization') ?? ''
+        const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+        email = token ? (await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID))?.email : undefined
+      }
+      const res = await sb(env, 'article_likes?select=article_id,user_email&limit=20000')
+      const rows = res.ok ? ((await res.json()) as Array<{ article_id: string; user_email: string }>) : []
+      return json({
+        likes: summarizeLikes(
+          rows.map((r) => ({ articleId: r.article_id, userEmail: r.user_email })),
+          email
+        ),
+      })
+    }
+
+    // Toggle the heart — one per account, tapping again removes it
+    if (/^\/api\/articles\/[^/]+\/like$/.test(url.pathname) && request.method === 'POST') {
+      if (!env.GOOGLE_CLIENT_ID) return json({ error: 'Sign-in is not configured' }, 401)
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ error: 'Please sign in with Google to like' }, 401)
+      const id = decodeURIComponent(url.pathname.split('/')[3] ?? '')
+      const owner = await sb(
+        env,
+        `articles?id=eq.${encodeURIComponent(id)}&select=id,author_email&limit=1`
+      )
+      const found = owner.ok
+        ? ((await owner.json()) as Array<{ id: string; author_email?: string }>)[0]
+        : null
+      if (!found) return json({ error: 'Article not found' }, 404)
+      if (found.author_email && found.author_email === profile.email) {
+        return json({ error: "You can't like your own article" }, 403)
+      }
+      const mineRes = await sb(
+        env,
+        `article_likes?article_id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(profile.email)}&select=article_id`
+      )
+      const liked = mineRes.ok && ((await mineRes.json()) as unknown[]).length > 0
+      const wrote = liked
+        ? await sb(
+            env,
+            `article_likes?article_id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(profile.email)}`,
+            { method: 'DELETE' }
+          )
+        : await sb(env, 'article_likes', {
+            method: 'POST',
+            body: JSON.stringify({ article_id: id, user_email: profile.email }),
+          })
+      if (!wrote.ok) return json({ error: 'Could not save' }, 500)
+      const after = await sb(
+        env,
+        `article_likes?article_id=eq.${encodeURIComponent(id)}&select=article_id,user_email`
+      )
+      const rows = after.ok
+        ? ((await after.json()) as Array<{ article_id: string; user_email: string }>)
+        : []
+      return json(
+        summarizeLikes(
+          rows.map((r) => ({ articleId: r.article_id, userEmail: r.user_email })),
+          profile.email
+        )[id] ?? { count: 0 }
+      )
+    }
+
+    // Edit or delete one's own article. Both answer 404 for someone else's
+    // rather than 403, so the API never confirms an id exists to an account
+    // with no business knowing it does.
+    if (
+      url.pathname.startsWith('/api/articles/') &&
+      (request.method === 'PATCH' || request.method === 'DELETE')
+    ) {
+      if (!env.GOOGLE_CLIENT_ID) return json({ error: 'Sign-in is not configured' }, 401)
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ error: 'Please sign in with Google' }, 401)
+      const id = decodeURIComponent(url.pathname.slice('/api/articles/'.length))
+      // author_email is never in the cached list, so it is read fresh here
+      const owned = await sb(
+        env,
+        `articles?id=eq.${encodeURIComponent(id)}&select=id,ts,author,author_email,topic,title,body,official,films,image,imagePosition:image_position,imageFit:image_fit&limit=1`
+      )
+      const rows = owned.ok
+        ? ((await owned.json()) as Array<Article & { author_email?: string }>)
+        : []
+      const row = rows[0]
+      if (!row || !canEditArticle({ ...row, authorEmail: row.author_email }, profile.email)) {
+        return json({ error: 'Article not found' }, 404)
+      }
+
+      if (request.method === 'DELETE') {
+        const gone = await sb(env, `articles?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
+        if (!gone.ok) return json({ error: 'Could not delete' }, 500)
+        memory.delete('article-list')
+        return json({ deleted: id })
+      }
+
+      let body: unknown = {}
+      try {
+        body = await request.json()
+      } catch {
+        // fall through to validation
+      }
+      const edited = applyArticleEdit({ ...row, authorEmail: row.author_email }, body)
+      if (!edited) {
+        return json({ error: 'A title, some writing and a topic are required' }, 400)
+      }
+      const { authorEmail, imagePosition, imageFit, id: _id, ts: _ts, ...rest } = edited
+      const patch = await sb(env, `articles?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...rest,
+          // Cleared fields must be written as null, or PATCH just leaves the
+          // old value in place and the removal silently does nothing
+          films: edited.films ?? [],
+          image: edited.image ?? null,
+          image_position: imagePosition ?? null,
+          image_fit: imageFit ?? null,
+        }),
+      })
+      if (!patch.ok) return json({ error: 'Could not save' }, 500)
+      memory.delete('article-list')
+      return json(publicArticle(edited))
+    }
+
+    // Checked after the literal /mine above so it is never read as an id
+    if (url.pathname.startsWith('/api/articles/') && request.method === 'GET') {
+      const id = decodeURIComponent(url.pathname.slice('/api/articles/'.length))
+      const [article, { articles }] = await Promise.all([
+        loadArticle(env, id),
+        loadArticles(env),
+      ])
+      if (!article) return json({ error: 'Article not found' }, 404)
+      return json({
+        article: publicArticle(article),
+        related: relatedArticles(articles, article.id).map(publicArticle),
+      })
+    }
+
+    // Edit or delete one's own review. 404 for someone else's, never 403 —
+    // the API must not confirm an id exists to an account with no claim on it.
+    if (
+      url.pathname.startsWith('/api/blog/') &&
+      (request.method === 'PATCH' || request.method === 'DELETE')
+    ) {
+      if (!env.GOOGLE_CLIENT_ID) return json({ error: 'Sign-in is not configured' }, 401)
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ error: 'Please sign in with Google' }, 401)
+      const id = decodeURIComponent(url.pathname.slice('/api/blog/'.length))
+      // author_email is never in the cached list, so it is read fresh here
+      const res = await sb(
+        env,
+        `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,author_email,title,body,tag&limit=1`
+      )
+      const rows = res.ok ? ((await res.json()) as Array<BlogPost & { author_email?: string }>) : []
+      const row = rows[0]
+      if (!row || !canEditPost({ ...row, authorEmail: row.author_email }, profile.email)) {
+        return json({ error: 'Review not found' }, 404)
+      }
+
+      if (request.method === 'DELETE') {
+        const gone = await sb(env, `posts?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
+        if (!gone.ok) return json({ error: 'Could not delete' }, 500)
+        // Ratings of a review that no longer exists are orphans
+        await sb(env, `post_ratings?post_id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
+        memory.delete('blog-list')
+        memory.delete('ratings-list')
+        return json({ deleted: id })
+      }
+
+      let body: unknown = {}
+      try {
+        body = await request.json()
+      } catch {
+        // fall through to validation
+      }
+      const edited = applyPostEdit({ ...row, authorEmail: row.author_email }, body)
+      if (!edited) {
+        return json({ error: 'title, body and a tagged movie or match are required' }, 400)
+      }
+      const patch = await sb(env, `posts?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title: edited.title, body: edited.body, tag: edited.tag }),
+      })
+      if (!patch.ok) return json({ error: 'Could not save' }, 500)
+      memory.delete('blog-list')
+      return json(publicPost(edited))
+    }
+
     if (url.pathname === '/api/blog' && request.method === 'POST') {
       // Reading is open to everyone; publishing needs a verified Google
       // sign-in once GOOGLE_CLIENT_ID is configured
@@ -757,7 +1176,7 @@ const routes = {
       } catch {
         // fall through to validation
       }
-      const post = buildPost(body, profile)
+      const post = buildPost(body, profile, env.OWNER_EMAIL)
       if (!post) {
         return json({ error: 'title, body and a tagged movie or match are required' }, 400)
       }

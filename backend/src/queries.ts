@@ -346,6 +346,14 @@ export function titleUrl(r: { id: string; title: string }): string {
   return `/movie/${r.id}/${slugify(r.title)}`
 }
 
+/**
+ * Route of one review's own page. The slug is decorative like a title's —
+ * lookup is by id — so an edited heading never orphans a shared link.
+ */
+export function reviewUrl(p: { id: string; title: string }): string {
+  return `/review/${p.id}/${slugify(p.title)}`
+}
+
 export type TitleStatus = 'streaming' | 'upcoming-ott' | 'in-theatres' | 'upcoming-theatre'
 
 /** Look a title up by id across all three release pools. */
@@ -1034,17 +1042,19 @@ export function summarizeRatings(
 }
 
 /** Validate + sanitize an incoming post; null when it isn't publishable. */
-export function buildPost(input: unknown, verified?: GoogleProfile | null): BlogPost | null {
+export function buildPost(
+  input: unknown,
+  verified?: GoogleProfile | null,
+  ownerEmail?: string
+): BlogPost | null {
   const raw = (input ?? {}) as Record<string, unknown>
   const tagRaw = (raw.tag ?? {}) as Record<string, unknown>
   const title = String(raw.title ?? '').trim().slice(0, 120)
   const body = String(raw.body ?? '').trim().slice(0, 5000)
   // Display name stays self-chosen; a signed-in user's Google name is the
-  // fallback before Anonymous
-  const author =
-    String(raw.author ?? '').trim().slice(0, 40) ||
-    (verified?.name ?? '').trim().slice(0, 40) ||
-    'Anonymous'
+  // fallback before Anonymous. Reviews carry no official stamp, but the site's
+  // byline is still reserved here — otherwise it could be worn on a review.
+  const author = resolveAuthor(raw.author, verified, isOwnerEmail(verified?.email, ownerEmail))
   const kind = tagRaw.kind
   const label = String(tagRaw.label ?? '').trim().slice(0, 160)
   if (!title || !body || !label) return null
@@ -1070,5 +1080,382 @@ export function buildPost(input: unknown, verified?: GoogleProfile | null): Blog
         : [],
     },
   }
+}
+
+// ---------------- articles ----------------
+
+/**
+ * The other kind of writing on the site. A review answers "is this week's film
+ * worth it" and is tagged to a title the release cache holds; an article has no
+ * such anchor — the 1983 final, a top-ten list, why a twenty-year-old film
+ * still holds up. Nothing in the release or cricket caches can date it.
+ *
+ * Deliberately its own table and its own type rather than a `kind` column on
+ * BlogPost: an article has no tag, and making `tag` optional would put a
+ * null check on every `p.tag.label` in the feed, the pre-render, the sitemap
+ * and the mini player. Separate types mean an article cannot end up in the
+ * reviews feed by an omitted filter — it is not the same shape.
+ *
+ * No star ratings, unlike reviews — see the ratings note in CLAUDE.md.
+ */
+export interface Article {
+  id: string
+  ts: string
+  author: string
+  /** Verified Google account of the writer — never returned by a public API. */
+  authorEmail?: string
+  /**
+   * Published by the site itself rather than a visitor. Set server-side from
+   * the verified email against OWNER_EMAIL — never from anything the browser
+   * sends, or the stamp would mean nothing.
+   */
+  official?: boolean
+  /** Which half of the site it belongs to; drives the related-articles panel. */
+  topic: 'movie' | 'match'
+  title: string
+  body: string
+  /**
+   * Films the article is about, with where to watch them. Movie articles only.
+   *
+   * The platforms are **stated, not looked up**: an article is usually about
+   * something old, and the release cache only holds thirteen weeks, so it has
+   * never heard of the films these pieces are actually about. When the writer
+   * picks a film the cache does hold, the composer fills these in from it;
+   * otherwise they name the platform themselves. Either way the link is a
+   * search on that platform (watchUrl), which needs only the title.
+   */
+  films?: ArticleFilm[]
+  /**
+   * Cover image, uploaded with the article. Articles only — a review is a
+   * paragraph about something that already carries a poster, and an image
+   * there would only ever be borrowing someone else's picture.
+   */
+  image?: string
+  /**
+   * How the cover is framed, chosen after upload rather than baked into the
+   * file. A cover is cropped to a fixed height, and the crop is wrong as often
+   * as it is right — a team photo loses heads, a portrait loses the face.
+   *
+   * `imagePosition` is a CSS object-position ("50% 30%") naming the point that
+   * must stay visible; `imageFit: 'contain'` shows the whole picture instead of
+   * filling the frame. Neither touches the stored bytes, so re-framing is free
+   * and reversible.
+   */
+  imagePosition?: string
+  imageFit?: 'cover' | 'contain'
+}
+
+/** A focal point like "50% 30%", clamped; anything else is ignored. */
+export function sanitizeImagePosition(input: unknown): string | undefined {
+  const match = /^(\d{1,3})%\s+(\d{1,3})%$/.exec(String(input ?? '').trim())
+  if (!match) return undefined
+  const clamp = (n: string) => Math.min(100, Math.max(0, Number(n)))
+  return `${clamp(match[1])}% ${clamp(match[2])}%`
+}
+
+/** Image types worth accepting; anything else is refused before it is stored. */
+export const IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/gif': 'gif',
+}
+
+/** 4 MB — enough for a cover, small enough not to become a free file host. */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+
+/**
+ * The only two shapes a stored cover may take: a path this server serves, or
+ * an https URL (Supabase Storage in production). Anything else — `javascript:`,
+ * a `data:` blob, a bare string — is dropped rather than rendered into an
+ * <img src>. The value arrives from our own upload endpoint, but it arrives
+ * via the browser, which makes it input like any other.
+ */
+export function sanitizeImage(input: unknown): string | undefined {
+  const url = String(input ?? '').trim().slice(0, 500)
+  if (!url) return undefined
+  if (/^\/api\/articles\/image\/[A-Za-z0-9._-]+$/.test(url)) return url
+  if (/^https:\/\/[^\s"'<>]+$/.test(url)) return url
+  return undefined
+}
+
+/** Extension for a stored upload, or null when the type is not one we accept. */
+export function imageExtension(contentType: string | null | undefined): string | null {
+  return IMAGE_TYPES[(contentType ?? '').split(';')[0].trim().toLowerCase()] ?? null
+}
+
+export interface ArticleFilm {
+  /** WeekAdda title id, when the film is still inside the release window. */
+  id?: string
+  title: string
+  platforms: ArticleWatch[]
+}
+
+/**
+ * One place to watch a film. `url` is the exact title page when the writer has
+ * it — always better than a search, which can land on the wrong film or on
+ * nothing. Without one we fall back to searching that platform for the title.
+ */
+export interface ArticleWatch {
+  name: string
+  url?: string
+}
+
+const MAX_ARTICLE_FILMS = 6
+
+function sanitizeFilms(input: unknown): ArticleFilm[] {
+  if (!Array.isArray(input)) return []
+  const out: ArticleFilm[] = []
+  for (const raw of input.slice(0, MAX_ARTICLE_FILMS)) {
+    const f = (raw ?? {}) as Record<string, unknown>
+    const title = String(f.title ?? '').trim().slice(0, 120)
+    if (!title) continue
+    const id = String(f.id ?? '').trim().slice(0, 120)
+    const platforms: ArticleWatch[] = []
+    if (Array.isArray(f.platforms)) {
+      for (const raw of f.platforms) {
+        // A bare string is still accepted — it is what the picker sent before
+        // deep links existed, and dropping it would blank an existing article
+        const entry = typeof raw === 'string' ? { name: raw } : ((raw ?? {}) as Record<string, unknown>)
+        const name = String(entry.name ?? '').trim().slice(0, 60)
+        if (!name || platforms.some((p) => p.name === name)) continue
+        const url = String(entry.url ?? '').trim().slice(0, 500)
+        // https only: the link is rendered as an anchor a reader will click
+        platforms.push({ name, ...(/^https:\/\/[^\s"'<>]+$/.test(url) ? { url } : {}) })
+        if (platforms.length === 4) break
+      }
+    }
+    out.push({ ...(id ? { id } : {}), title, platforms })
+  }
+  return out
+}
+
+/**
+ * The byline the site publishes under. Reserved: a visitor cannot take it as a
+ * display name, because a name is typed and therefore not evidence of anything.
+ * The `official` flag is what the stamp reads — this only stops the name being
+ * worn by someone the flag would not be set for.
+ */
+export const OFFICIAL_AUTHOR = 'WeekAdda'
+
+function claimsOfficialName(name: string): boolean {
+  return name.trim().toLowerCase().replace(/\s+/g, '') === OFFICIAL_AUTHOR.toLowerCase()
+}
+
+/**
+ * Display name for a post: self-chosen, falling back to the Google name and
+ * then Anonymous — except that only the owner account may publish under the
+ * site's own byline.
+ */
+function resolveAuthor(raw: unknown, verified: GoogleProfile | null | undefined, official: boolean) {
+  const asked = String(raw ?? '').trim().slice(0, 40)
+  if (asked && (official || !claimsOfficialName(asked))) return asked
+  if (official) return OFFICIAL_AUTHOR
+  const google = (verified?.name ?? '').trim().slice(0, 40)
+  return google && !claimsOfficialName(google) ? google : 'Anonymous'
+}
+
+export const ARTICLE_TOPICS: Array<{ value: Article['topic']; label: string }> = [
+  { value: 'movie', label: 'Movies' },
+  { value: 'match', label: 'Cricket' },
+]
+
+export function articleTopicLabel(topic: Article['topic']): string {
+  return ARTICLE_TOPICS.find((t) => t.value === topic)?.label ?? 'Movies'
+}
+
+/** Public shape of an article: everything except the writer's email. */
+export function publicArticle(a: Article): Omit<Article, 'authorEmail'> {
+  const { authorEmail: _authorEmail, ...pub } = a
+  return pub
+}
+
+export function articleUrl(a: { id: string; title: string }): string {
+  return `/article/${a.id}/${slugify(a.title)}`
+}
+
+/** Validate + sanitize an incoming article; null when it isn't publishable. */
+export function buildArticle(
+  input: unknown,
+  verified?: GoogleProfile | null,
+  ownerEmail?: string
+): Article | null {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const title = String(raw.title ?? '').trim().slice(0, 120)
+  // Longer than a review's 5000: a top-ten list is ten little essays
+  const body = String(raw.body ?? '').trim().slice(0, 20000)
+  // Read from the verified email, never from the request body — except that
+  // the owner may decline it. Owning the site is what *permits* the stamp; it
+  // should not force every personal piece to be published as the masthead.
+  const official = isOwnerEmail(verified?.email, ownerEmail) && raw.official !== false
+  const author = resolveAuthor(raw.author, verified, official)
+  const topic = raw.topic
+  if (!title || !body) return null
+  if (topic !== 'movie' && topic !== 'match') return null
+  // Not gated on topic: a piece about the 1983 final is filed under cricket and
+  // still wants to point at the film of it. The block is about films, not about
+  // which half of the site the article sits in.
+  const films = sanitizeFilms(raw.films)
+  const image = sanitizeImage(raw.image)
+  // Framing is meaningless without a picture to frame
+  const imagePosition = image ? sanitizeImagePosition(raw.imagePosition) : undefined
+  const imageFit = image && raw.imageFit === 'contain' ? ('contain' as const) : undefined
+  return {
+    id: `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    author,
+    ...(verified?.email ? { authorEmail: verified.email } : {}),
+    ...(official ? { official: true } : {}),
+    topic,
+    title,
+    body,
+    ...(films.length > 0 ? { films } : {}),
+    ...(image ? { image } : {}),
+    ...(imagePosition ? { imagePosition } : {}),
+    ...(imageFit ? { imageFit } : {}),
+  }
+}
+
+/**
+ * Re-sanitize an edit onto an existing review. Same rules as an article's:
+ * rebuilt field by field so a cleared tag cannot linger, and identity — id,
+ * timestamp, author, verified email — is not editable. An edit changes what
+ * the review says, never who wrote it.
+ */
+export function applyPostEdit(existing: BlogPost, input: unknown): BlogPost | null {
+  const rebuilt = buildPost(input, null)
+  if (!rebuilt) return null
+  return {
+    id: existing.id,
+    ts: existing.ts,
+    author: existing.author,
+    ...(existing.authorEmail ? { authorEmail: existing.authorEmail } : {}),
+    title: rebuilt.title,
+    body: rebuilt.body,
+    tag: rebuilt.tag,
+  }
+}
+
+/**
+ * What to show under a review: other takes on the same film or match first —
+ * the most useful thing to read next is a second opinion on the same title —
+ * then the newest of everything else so the row is never left half empty.
+ */
+export function relatedReviews(all: BlogPost[], id: string, limit = 6): BlogPost[] {
+  const self = all.find((p) => p.id === id)
+  const others = all.filter((p) => p.id !== id).sort((a, b) => (a.ts < b.ts ? 1 : -1))
+  if (!self?.tag?.id) return others.slice(0, limit)
+  const sameTitle = others.filter((p) => p.tag?.id === self.tag.id)
+  return [...sameTitle, ...others.filter((p) => p.tag?.id !== self.tag.id)].slice(0, limit)
+}
+
+/**
+ * May this account change this review? Only the verified writer. A review
+ * published anonymously has no email attached, belongs to nobody, and can
+ * never be claimed afterwards.
+ */
+export function canEditPost(post: BlogPost, email: string | undefined): boolean {
+  return Boolean(post.authorEmail && email && post.authorEmail === email)
+}
+
+// ---------------- article likes ----------------
+
+/**
+ * A heart on an article. One per account, toggled off by tapping again.
+ *
+ * Deliberately not the five-star row reviews use: a review is being judged on
+ * how useful it was, an article is just liked or not. A single count also can
+ * never be mistaken for a verdict on the film or match it discusses, which is
+ * the mistake the review stars already have to keep explaining.
+ */
+export interface ArticleLike {
+  articleId: string
+  userEmail: string
+  ts: string
+}
+
+export interface LikeSummary {
+  count: number
+  /** Whether the asking account has liked it; only on authenticated reads. */
+  mine?: boolean
+}
+
+export function summarizeLikes(
+  rows: Array<Pick<ArticleLike, 'articleId' | 'userEmail'>>,
+  viewerEmail?: string
+): Record<string, LikeSummary> {
+  const out: Record<string, LikeSummary> = {}
+  for (const row of rows) {
+    const entry = out[row.articleId] ?? { count: 0 }
+    entry.count++
+    if (viewerEmail && row.userEmail === viewerEmail) entry.mine = true
+    out[row.articleId] = entry
+  }
+  return out
+}
+
+/**
+ * Re-sanitize an edit onto an existing article.
+ *
+ * Rebuilt field by field rather than merged, so clearing the cover or dropping
+ * a film actually removes it — a spread would silently keep whatever was there
+ * before and make deletion impossible.
+ *
+ * Identity is not editable: id, timestamp, author, the verified email and the
+ * official stamp all come from the stored article. An edit changes what the
+ * piece says, never who published it.
+ */
+export function applyArticleEdit(existing: Article, input: unknown): Article | null {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const title = String(raw.title ?? '').trim().slice(0, 120)
+  const body = String(raw.body ?? '').trim().slice(0, 20000)
+  const topic = raw.topic
+  if (!title || !body) return null
+  if (topic !== 'movie' && topic !== 'match') return null
+  const films = sanitizeFilms(raw.films)
+  const image = sanitizeImage(raw.image)
+  const imagePosition = image ? sanitizeImagePosition(raw.imagePosition) : undefined
+  const imageFit = image && raw.imageFit === 'contain' ? ('contain' as const) : undefined
+  return {
+    id: existing.id,
+    ts: existing.ts,
+    author: existing.author,
+    ...(existing.authorEmail ? { authorEmail: existing.authorEmail } : {}),
+    ...(existing.official ? { official: true } : {}),
+    topic,
+    title,
+    body,
+    ...(films.length > 0 ? { films } : {}),
+    ...(image ? { image } : {}),
+    ...(imagePosition ? { imagePosition } : {}),
+    ...(imageFit ? { imageFit } : {}),
+  }
+}
+
+/**
+ * May this account change this article? Only the verified writer — the stamp
+ * and the display name are not evidence, and an article with no email attached
+ * (published anonymously) belongs to nobody and can never be claimed.
+ */
+export function canEditArticle(article: Article, email: string | undefined): boolean {
+  return Boolean(article.authorEmail && email && article.authorEmail === email)
+}
+
+/**
+ * What to put in the panel beside an article: others on the same topic first,
+ * newest first, topped up from the rest so a thin topic still fills the rail
+ * rather than showing the reader a near-empty column.
+ */
+export function relatedArticles<T extends { id: string; topic: Article['topic']; ts: string }>(
+  all: T[],
+  id: string,
+  limit = 12
+): T[] {
+  const self = all.find((a) => a.id === id)
+  const others = all.filter((a) => a.id !== id).sort((a, b) => (a.ts < b.ts ? 1 : -1))
+  if (!self) return others.slice(0, limit)
+  const same = others.filter((a) => a.topic === self.topic)
+  return [...same, ...others.filter((a) => a.topic !== self.topic)].slice(0, limit)
 }
 

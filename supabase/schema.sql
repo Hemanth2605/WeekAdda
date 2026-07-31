@@ -46,6 +46,52 @@ create table if not exists posts (
 -- Migration for databases created before Google sign-in (July 2026):
 alter table posts add column if not exists author_email text;
 
+-- Articles (July 2026): the writing with no release to hang on — the 1983
+-- final, a top-ten list, an old film revisited. Deliberately its own table
+-- rather than a kind column on posts: an article has no tag, and keeping the
+-- shapes apart is what stops one ever being served in the reviews feed.
+create table if not exists articles (
+  id text primary key,
+  ts timestamptz not null default now(),
+  author text not null,       -- self-chosen display name
+  author_email text,          -- verified Google account (moderation only;
+                              -- never returned by the public API)
+  topic text not null,        -- movie | match — drives the related panel
+  title text not null,
+  body text not null,
+  official boolean not null default false,  -- published by the site itself;
+                              -- set server-side from OWNER_EMAIL, never from
+                              -- the request body
+  films jsonb not null default '[]'::jsonb,  -- movie articles: [{ id?, title,
+                              -- platforms[] }] for the where-to-watch block
+  image text,                 -- cover, stored in the article-images bucket
+  image_position text,        -- focal point, e.g. "50% 30%" (CSS object-position)
+  image_fit text              -- 'contain' shows the whole picture; null = cover
+);
+
+-- Migration for an articles table created before the cover could be re-framed:
+alter table articles add column if not exists image_position text;
+alter table articles add column if not exists image_fit text;
+
+-- Article covers need a PUBLIC Storage bucket named article-images. Buckets are
+-- not created by SQL — do it once in the dashboard: Storage → New bucket →
+-- name "article-images" → tick Public → Create. The Worker uploads with the
+-- service key; readers fetch the public object URL directly.
+
+-- Migrations for an articles table created before these were added:
+alter table articles add column if not exists official boolean not null default false;
+alter table articles add column if not exists films jsonb not null default '[]'::jsonb;
+
+-- A heart on an article: one per Google account, removed by tapping again.
+-- Deliberately a like and not a rating — an article is liked or not, and a
+-- single count can never be mistaken for a verdict on the film it discusses.
+create table if not exists article_likes (
+  article_id text not null,
+  user_email text not null,   -- verified Google account (never served publicly)
+  ts timestamptz not null default now(),
+  primary key (article_id, user_email)
+);
+
 -- Blog post ratings: one rating per Google account per post, upserted by the
 -- Worker (sign-in required; authors cannot rate their own posts).
 create table if not exists post_ratings (
@@ -98,6 +144,8 @@ alter table push_subscriptions add column if not exists timezone text;
 alter table caches enable row level security;
 alter table clicks enable row level security;
 alter table posts enable row level security;
+alter table articles enable row level security;
+alter table article_likes enable row level security;
 alter table post_ratings enable row level security;
 alter table listings enable row level security;
 alter table listing_interests enable row level security;

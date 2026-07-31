@@ -13,6 +13,12 @@ import {
   findTitle,
   relatedTitles,
   titleUrl,
+  reviewUrl,
+  relatedReviews,
+  articleUrl,
+  articleTopicLabel,
+  Article,
+  ArticleFilm,
 } from './queries'
 
 /**
@@ -79,6 +85,56 @@ function istTime(iso: string): string {
 }
 
 /** JSON-LD block; </script>-safe. Crawlers read it from the raw HTML. */
+/**
+ * Turn bare http(s) URLs in already-escaped prose into links. Visitor-supplied,
+ * so `nofollow ugc` — the page must never lend its ranking to whatever anyone
+ * pastes. Must match Prose.tsx on the client, or a crawler and a reader see
+ * different pages.
+ *
+ * Runs on escaped text, never raw: esc() has already neutralised < > " ', so
+ * nothing here can open a tag, and an & inside a query string arrives as the
+ * &amp; that an href is supposed to carry.
+ */
+function linkify(escaped: string): string {
+  return escaped.replace(/https?:\/\/[^\s<>"']+/g, (url) => {
+    const href = url.replace(/[.,;:!?)\]}]+$/, '')
+    const tail = url.slice(href.length)
+    // A recognised service is labelled by name: "Netflix" is readable, and a
+    // crawler reading anchor text learns something a raw URL never tells it
+    const platform = platformFromUrl(href)
+    const label = platform ? esc(platform) : href
+    return `<a href="${href}" target="_blank" rel="nofollow ugc noopener noreferrer">${label}</a>${tail}`
+  })
+}
+
+/**
+ * The platform a pasted URL belongs to. Matched on the registrable domain, not
+ * on "contains", so a URL that merely mentions netflix in a path is not
+ * mistaken for one. Mirrors platformFromUrl in frontend/src/filmLinks.ts.
+ */
+const URL_PLATFORMS: Array<[RegExp, string]> = [
+  [/(^|\.)netflix\.com$/, 'Netflix'],
+  [/(^|\.)primevideo\.com$/, 'Amazon Prime Video'],
+  [/(^|\.)(hotstar|jiohotstar)\.com$/, 'JioHotstar'],
+  [/(^|\.)sonyliv\.com$/, 'Sony LIV'],
+  [/(^|\.)zee5\.com$/, 'ZEE5'],
+  [/(^|\.)aha\.video$/, 'Aha'],
+  [/(^|\.)sunnxt\.com$/, 'Sun NXT'],
+  [/(^|\.)etvwin\.com$/, 'ETV Win'],
+  [/(^|\.)tv\.apple\.com$/, 'Apple TV'],
+  [/(^|\.)(youtube\.com|youtu\.be)$/, 'YouTube'],
+]
+
+function platformFromUrl(url: string): string | null {
+  let host: string
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+  } catch {
+    return null
+  }
+  return URL_PLATFORMS.find(([re]) => re.test(host))?.[1] ?? null
+}
+
 function jsonLd(obj: unknown): string {
   return `<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, '\\u003c')}</script>`
 }
@@ -171,9 +227,9 @@ export function routeMeta(pathname: string): { title: string; description: strin
         'Completed cricket match results week by week — internationals and leagues, with scores, venue and series, India first. Updated every morning.',
     },
     '/reviews': {
-      title: 'Movie & Cricket Reviews by Real Viewers | WeekAdda',
+      title: 'Movie & Cricket Reviews & Articles by Viewers | WeekAdda',
       description:
-        'Honest reviews of this week\u2019s movies, OTT releases and cricket matches — written and rated out of five by the people who actually watched them.',
+        'Honest reviews of this week\u2019s movies, OTT releases and cricket matches — written by the people who watched them, plus articles worth going back to.',
     },
     '/about': {
       title: 'About WeekAdda — Founded by Hemanth Mareedu',
@@ -818,7 +874,11 @@ export function buildTitlePage(
 // ---------------- /sitemap.xml ----------------
 
 /** Sitemap with every current title page; lastmod = last agent sweep. */
-export function buildSitemap(data: ReleaseCache, reviews: BlogPost[] = []): string {
+export function buildSitemap(
+  data: ReleaseCache,
+  reviews: BlogPost[] = [],
+  articles: Article[] = []
+): string {
   const base = 'https://weekadda.com'
   const lastmod = /^\d{4}-\d{2}-\d{2}/.test(data.fetchedAt) ? data.fetchedAt.slice(0, 10) : ''
   const mod = lastmod ? `<lastmod>${lastmod}</lastmod>` : ''
@@ -855,6 +915,19 @@ export function buildSitemap(data: ReleaseCache, reviews: BlogPost[] = []): stri
     if (!tag || tag.kind !== 'movie' || !tag.id || seen.has(tag.id)) continue
     seen.add(tag.id)
     urls.push(`<url><loc>${base}${titleUrl({ id: tag.id, title: tag.label })}</loc>${mod}</url>`)
+  }
+  // Every review also has a page of its own (buildReviewPage). Its lastmod is
+  // the review's own timestamp, not the sweep's — a take written weeks ago did
+  // not change because the release cache refreshed this morning.
+  for (const p of reviews) {
+    const written = /^\d{4}-\d{2}-\d{2}/.test(p.ts) ? `<lastmod>${p.ts.slice(0, 10)}</lastmod>` : ''
+    urls.push(`<url><loc>${base}${reviewUrl(p)}</loc>${written}</url>`)
+  }
+  // Articles age far better than anything else here — nothing on one expires
+  // when the release window moves — so they are listed on the same terms.
+  for (const a of articles) {
+    const written = /^\d{4}-\d{2}-\d{2}/.test(a.ts) ? `<lastmod>${a.ts.slice(0, 10)}</lastmod>` : ''
+    urls.push(`<url><loc>${base}${articleUrl(a)}</loc>${written}</url>`)
   }
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.join('')}</urlset>`
 }
@@ -1159,7 +1232,7 @@ export function buildPrivacySeo(): string {
 
 // ---------------- /reviews ----------------
 
-export function buildBlogSeo(posts: BlogPost[]): string {
+export function buildBlogSeo(posts: BlogPost[], articles: Article[] = []): string {
   return (
     WRAP_OPEN +
     '<h1>Movie &amp; Cricket Reviews by Real Viewers</h1>' +
@@ -1170,7 +1243,296 @@ export function buildBlogSeo(posts: BlogPost[]): string {
         .slice(0, 20)
         .map((p) => `${esc(p.title)} — a review of ${esc(p.tag.label)}, by ${esc(p.author)}`)
     ) +
+    // The panel beside the feed, and the only crawlable way into the articles:
+    // without these links every article page is an orphan.
+    (articles.length > 0
+      ? section(
+          'Articles',
+          articles
+            .slice(0, 20)
+            .map(
+              (a) =>
+                `<a href="${articleUrl(a)}">${esc(a.title)}</a> — ${esc(
+                  articleTopicLabel(a.topic)
+                )}, by ${esc(a.author)}`
+            )
+        )
+      : '') +
     NAV +
     '</div>'
   )
+}
+
+// ---------------- /article/:id/:slug ----------------
+
+/**
+ * Mirror of `watchUrl` in frontend/src/watchLinks.ts — keep the two in step.
+ * Every link is a *search* on the platform, which is what makes this work for
+ * the old films articles are usually about: it needs the title and nothing else.
+ */
+function watchSearch(platform: string, title: string): string {
+  const q = encodeURIComponent(title)
+  const firstResult = (query: string) =>
+    `https://duckduckgo.com/?q=${encodeURIComponent('\\' + query)}`
+  switch (platform) {
+    case 'Netflix':
+      return `https://www.netflix.com/search?q=${q}`
+    case 'Amazon Prime Video':
+      return `https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${q}`
+    case 'ZEE5':
+      return `https://www.zee5.com/search?q=${q}`
+    case 'JioHotstar':
+      return firstResult(`${title} site:jiohotstar.com`)
+    case 'Sony LIV':
+      return firstResult(`${title} site:sonyliv.com`)
+    case 'Aha':
+      return firstResult(`${title} site:aha.video`)
+    case 'ETV Win':
+      return firstResult(`${title} site:etvwin.com`)
+    default:
+      return firstResult(`watch ${title} on ${platform}`)
+  }
+}
+
+/** The exact title page when the writer had one, a search otherwise. */
+function watchHref(w: { name: string; url?: string }, title: string): string {
+  return w.url ?? watchSearch(w.name, title)
+}
+
+/** The where-to-watch block on a movie article, as crawlable HTML. */
+function watchSection(films: ArticleFilm[]): string {
+  if (films.length === 0) return ''
+  return section(
+    'Where to watch',
+    films.map((f) => {
+      const name = f.id
+        ? `<a href="${titleUrl({ id: f.id, title: f.title })}">${esc(f.title)}</a>`
+        : `<strong>${esc(f.title)}</strong>`
+      if (f.platforms.length === 0) return name
+      const links = f.platforms
+        .map(
+          (p) =>
+            `<a href="${esc(watchHref(p, f.title))}" rel="nofollow noopener noreferrer">${esc(p.name)}</a>`
+        )
+        .join(', ')
+      return `${name} — watch on ${links}`
+    })
+  )
+}
+
+/**
+ * Link each film named in the prose, right where it is named. A top-ten list
+ * reads as ten titles, and the useful place for "watch it here" is beside the
+ * title being talked about — not only in a block underneath.
+ *
+ * First mention only, one film per match, and only on a word boundary, so the
+ * film "83" is not found inside "1983". Runs on escaped text like linkify.
+ */
+function markFilmsEscaped(escaped: string, films: ArticleFilm[], used: Set<string>): string {
+  let out = escaped
+  for (const f of films) {
+    if (used.has(f.title) || f.platforms.length === 0) continue
+    const needle = esc(f.title)
+    const at = out.toLowerCase().indexOf(needle.toLowerCase())
+    if (at < 0) continue
+    const before = out[at - 1]
+    const after = out[at + needle.length]
+    if ((before && /[A-Za-z0-9]/.test(before)) || (after && /[A-Za-z0-9]/.test(after))) continue
+    used.add(f.title)
+    const icons = f.platforms
+      .map(
+        (p) =>
+          `<a href="${esc(watchHref(p, f.title))}" rel="nofollow noopener noreferrer" title="Watch ${esc(
+            f.title
+          )} on ${esc(p.name)}">${esc(p.name)}</a>`
+      )
+      .join(' ')
+    out = `${out.slice(0, at + needle.length)} (${icons})${out.slice(at + needle.length)}`
+  }
+  return out
+}
+
+/**
+ * An article and the rail of related ones beside it. Unlike a review, nothing
+ * here is pinned to a release — so there is no date to go stale, and the page
+ * is written to still make sense in a year.
+ *
+ * `Article` schema, not `Review`: there is nothing being reviewed and no
+ * rating, and claiming otherwise is the kind of markup that earns a manual
+ * action rather than a rich result.
+ */
+export function buildArticlePage(
+  article: Article,
+  related: Article[] = []
+): {
+  block: string
+  title: string
+  description: string
+  canonical: string
+  image?: string
+} | null {
+  if (!article) return null
+  const topic = articleTopicLabel(article.topic)
+  const flat = article.body.replace(/\s+/g, ' ').trim()
+  const excerpt = flat.length > 240 ? `${flat.slice(0, 237).replace(/\s+\S*$/, '')}…` : flat
+
+  const block =
+    WRAP_OPEN +
+    breadcrumb([
+      { name: 'WeekAdda', href: '/' },
+      { name: 'Reviews', href: '/reviews' },
+      { name: article.title },
+    ]) +
+    `<h1>${esc(article.title)}</h1>` +
+    // The cover is on the page for readers, so it is in the block too — a
+    // crawler must not be shown a version of the page that is missing it
+    (article.image ? `<p><img src="${esc(article.image)}" alt="${esc(article.title)}"></p>` : '') +
+    `<p><strong>${esc(topic)}</strong> — ${
+      article.official ? 'published by WeekAdda' : `by ${esc(article.author)}`
+    }, ${day(article.ts)}.</p>` +
+    ((): string => {
+      const films = article.films ?? []
+      const named = new Set<string>()
+      const paragraphs = article.body
+        .split(/\n+/)
+        .filter((p) => p.trim())
+        .map((p) => `<p>${markFilmsEscaped(linkify(esc(p.trim())), films, named)}</p>`)
+        .join('')
+      // Only what the prose never mentioned needs a block of its own
+      return paragraphs + watchSection(films.filter((f) => !named.has(f.title)))
+    })() +
+    (related.length > 0
+      ? section(
+          'More articles',
+          related
+            .slice(0, 12)
+            .map(
+              (a) =>
+                `<a href="${articleUrl(a)}">${esc(a.title)}</a> — ${esc(articleTopicLabel(a.topic))}`
+            )
+        )
+      : '') +
+    '<p><a href="/reviews">Reviews and articles on WeekAdda</a></p>' +
+    NAV +
+    jsonLd({
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: article.title,
+      articleBody: flat,
+      // The cover, when it is an absolute URL — a stored upload path means
+      // nothing to a crawler fetching from another host. Google reads image
+      // for the Article rich result, and it is on the page either way.
+      ...(article.image?.startsWith('https://') ? { image: article.image } : {}),
+      datePublished: article.ts,
+      // A site-published piece is authored by the site, not by a person —
+      // Organization is what that actually is, and the flag is server-set
+      author: article.official
+        ? { '@type': 'Organization', name: 'WeekAdda', url: 'https://weekadda.com' }
+        : { '@type': 'Person', name: article.author },
+    }) +
+    '</div>'
+
+  const heading =
+    article.title.length > 60
+      ? `${article.title.slice(0, 57).replace(/\s+\S*$/, '')}…`
+      : article.title
+  return {
+    block,
+    title: esc(`${heading} | WeekAdda`),
+    description: esc(`${article.author} on ${topic}: ${excerpt}`.slice(0, 160)),
+    canonical: `https://weekadda.com${articleUrl(article)}`,
+    // A relative upload path is meaningless to a share card, which is fetched
+    // by another server — only an absolute URL is worth advertising
+    ...(article.image?.startsWith('https://') ? { image: article.image } : {}),
+  }
+}
+
+// ---------------- /review/:id/:slug (one review's own page) ----------------
+
+/**
+ * A single review, full text, on its own URL. The feed at /reviews can only
+ * ever show an opening — this is the page that answers "<film> review" with
+ * the whole take, and the one a shared link should land on.
+ *
+ * No `reviewRating` in the markup, for the same reason the title pages carry
+ * none: the five stars measure how useful readers found the *review*, not the
+ * writer's verdict on the film, and mapping one to the other would be a lie in
+ * structured data. Match reviews get no JSON-LD at all rather than an invented
+ * itemReviewed type — see the schema note in CLAUDE.md.
+ */
+export function buildReviewPage(
+  posts: BlogPost[],
+  id: string
+): { block: string; title: string; description: string; canonical: string; image?: string } | null {
+  const post = posts.find((p) => p.id === id)
+  if (!post) return null
+  const tag = post.tag
+  const label = tag?.label ?? ''
+  const poster = tag?.poster ?? undefined
+  const flat = post.body.replace(/\s+/g, ' ').trim()
+  const excerpt = flat.length > 240 ? `${flat.slice(0, 237).replace(/\s+\S*$/, '')}…` : flat
+  const movieId = tag?.kind === 'movie' && tag.id ? tag.id : null
+
+  const block =
+    WRAP_OPEN +
+    breadcrumb([
+      { name: 'WeekAdda', href: '/' },
+      { name: 'Reviews', href: '/reviews' },
+      ...(movieId ? [{ name: label, href: titleUrl({ id: movieId, title: label }) }] : []),
+      { name: post.title },
+    ]) +
+    `<h1>${esc(post.title)}</h1>` +
+    `<p><strong>A review of ${esc(label)}</strong>, written by ${esc(post.author)} on ${day(post.ts)}.</p>` +
+    post.body
+      .split(/\n+/)
+      .filter((p) => p.trim())
+      .map((p) => `<p>${esc(p.trim())}</p>`)
+      .join('') +
+    (movieId
+      ? `<p><a href="${titleUrl({ id: movieId, title: label })}">Everything about ${esc(label)} — release date, where to watch</a></p>`
+      : '') +
+    // The row of related takes is on the page for readers, so it is in the
+    // block too — and those links are the only crawlable path between reviews
+    ((): string => {
+      const more = relatedReviews(posts, post.id)
+      return more.length > 0
+        ? section(
+            'More reviews',
+            more.map(
+              (p) =>
+                `<a href="${reviewUrl(p)}">${esc(p.title)}</a> — ${esc(
+                  p.tag?.label ?? ''
+                )}, by ${esc(p.author)}`
+            )
+          )
+        : ''
+    })() +
+    '<p><a href="/reviews">More reviews on WeekAdda</a></p>' +
+    NAV +
+    (movieId
+      ? jsonLd({
+          '@context': 'https://schema.org',
+          '@type': 'Review',
+          name: post.title,
+          reviewBody: flat,
+          datePublished: post.ts,
+          author: { '@type': 'Person', name: post.author },
+          itemReviewed: {
+            '@type': 'Movie',
+            name: label,
+            ...(poster ? { image: poster } : {}),
+          },
+        })
+      : '') +
+    '</div>'
+
+  const heading =
+    post.title.length > 60 ? `${post.title.slice(0, 57).replace(/\s+\S*$/, '')}…` : post.title
+  return {
+    block,
+    title: esc(`${heading} — ${label} Review | WeekAdda`),
+    description: esc(`${post.author} on ${label}: ${excerpt}`.slice(0, 160)),
+    canonical: `https://weekadda.com${reviewUrl(post)}`,
+    ...(poster ? { image: poster } : {}),
+  }
 }

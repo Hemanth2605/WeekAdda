@@ -8,6 +8,9 @@ import Adda from './pages/Adda'
 import Privacy from './pages/Privacy'
 import Cricket from './pages/Cricket'
 import Reviews from './pages/Reviews'
+import ReviewDetail from './pages/ReviewDetail'
+import ArticleDetail from './pages/ArticleDetail'
+import MyArticles from './pages/MyArticles'
 import Stats from './pages/Stats'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -53,6 +56,19 @@ export default function App() {
         <Route path="/cricket" element={<Cricket />} />
         <Route path="/cricket/:tab" element={<Cricket />} />
         <Route path="/reviews" element={<Reviews />} />
+        {/* One review's own page — the feed can only show an opening, this is
+            the whole take. Same id[/slug] shape as a title page; the Worker
+            pre-renders it and buildSitemap lists it. */}
+        <Route path="/review/:id" element={<ReviewDetail />} />
+        <Route path="/review/:id/:slug" element={<ReviewDetail />} />
+        {/* Articles: the writing with no release to hang on. Reachable from
+            the rail beside the reviews feed, never from the feed itself. */}
+        <Route path="/article/:id" element={<ArticleDetail />} />
+        <Route path="/article/:id/:slug" element={<ArticleDetail />} />
+        {/* A writer's own body of work. Personal, not private — it only ever
+            shows what the asking account wrote — but there is nothing here for
+            a crawler, so the Worker serves it noindex. */}
+        <Route path="/my-articles" element={<MyArticles />} />
         {/* Renamed from /blog in July 2026 — the content was always reviews,
             and "review" is what people search. The Worker 301s the old path;
             this covers any in-app link still pointing at it. */}

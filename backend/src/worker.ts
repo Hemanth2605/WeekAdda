@@ -291,6 +291,20 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
 
 const ROOT_SHELL = '<div id="root"></div>'
 
+/**
+ * An id-shaped URL we have nothing for: /movie/, /review/, /article/ with an id
+ * that resolves to nothing. The path *shape* is real, so isKnownRoute lets it
+ * through and the shell is still served — the app renders its own not-found
+ * state — but the status has to be 404.
+ *
+ * A 200 here is a soft 404: Google indexes the empty page and spends crawl
+ * budget returning to it. The same fix already guards genuinely unknown paths
+ * further up; these branches were quietly falling through to the 200 shell.
+ */
+function gone(asset: Response): Response {
+  return new Response(asset.body, { status: 404, headers: asset.headers })
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -498,17 +512,17 @@ const routes = {
               loadPosts(env),
             ])
             const page = buildTitlePage(releases, id, posts)
-            if (!page) return asset
+            if (!page) return gone(asset)
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }
             canonical = page.canonical
           } else if (isReviewPage) {
-            // A review we no longer hold is not a page: fall through to the
-            // untouched shell, where the app's own not-found state takes over.
+            // A review we no longer hold is not a page: the shell still serves
+            // so the app's own not-found state renders, but with a 404 status.
             const id = decodeURIComponent(url.pathname.split('/')[2] ?? '')
             const one = await loadPost(env, id)
             const page = one ? buildReviewPage([one], id) : null
-            if (!page) return asset
+            if (!page) return gone(asset)
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }
             canonical = page.canonical
@@ -522,7 +536,7 @@ const routes = {
               loadArticles(env),
             ])
             const page = one ? buildArticlePage(one, relatedArticles(articles, id)) : null
-            if (!page) return asset
+            if (!page) return gone(asset)
             block = page.block
             meta = { title: page.title, description: page.description, image: page.image }
             canonical = page.canonical
@@ -535,7 +549,7 @@ const routes = {
           } else if (hubSlug) {
             const releases = await loadCache(env, 'releases', EMPTY_RELEASES)
             const hub = queryPlatform(releases, hubSlug)
-            if (!hub) return asset
+            if (!hub) return gone(asset)
             block = buildPlatformSeo(releases, hubSlug) ?? ''
             meta = routeMeta(url.pathname)
             canonical = `https://weekadda.com${url.pathname}`

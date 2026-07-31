@@ -12,8 +12,12 @@
   // Public config (not secret). GOOGLE_CLIENT_ID gates blog publishing behind
   // Google sign-in; while empty, anonymous posting stays allowed. The same id
   // must be in frontend/.env.production as VITE_GOOGLE_CLIENT_ID at build time.
+  // INDEXNOW_KEY is a var, not a secret, on purpose: the protocol verifies
+  // ownership by fetching the key back from https://weekadda.com/<key>.txt,
+  // which the Worker serves from this value. It is public by design.
   "vars": {
-    "GOOGLE_CLIENT_ID": "1039028958438-ivvvnn1bv7r2jj56idumgojm41g5ksfd.apps.googleusercontent.com"
+    "GOOGLE_CLIENT_ID": "1039028958438-ivvvnn1bv7r2jj56idumgojm41g5ksfd.apps.googleusercontent.com",
+    "INDEXNOW_KEY": "d563e4ee9f3eb806cfddb98f77e7b34a"
   },
   "assets": {
     "directory": "../frontend/dist",

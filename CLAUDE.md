@@ -251,6 +251,15 @@ cd frontend && npm run build
 - **`GOOGLE_CLIENT_ID` is a Worker var** (plaintext in wrangler.jsonc, not a secret —
   OAuth client IDs are public), so it deploys with the Worker; no `wrangler secret
   put` needed for it.
+- **`INDEXNOW_KEY` is a var for the same reason** — the protocol proves ownership by
+  fetching the key back from `https://weekadda.com/<key>.txt`, which `worker.ts` serves
+  from the var itself, so the key and its proof cannot disagree. `pingIndexNow` fires
+  on every article/review publish, edit and delete (plus the film's title page, which
+  carries its reviews) through `ctx.waitUntil` — a writer's publish must never wait on,
+  or fail because of, a search engine, so every error is swallowed. Unset = no pings,
+  silently. **Bing, Yandex and Seznam only**: Google retired its sitemap ping in 2023
+  and its Indexing API covers only job postings and live videos, so Google still finds
+  new pages from the sitemap on its own schedule. Don't add a "Google IndexNow".
 - **`OWNER_EMAIL` is a Worker secret**, not a var — unlike the client id it's a
   personal address and the repo is public. Set it once with
   `npx wrangler secret put OWNER_EMAIL` (locally it lives in `backend/.env`).

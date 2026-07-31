@@ -355,6 +355,17 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
 - **Personal pages are kept out**: `/my-reviews`, `/my-articles` and `/stats` are real
   pages that are empty for anyone but their owner, so the Worker serves them
   `noindex, nofollow` and `buildSitemap` never lists them.
+- **Thin title pages are served but not submitted**: almost everything on a
+  `/movie/:id/:slug` page comes from TMDB, so one with no poster or barely a sentence
+  of synopsis is a near-duplicate of the same film on far stronger domains. Those are
+  kept out of the sitemap and sent `noindex, follow` — the same threshold the platform
+  hubs use. **A reviewed title is never thin**, so every review written rescues a title
+  page from the cull.
+- **IndexNow on publish**: publishing, editing or deleting a review or article pings
+  IndexNow, and Bing/Yandex/Seznam pick it up within minutes. Fire-and-forget via
+  `ctx.waitUntil` — a writer's publish never waits on a search engine. Google has no
+  equivalent (its sitemap ping was retired in 2023), so it still finds new pages from
+  the sitemap on its own schedule.
 - **Per-title pages** (`/movie/:id/:slug`, built by `buildTitlePage`): the first line
   answers the query ("*X* is streaming on Netflix — OTT release date …"), with
   Movie/TVSeries JSON-LD (poster + aggregate rating) and per-title canonical. Titles
@@ -432,7 +443,9 @@ free tiers plus the domain:
 
 - Per-language hubs (`/movies/telugu`, `/movies/hindi`, …) on the platform-hub pattern —
   SEO-PLAN.md Tier 3
-- IndexNow pings after each sweep so Bing indexes new title pages the same day
+- IndexNow pings after the **daily sweep** too, so new title pages are announced the
+  same day (publishing already pings — this is the other half, and needs the key in
+  GitHub Actions rather than the Worker)
 - Per-series cricket pages (`/cricket/india-vs-australia`) on the movie-page pattern
 - A verdict-out-of-five field in the review composer — the one thing that would make
   `reviewRating` honest and unlock star snippets. Today's five stars measure how useful

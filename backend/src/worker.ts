@@ -22,6 +22,9 @@ import {
   Article,
   findTitle,
   relatedTitles,
+  titleUrl,
+  reviewUrl,
+  articleUrl,
   verifyGoogleToken,
   isOwnerEmail,
   sanitizeRating,
@@ -79,7 +82,52 @@ interface Env {
    * id this is a personal address and the repo is public. Unset = closed.
    */
   OWNER_EMAIL?: string
+  /**
+   * IndexNow key — a **var, not a secret**: the protocol requires it to be
+   * published at https://weekadda.com/<key>.txt, which this Worker serves.
+   * Unset means no pings, silently; nothing else changes.
+   */
+  INDEXNOW_KEY?: string
   ASSETS: { fetch(request: Request): Promise<Response> }
+}
+
+/**
+ * Tell IndexNow a URL changed. Bing, Yandex and Seznam honour it within
+ * minutes, which is the only "publish and it's indexed today" mechanism that
+ * exists — Google retired its sitemap ping in 2023 and its Indexing API covers
+ * only job postings and live videos, so Google still finds articles from the
+ * sitemap on its own schedule.
+ *
+ * Fire-and-forget through `ctx.waitUntil`: the writer's publish request must
+ * never wait on, or fail because of, a third-party search engine. Every error
+ * is swallowed for the same reason.
+ */
+function pingIndexNow(
+  env: Env,
+  ctx: { waitUntil(p: Promise<unknown>): void },
+  paths: string[]
+): void {
+  const key = env.INDEXNOW_KEY
+  if (!key || paths.length === 0) return
+  const body = JSON.stringify({
+    host: CANONICAL_HOST,
+    key,
+    keyLocation: `https://${CANONICAL_HOST}/${key}.txt`,
+    urlList: [...new Set(paths)].map((p) => `https://${CANONICAL_HOST}${p}`),
+  })
+  ctx.waitUntil(
+    fetch('https://api.indexnow.org/IndexNow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body,
+    })
+      .then((r) => {
+        // 200 accepted, 202 accepted-pending-key-validation; anything else is
+        // worth seeing in the tail, but never worth failing a publish over
+        if (!r.ok && r.status !== 202) console.warn('IndexNow rejected:', r.status)
+      })
+      .catch((err) => console.warn('IndexNow unreachable:', err))
+  )
 }
 
 const EMPTY_RELEASES: ReleaseCache = {
@@ -442,6 +490,15 @@ const routes = {
     if (url.pathname === '/ott' || url.pathname === '/ott/') {
       url.pathname = '/movies'
       return Response.redirect(url.toString(), 301)
+    }
+
+    // IndexNow verifies ownership by fetching the key back from the domain
+    // root. Served from the var rather than a file in public/, so the key and
+    // the thing that proves it can never disagree.
+    if (env.INDEXNOW_KEY && url.pathname === `/${env.INDEXNOW_KEY}.txt`) {
+      return new Response(env.INDEXNOW_KEY, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
     }
 
     if (url.pathname === '/sitemap.xml' && request.method === 'GET') {
@@ -980,6 +1037,8 @@ const routes = {
       })
       if (!insert.ok) return json({ error: 'Could not publish' }, 500)
       memory.delete('article-list')
+      // The new page, and the listing that now links to it
+      pingIndexNow(env, ctx, [articleUrl(article), '/reviews'])
       return json(publicArticle(article), 201)
     }
 
@@ -1082,6 +1141,8 @@ const routes = {
         const gone = await sb(env, `articles?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
         if (!gone.ok) return json({ error: 'Could not delete' }, 500)
         memory.delete('article-list')
+        // Tell them it is gone too, so the dead URL drops out sooner
+        pingIndexNow(env, ctx, [articleUrl(row), '/reviews'])
         return json({ deleted: id })
       }
 
@@ -1110,6 +1171,7 @@ const routes = {
       })
       if (!patch.ok) return json({ error: 'Could not save' }, 500)
       memory.delete('article-list')
+      pingIndexNow(env, ctx, [articleUrl(edited), '/reviews'])
       return json(publicArticle(edited))
     }
 
@@ -1157,6 +1219,13 @@ const routes = {
         await sb(env, `post_ratings?post_id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' })
         memory.delete('blog-list')
         memory.delete('ratings-list')
+        // The review's page, the feed, and the film's page — a title page
+        // carries its reviews, so removing one changes that page too
+        pingIndexNow(env, ctx, [
+          reviewUrl(row),
+          '/reviews',
+          ...(row.tag?.kind === 'movie' && row.tag.id ? [titleUrl({ id: row.tag.id, title: row.tag.label })] : []),
+        ])
         return json({ deleted: id })
       }
 
@@ -1176,6 +1245,13 @@ const routes = {
       })
       if (!patch.ok) return json({ error: 'Could not save' }, 500)
       memory.delete('blog-list')
+      pingIndexNow(env, ctx, [
+        reviewUrl(edited),
+        '/reviews',
+        ...(edited.tag?.kind === 'movie' && edited.tag.id
+          ? [titleUrl({ id: edited.tag.id, title: edited.tag.label })]
+          : []),
+      ])
       return json(publicPost(edited))
     }
 
@@ -1207,6 +1283,13 @@ const routes = {
       })
       if (!insert.ok) return json({ error: 'Could not publish the post' }, 502)
       memory.delete('blog-list')
+      pingIndexNow(env, ctx, [
+        reviewUrl(post),
+        '/reviews',
+        ...(post.tag?.kind === 'movie' && post.tag.id
+          ? [titleUrl({ id: post.tag.id, title: post.tag.label })]
+          : []),
+      ])
       return json(pub, 201)
     }
 

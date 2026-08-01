@@ -194,3 +194,32 @@ export interface CricketMeta {
   total: number
   syncing: boolean
 }
+
+/**
+ * One watched film, logged privately. Never returned by any public endpoint —
+ * it lives in its own store precisely so no public list can reach it.
+ * `userEmail` is server-side only and is stripped before this is sent, even to
+ * its owner: the client already knows whose log it is.
+ */
+export interface WatchLog {
+  id: string
+  ts: string
+  /** The day they watched (YYYY-MM-DD), not the day they logged it. */
+  watchedOn: string
+  /** A film or a match — decides whether "out" is a cinema or a stadium. */
+  kind: 'movie' | 'match'
+  /** Out of the house or in it. Not 'cinema': the same field holds a stadium. */
+  where: 'out' | 'home'
+  title: string
+  titleId?: string
+  /** Theatre or stadium name, or the platform when watched at home. */
+  venue?: string
+  /** Out only. */
+  city?: string
+  note?: string
+  /** Storage path in the private bucket — never a URL. Needs signing to show. */
+  image?: string
+  /** Framing, as on an article cover — chosen after upload, bytes untouched. */
+  imagePosition?: string
+  imageFit?: 'cover' | 'contain'
+}

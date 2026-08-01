@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CalendarRange, Film, Trophy, Feather, HandHeart, Linkedin } from 'lucide-react'
+import { ArrowLeft, Film, Trophy, Feather, HandHeart, Linkedin } from 'lucide-react'
 import { usePageMeta } from '../seo'
 
 const LINKEDIN = 'https://www.linkedin.com/in/hemanth-mareedu-a69271116/'
@@ -21,7 +21,13 @@ export default function About() {
 
       <div className="about-card">
         <span className="hero-eyebrow">
-          <CalendarRange size={13} /> About WeekAdda
+          {/* The mark itself, not a stand-in glyph. This line names the site, so
+              it should carry the same WA the tab and the header do — it was
+              still showing the calendar the header dropped. */}
+          <span className="brand-ico sm" aria-hidden="true">
+            WA
+          </span>{' '}
+          About WeekAdda
         </span>
         <h1>The week&apos;s entertainment, in one place</h1>
         <p>
@@ -32,7 +38,7 @@ export default function About() {
         </p>
         <ul className="about-features">
           <li>
-            <Film size={16} />
+            <span className="about-ico ico-movies"><Film size={15} /></span>
             <span>
               <b>Movies &amp; OTT</b> — new releases in Telugu, Hindi, Tamil, Malayalam, Kannada,
               English and 12+ languages; daily OTT arrivals on Netflix, Prime Video, JioHotstar,
@@ -41,14 +47,14 @@ export default function About() {
             </span>
           </li>
           <li>
-            <Trophy size={16} />
+            <span className="about-ico ico-results"><Trophy size={15} /></span>
             <span>
               <b>Cricket</b> — upcoming fixtures with date, time and venue for every international
               series, and completed results week by week.
             </span>
           </li>
           <li>
-            <Feather size={16} />
+            <span className="about-ico ico-theatre"><Feather size={15} /></span>
             <span>
               <b>Reviews</b> — honest verdicts from people who actually watched, each tagged to
               the film or match it is about and rated out of five. Anyone can read; writing or
@@ -56,7 +62,7 @@ export default function About() {
             </span>
           </li>
           <li>
-            <HandHeart size={16} />
+            <span className="about-ico ico-adda"><HandHeart size={15} /></span>
             <span>
               <b>The Adda</b> — a community board to ask, offer and find company: a spare ticket
               at face value, a movie plan that needs one more person, an honest question for

@@ -821,6 +821,223 @@ export interface AddaInterest {
   ts: string
 }
 
+// ---------------------------------------------------------------- watch log (private)
+
+/**
+ * A film someone watched, logged for themselves.
+ *
+ * **A separate store, not a `private` flag on a review** — deliberately, and for
+ * the same reason articles are separate from reviews. A flag means every list,
+ * every pre-render, the sitemap, the mini player and the related-reviews query
+ * must each remember to filter, and "someone forgot one" is a private night out
+ * appearing in a public feed. With its own table and its own routes, none of
+ * that code can reach a log entry even if it tries: there is no endpoint that
+ * returns anyone else's, and nothing public reads this table at all.
+ *
+ * It is also a lighter thing than a review. No title, no minimum length, no
+ * rating — demanding a written verdict for every Tuesday show is how a log stops
+ * being kept by the second week.
+ */
+export interface WatchLog {
+  id: string
+  /** When it was logged. `watchedOn` is when they actually watched. */
+  ts: string
+  /** ISO date (YYYY-MM-DD). Defaults to today, editable — logs run late. */
+  watchedOn: string
+  /** The verified account this belongs to. Never leaves the server. */
+  userEmail: string
+  /** A film or a match — the two things this site is about, and the two
+   *  things a night out can be. Decides what `out` means below. */
+  kind: 'movie' | 'match'
+  /**
+   * Out of the house or in it. Deliberately not 'cinema': the same field has
+   * to hold a stadium, and naming it after one of its two meanings is how a
+   * column ends up lying about half its rows.
+   */
+  where: 'out' | 'home'
+  title: string
+  /** Set when picked from the release cache; absent for anything older. */
+  titleId?: string
+  /** Theatre or stadium name, or the platform when watched at home. */
+  venue?: string
+  /** Out only — a platform has no city. */
+  city?: string
+  note?: string
+  /**
+   * A photo, stored in the **private** `log-images` bucket.
+   *
+   * This holds the object's *path*, not a URL, and that is the whole point:
+   * article covers live in a public bucket because a social crawler has to
+   * fetch them, but nothing should ever be able to fetch one of these. The
+   * Worker signs a short-lived URL when the owner opens the entry, so the file
+   * is unreadable to anyone who has not just proved who they are — including
+   * anyone holding the path.
+   */
+  image?: string
+  /**
+   * How the photo is framed — a CSS object-position, and cover/contain. Chosen
+   * after upload, so the stored bytes are never touched and re-framing is free.
+   * Same pair an article cover carries, and the same picker sets them.
+   */
+  imagePosition?: string
+  imageFit?: 'cover' | 'contain'
+}
+
+const MAX_LOG_TITLE = 160
+const MAX_LOG_NOTE = 2000
+
+/**
+ * Validate a logged watch. Returns null when there is nothing usable — a log
+ * with no title is not a log of anything.
+ *
+ * `userEmail` comes from the verified token and never from the body: this is
+ * the only thing separating one person's log from everyone else's.
+ */
+export function buildWatchLog(input: unknown, verifiedEmail: string): WatchLog | null {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const title = String(raw.title ?? '').trim().slice(0, MAX_LOG_TITLE)
+  if (!title || !verifiedEmail) return null
+  const kind = raw.kind === 'match' ? 'match' : 'movie'
+  const where = raw.where === 'home' ? 'home' : 'out'
+  const str = (v: unknown, max: number) => {
+    const s = String(v ?? '').trim().slice(0, max)
+    return s || undefined
+  }
+  // A date we cannot parse is worse than no date: it would sort and group
+  // wrongly for ever. Anything unparseable falls back to today.
+  const wanted = String(raw.watchedOn ?? '')
+  const watchedOn = /^\d{4}-\d{2}-\d{2}$/.test(wanted)
+    ? wanted
+    : new Date().toISOString().slice(0, 10)
+  return {
+    id: `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    ts: new Date().toISOString(),
+    watchedOn,
+    userEmail: verifiedEmail,
+    kind,
+    where,
+    title,
+    ...(typeof raw.titleId === 'string' && raw.titleId ? { titleId: raw.titleId.slice(0, 120) } : {}),
+    ...(str(raw.venue, 120) ? { venue: str(raw.venue, 120) } : {}),
+    // A city on a home entry would be noise in the stats, so it is dropped
+    // rather than stored and ignored
+    ...(where === 'out' && str(raw.city, 80) ? { city: str(raw.city, 80) } : {}),
+    ...(str(raw.note, MAX_LOG_NOTE) ? { note: str(raw.note, MAX_LOG_NOTE) } : {}),
+    ...(str(raw.image, 300) ? { image: str(raw.image, 300) } : {}),
+    // Framing only travels with a picture to frame
+    ...(str(raw.image, 300) && str(raw.imagePosition, 24)
+      ? { imagePosition: str(raw.imagePosition, 24) }
+      : {}),
+    ...(str(raw.image, 300) && raw.imageFit === 'contain' ? { imageFit: 'contain' as const } : {}),
+  }
+}
+
+/**
+ * Apply an edit to a log entry, field by field.
+ *
+ * Rebuilt rather than merged, for the same reason `applyArticleEdit` is: a
+ * spread would let anything in the body through, including `id`, `ts` and
+ * `userEmail` — the three fields that decide whose entry this is and can never
+ * be editable. Everything else is re-validated exactly as it was on the way in,
+ * because an edit is another chance to send junk.
+ *
+ * A cleared field must arrive as an explicit empty string. `undefined` means
+ * "not editing this one", which is what lets a form send only what it changed.
+ */
+export function applyWatchLogEdit(existing: WatchLog, input: unknown): WatchLog {
+  const raw = (input ?? {}) as Record<string, unknown>
+  const text = (v: unknown, was: string | undefined, max: number) => {
+    if (typeof v !== 'string') return was
+    const s = v.trim().slice(0, max)
+    return s || undefined
+  }
+  const kind = raw.kind === 'match' ? 'match' : raw.kind === 'movie' ? 'movie' : existing.kind
+  const where = raw.where === 'home' ? 'home' : raw.where === 'out' ? 'out' : existing.where
+  const title =
+    typeof raw.title === 'string' && raw.title.trim()
+      ? raw.title.trim().slice(0, MAX_LOG_TITLE)
+      : existing.title
+  const watchedOn =
+    typeof raw.watchedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.watchedOn)
+      ? raw.watchedOn
+      : existing.watchedOn
+  const city = where === 'out' ? text(raw.city, existing.city, 80) : undefined
+  return {
+    // Identity, untouched
+    id: existing.id,
+    ts: existing.ts,
+    userEmail: existing.userEmail,
+    watchedOn,
+    kind,
+    where,
+    title,
+    ...(typeof raw.titleId === 'string'
+      ? raw.titleId
+        ? { titleId: raw.titleId.slice(0, 120) }
+        : {}
+      : existing.titleId
+        ? { titleId: existing.titleId }
+        : {}),
+    ...(text(raw.venue, existing.venue, 120) ? { venue: text(raw.venue, existing.venue, 120) } : {}),
+    ...(city ? { city } : {}),
+    ...(text(raw.note, existing.note, MAX_LOG_NOTE)
+      ? { note: text(raw.note, existing.note, MAX_LOG_NOTE) }
+      : {}),
+    ...(text(raw.image, existing.image, 300)
+      ? {
+          image: text(raw.image, existing.image, 300),
+          ...(text(raw.imagePosition, existing.imagePosition, 24)
+            ? { imagePosition: text(raw.imagePosition, existing.imagePosition, 24) }
+            : {}),
+          ...((raw.imageFit ?? existing.imageFit) === 'contain'
+            ? { imageFit: 'contain' as const }
+            : {}),
+        }
+      : {}),
+  }
+}
+
+export interface WatchStats {
+  /** Everything logged this year, films and matches together. */
+  watched: number
+  films: number
+  matches: number
+  /** Out of the house — a cinema or a stadium. */
+  out: number
+  home: number
+  /** Distinct places gone to. Never counts a platform: staying in is not a
+   *  venue, and mixing the two would make "9 venues" mean nothing. */
+  venues: number
+  /** Most-visited venue and how many times — null when nothing is logged. */
+  top: { name: string; count: number } | null
+}
+
+/**
+ * The year summary above the log. Counts entries rather than distinct titles:
+ * seeing a film twice is two trips, and this is a record of trips.
+ */
+export function watchStats(logs: WatchLog[], year: number): WatchStats {
+  const inYear = logs.filter((l) => l.watchedOn.startsWith(String(year)))
+  const venues = new Map<string, number>()
+  for (const l of inYear) {
+    if (l.where !== 'out' || !l.venue) continue
+    venues.set(l.venue, (venues.get(l.venue) ?? 0) + 1)
+  }
+  let top: WatchStats['top'] = null
+  for (const [name, count] of venues) {
+    if (!top || count > top.count) top = { name, count }
+  }
+  return {
+    watched: inYear.length,
+    films: inYear.filter((l) => l.kind === 'movie').length,
+    matches: inYear.filter((l) => l.kind === 'match').length,
+    out: inYear.filter((l) => l.where === 'out').length,
+    home: inYear.filter((l) => l.where === 'home').length,
+    venues: venues.size,
+    top,
+  }
+}
+
 // ---------------------------------------------------------------- push
 
 /**

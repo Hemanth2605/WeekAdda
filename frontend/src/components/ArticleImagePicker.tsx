@@ -33,16 +33,29 @@ export const DEFAULT_POSITION = '50% 50%'
 
 export default function ArticleImagePicker({
   image,
+  src,
+  label = 'Cover image',
   position = DEFAULT_POSITION,
   fit = 'cover',
+  upload = uploadArticleImage,
   onChange,
   onPositionChange,
   onFitChange,
 }: {
+  /** What is stored — a URL for an article, a storage path for a log entry. */
   image?: string
+  /**
+   * What to display, when that is not the stored value. A private log photo
+   * lives in a bucket nothing can read without a signature, so its owner
+   * resolves the path to a short-lived URL and passes it in here.
+   */
+  src?: string
+  label?: string
   position?: string
   fit?: 'cover' | 'contain'
-  onChange: (url: string | undefined) => void
+  /** Returns the value to store. Defaults to the article uploader. */
+  upload?: (file: File, token?: string) => Promise<{ url: string } | { path: string }>
+  onChange: (stored: string | undefined) => void
   onPositionChange: (position: string) => void
   onFitChange: (fit: 'cover' | 'contain') => void
 }) {
@@ -99,8 +112,10 @@ export default function ArticleImagePicker({
     if (authEnabled && !token) return setError('Please sign in first, then choose the image')
     setBusy(true)
     try {
-      const { url } = await uploadArticleImage(file, token)
-      onChange(url)
+      const stored = await upload(file, token)
+      // A URL from the article uploader, a path from the log one — the caller
+      // decides which of the two it gets back
+      onChange('url' in stored ? stored.url : stored.path)
     } catch (err) {
       setError(describe(err))
     } finally {
@@ -112,7 +127,7 @@ export default function ArticleImagePicker({
   return (
     <div className="article-image-picker">
       <span className="film-picker-label">
-        <ImagePlus size={13} /> Cover image <em>optional</em>
+        <ImagePlus size={13} /> {label} <em>optional</em>
       </span>
 
       {image ? (
@@ -124,6 +139,11 @@ export default function ArticleImagePicker({
             className="article-image-preview"
             onPointerDown={(e) => {
               if (fit === 'contain') return
+              // The remove button lives inside this box. Capturing the pointer
+              // here redirects the rest of the gesture to this element, so the
+              // button never sees its own click — pressing X started a drag
+              // instead of removing the picture.
+              if ((e.target as HTMLElement).closest('button')) return
               e.currentTarget.setPointerCapture(e.pointerId)
               setDragging(true)
               drag(e)
@@ -133,10 +153,20 @@ export default function ArticleImagePicker({
             onPointerCancel={() => setDragging(false)}
             data-draggable={fit !== 'contain'}
           >
-            <img src={image} alt="" style={{ objectFit: fit, objectPosition: position }} />
+            <img src={src ?? image} alt="" style={{ objectFit: fit, objectPosition: position }} />
             <button
               className="share-close"
-              onClick={() => onChange(undefined)}
+              // Belt and braces with the guard above: the drag surface must not
+              // hear this press at all
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onChange(undefined)
+                // Framing belongs to the picture that is going, not to the next
+                // one — leaving it would hand a new upload someone else's crop
+                onPositionChange(DEFAULT_POSITION)
+                onFitChange('cover')
+              }}
               aria-label="Remove image"
             >
               <X size={14} />

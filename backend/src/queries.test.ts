@@ -26,6 +26,9 @@ import {
   publicArticle,
   relatedArticles,
   relatedTitles,
+  applyWatchLogEdit,
+  buildWatchLog,
+  watchStats,
   buildPushSubscription,
   todaysReleasesFor,
   ALL_LANGUAGES_CODE,
@@ -34,6 +37,7 @@ import {
   type Release,
   type CricketCache,
   type Click,
+  type WatchLog,
 } from './queries'
 
 /**
@@ -979,5 +983,151 @@ describe('relatedTitles', () => {
   it('never lists the title you are already reading', () => {
     const self = release({ id: 'cinema-now', releaseDate: iso(-3) })
     expect(todaysIds(relatedTitles(data, self, 8, 'in-theatres'))).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------- watch log
+
+describe('buildWatchLog', () => {
+  it('takes the account from the token and never from the body', () => {
+    // The whole privacy model rests on this one line: a body claiming to be
+    // somebody else must not be able to write into their log
+    const entry = buildWatchLog(
+      { title: 'Kingdom', userEmail: 'someone.else@example.com' },
+      'me@example.com'
+    )
+    expect(entry?.userEmail).toBe('me@example.com')
+  })
+
+  it('refuses an entry with no film and one with no account', () => {
+    expect(buildWatchLog({ title: '   ' }, 'me@example.com')).toBeNull()
+    expect(buildWatchLog({ title: 'Kingdom' }, '')).toBeNull()
+  })
+
+  it('falls back to today when the date is missing or unparseable', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    expect(buildWatchLog({ title: 'X' }, 'me@x.com')?.watchedOn).toBe(today)
+    expect(buildWatchLog({ title: 'X', watchedOn: 'last tuesday' }, 'me@x.com')?.watchedOn).toBe(
+      today
+    )
+    expect(buildWatchLog({ title: 'X', watchedOn: '2026-07-04' }, 'me@x.com')?.watchedOn).toBe(
+      '2026-07-04'
+    )
+  })
+
+  it('drops a city on a home entry — a platform has no city', () => {
+    const home = buildWatchLog(
+      { title: 'X', where: 'home', venue: 'Netflix', city: 'Hyderabad' },
+      'me@x.com'
+    )
+    expect(home?.where).toBe('home')
+    expect(home?.venue).toBe('Netflix')
+    expect(home?.city).toBeUndefined()
+  })
+})
+
+describe('watchStats', () => {
+  const log = (over: Partial<WatchLog> & { watchedOn: string }): WatchLog => ({
+    id: over.watchedOn + (over.venue ?? ''),
+    ts: '2026-01-01T00:00:00.000Z',
+    userEmail: 'me@x.com',
+    kind: 'movie',
+    where: 'out',
+    title: 'A film',
+    ...over,
+  })
+
+  const logs = [
+    log({ watchedOn: '2026-07-01', venue: 'PVR Forum' }),
+    log({ watchedOn: '2026-07-08', venue: 'PVR Forum' }),
+    log({ watchedOn: '2026-07-09', venue: 'AMB' }),
+    log({ watchedOn: '2026-07-10', where: 'home', venue: 'Netflix' }),
+    log({ watchedOn: '2025-12-30', venue: 'PVR Forum' }),
+  ]
+
+  it('counts trips, not distinct titles, and only this year', () => {
+    const s = watchStats(logs, 2026)
+    expect(s.watched).toBe(4)
+    expect(s.out).toBe(3)
+    expect(s.home).toBe(1)
+  })
+
+  it('splits films from matches — a log holds both', () => {
+    const mixed = [...logs, log({ watchedOn: '2026-07-11', kind: 'match', venue: 'Uppal' })]
+    const s = watchStats(mixed, 2026)
+    expect(s.films).toBe(4)
+    expect(s.matches).toBe(1)
+    expect(s.watched).toBe(5)
+  })
+
+  it('counts theatres, never the platform watched at home', () => {
+    expect(watchStats(logs, 2026).venues).toBe(2)
+  })
+
+  it('names the most-visited theatre', () => {
+    expect(watchStats(logs, 2026).top).toEqual({ name: 'PVR Forum', count: 2 })
+  })
+
+  it('has no favourite when nothing is logged', () => {
+    expect(watchStats([], 2026)).toEqual({
+      watched: 0,
+      films: 0,
+      matches: 0,
+      out: 0,
+      home: 0,
+      venues: 0,
+      top: null,
+    })
+  })
+})
+
+describe('applyWatchLogEdit', () => {
+  const existing: WatchLog = {
+    id: 'w-1',
+    ts: '2026-07-01T10:00:00.000Z',
+    watchedOn: '2026-07-01',
+    userEmail: 'me@x.com',
+    kind: 'movie',
+    where: 'out',
+    title: 'Kingdom',
+    venue: 'PVR Forum',
+    city: 'Hyderabad',
+    note: 'Went with Ravi',
+  }
+
+  it('never lets identity be edited, whatever the body claims', () => {
+    const out = applyWatchLogEdit(existing, {
+      id: 'w-someone-else',
+      ts: '2020-01-01T00:00:00.000Z',
+      userEmail: 'attacker@x.com',
+      title: 'Changed',
+    })
+    expect(out.id).toBe('w-1')
+    expect(out.ts).toBe(existing.ts)
+    expect(out.userEmail).toBe('me@x.com')
+    expect(out.title).toBe('Changed')
+  })
+
+  it('leaves out what the edit did not mention', () => {
+    const out = applyWatchLogEdit(existing, { note: 'Better note' })
+    expect(out.note).toBe('Better note')
+    expect(out.venue).toBe('PVR Forum')
+    expect(out.city).toBe('Hyderabad')
+    expect(out.watchedOn).toBe('2026-07-01')
+  })
+
+  it('clears a field given an empty string, which is how removal is asked for', () => {
+    expect(applyWatchLogEdit(existing, { note: '' }).note).toBeUndefined()
+    expect(applyWatchLogEdit(existing, { venue: '   ' }).venue).toBeUndefined()
+  })
+
+  it('drops the city when the entry moves home — a platform has none', () => {
+    const out = applyWatchLogEdit(existing, { where: 'home' })
+    expect(out.where).toBe('home')
+    expect(out.city).toBeUndefined()
+  })
+
+  it('keeps the old title rather than accepting a blank one', () => {
+    expect(applyWatchLogEdit(existing, { title: '   ' }).title).toBe('Kingdom')
   })
 })

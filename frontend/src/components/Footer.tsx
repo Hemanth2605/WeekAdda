@@ -1,12 +1,16 @@
 import { Link } from 'react-router-dom'
-import { CalendarRange } from 'lucide-react'
 
 export default function Footer() {
   return (
     <footer className="site-footer">
       <div className="footer-brand">
-        <CalendarRange size={18} />
-        <span>
+        {/* The mark, not a stand-in glyph — the same WA the tab, the header and
+            the About page carry. The calendar the header dropped was still
+            sitting down here, which made the footer look like another site. */}
+        <span className="brand-ico sm" aria-hidden="true">
+          WA
+        </span>
+        <span className="footer-word">
           Week<em>Adda</em>
         </span>
       </div>
@@ -42,6 +46,15 @@ export default function Footer() {
           TMDB
         </a>{' '}
         API but is not endorsed or certified by TMDB. Cricket data via ESPN.
+      </p>
+      {/* The streaming services are the marks most visible on the site — named
+          on release cards, hubs, the film picker — and the TMDB line above says
+          nothing about them. Naming a service to say where a film streams is
+          ordinary descriptive use; this makes explicit what that use already
+          implies, which is that none of them are involved in WeekAdda. */}
+      <p className="footer-attribution">
+        Platform names and marks are the property of their respective owners. WeekAdda is not
+        affiliated with, endorsed by, or sponsored by any streaming service.
       </p>
     </footer>
   )

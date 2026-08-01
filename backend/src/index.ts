@@ -8,6 +8,7 @@ import trackRoutes from './routes/track'
 import blogRoutes from './routes/blog'
 import articleRoutes from './routes/articles'
 import addaRoutes from './routes/adda'
+import logRoutes from './routes/logs'
 import pushRoutes from './routes/push'
 import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
 import { findTitle, relatedTitles, queryPlatform } from './queries'
@@ -46,6 +47,7 @@ app.use('/api/track', trackRoutes)
 app.use('/api/blog', blogRoutes)
 app.use('/api/articles', articleRoutes)
 app.use('/api/adda', addaRoutes)
+app.use('/api/logs', logRoutes)
 app.use('/api/push', pushRoutes)
 
 // The daily agents: every morning at 04:00 — movies then cricket. Matches the

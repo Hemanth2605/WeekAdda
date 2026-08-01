@@ -150,3 +150,41 @@ alter table post_ratings enable row level security;
 alter table listings enable row level security;
 alter table listing_interests enable row level security;
 alter table push_subscriptions enable row level security;
+
+-- ---------------------------------------------------------------- watch log
+-- The private log: what someone watched, where and when. Nothing public ever
+-- reads this table — there is no endpoint that returns another account's rows,
+-- and the Worker filters on user_email inside every query rather than after it.
+create table if not exists watch_logs (
+  id text primary key,
+  ts timestamptz not null default now(),
+  -- The day they watched, which is not the day they logged it
+  watched_on date not null,
+  user_email text not null,
+  -- 'movie' or 'match' — the log covers both, so a night out is a cinema
+  -- for one and a stadium for the other
+  kind text not null default 'movie',
+  -- "where" is reserved in SQL; this is 'out' (cinema/stadium) or 'home'
+  where_kind text not null default 'out',
+  title text not null,
+  -- Set when the film was picked from the release cache, absent for older ones
+  title_id text,
+  -- Theatre or stadium name, or the platform when watched at home
+  venue text,
+  -- Cinema only: a platform has no city
+  city text,
+  note text,
+  -- A photo, as a PATH in the PRIVATE log-images bucket — never a URL. The
+  -- Worker signs a short-lived one when the owner opens the entry; there is no
+  -- URL that works without that. Article covers are the opposite case and live
+  -- in a public bucket, because a social crawler has to fetch them.
+  image text,
+  -- How the photo is framed, chosen after upload — the bytes are never touched
+  image_position text,
+  image_fit text
+);
+
+-- Every read is "this account's log, newest watch first"
+create index if not exists watch_logs_user_idx on watch_logs (user_email, watched_on desc);
+
+alter table watch_logs enable row level security;

@@ -30,6 +30,8 @@ import {
   sanitizeRating,
   summarizeRatings,
   buildListing,
+  applyWatchLogEdit,
+  buildWatchLog,
   buildPushSubscription,
   liveListings,
   publicListing,
@@ -359,6 +361,19 @@ function gone(asset: Response): Response {
   return new Response(asset.body, { status: 404, headers: asset.headers })
 }
 
+/**
+ * A private response — nothing between the Worker and the account that asked
+ * for it may keep a copy. The watch log is one person's, so its bodies must
+ * not be storable by a CDN, a proxy or the browser's back/forward cache the
+ * way a public feed's happily can be.
+ */
+function privateJson(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+  })
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -421,9 +436,17 @@ function ottHubSlug(pathname: string): string | null {
   return slug && platformBySlug(slug) ? slug : null
 }
 
+/**
+ * One private log entry. Id-shaped, so it cannot be a SPA_ROUTES string —
+ * and never indexed: the page is empty for anyone but its owner and the id is
+ * the only thing standing between two accounts.
+ */
+const LOG_ROUTE = /^\/log\/[^/]+\/?$/
+
 function isKnownRoute(pathname: string): boolean {
   return (
     SPA_ROUTES.has(pathname) ||
+    LOG_ROUTE.test(pathname) ||
     MOVIE_ROUTE.test(pathname) ||
     REVIEW_ROUTE.test(pathname) ||
     ARTICLE_ROUTE.test(pathname) ||
@@ -537,7 +560,7 @@ const routes = {
       }
       // Never pre-rendered and never indexed — the header covers crawlers that
       // ignore robots.txt or don't run JS.
-      if (NOINDEX_PAGES.has(url.pathname)) {
+      if (NOINDEX_PAGES.has(url.pathname) || LOG_ROUTE.test(url.pathname)) {
         const headers = new Headers(asset.headers)
         headers.set('X-Robots-Tag', 'noindex, nofollow')
         return new Response(asset.body, { status: asset.status, headers })
@@ -763,6 +786,233 @@ const routes = {
       }
 
       // Open board — public; a token additionally reveals yours + unlocked contacts
+      /**
+       * The private watch log. Every branch verifies the account first and
+       * filters on `user_email` in the query itself, so the database is never
+       * asked for anyone else's rows — there is no route here that could return
+       * them, and no public read at all.
+       */
+      if (url.pathname === '/api/logs') {
+        const me = await verifyMe()
+        if (!me) return privateJson({ error: 'Sign in to use your log' }, 401)
+
+        if (request.method === 'GET') {
+          const res = await sb(
+            env,
+            `watch_logs?user_email=eq.${encodeURIComponent(me.email)}` +
+              '&select=id,ts,watched_on,kind,where_kind,title,title_id,venue,city,note,image,image_position,image_fit' +
+              '&order=watched_on.desc,ts.desc&limit=2000'
+          )
+          if (!res.ok) return privateJson({ logs: [] })
+          const rows = (await res.json()) as Array<Record<string, unknown>>
+          return privateJson({
+            logs: rows.map((r) => ({
+              id: r.id,
+              ts: r.ts,
+              watchedOn: r.watched_on,
+              kind: r.kind,
+              where: r.where_kind,
+              title: r.title,
+              ...(r.title_id ? { titleId: r.title_id } : {}),
+              ...(r.venue ? { venue: r.venue } : {}),
+              ...(r.city ? { city: r.city } : {}),
+              ...(r.note ? { note: r.note } : {}),
+              ...(r.image ? { image: r.image } : {}),
+              ...(r.image_position ? { imagePosition: r.image_position } : {}),
+              ...(r.image_fit ? { imageFit: r.image_fit } : {}),
+            })),
+          })
+        }
+
+        if (request.method === 'POST') {
+          let body: unknown = {}
+          try {
+            body = await request.json()
+          } catch {
+            // fall through to validation
+          }
+          const entry = buildWatchLog(body, me.email)
+          if (!entry) return privateJson({ error: 'Name the film you watched' }, 400)
+          const insert = await sb(env, 'watch_logs', {
+            method: 'POST',
+            body: JSON.stringify({
+              id: entry.id,
+              ts: entry.ts,
+              watched_on: entry.watchedOn,
+              user_email: entry.userEmail,
+              kind: entry.kind,
+              // `where` is reserved in SQL, so the column is where_kind
+              where_kind: entry.where,
+              title: entry.title,
+              title_id: entry.titleId ?? null,
+              venue: entry.venue ?? null,
+              city: entry.city ?? null,
+              note: entry.note ?? null,
+              image: entry.image ?? null,
+              image_position: entry.imagePosition ?? null,
+              image_fit: entry.imageFit ?? null,
+            }),
+          })
+          if (!insert.ok) return privateJson({ error: 'Could not save that' }, 502)
+          const { userEmail, ...pub } = entry
+          return privateJson(pub, 201)
+        }
+      }
+
+      /**
+       * A log photo, into the **private** `log-images` bucket.
+       *
+       * The path is namespaced by the account, and every read below re-derives
+       * that prefix from the verified token rather than trusting the path it
+       * is handed — so a path belonging to someone else cannot be signed even
+       * if it is guessed or copied.
+       */
+      if (url.pathname === '/api/logs/image' && request.method === 'POST') {
+        const me = await verifyMe()
+        if (!me) return privateJson({ error: 'Sign in to add a photo' }, 401)
+        const ext = imageExtension(request.headers.get('Content-Type'))
+        if (!ext) return privateJson({ error: 'Use a JPEG, PNG, WebP, GIF or AVIF' }, 415)
+        const bytes = await request.arrayBuffer()
+        if (bytes.byteLength > 4 * 1024 * 1024) return privateJson({ error: 'Keep it under 4 MB' }, 413)
+        // The account's own folder, and a generated name — never the one the
+        // browser sent
+        const path = `${accountFolder(me.email)}/${crypto.randomUUID()}.${ext}`
+        const put = await fetch(`${env.SUPABASE_URL}/storage/v1/object/log-images/${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Content-Type': request.headers.get('Content-Type') ?? 'application/octet-stream',
+          },
+          body: bytes,
+        })
+        if (!put.ok) return privateJson({ error: 'Could not upload that' }, 502)
+        // The path, not a URL: there is no URL that works without signing
+        return privateJson({ path }, 201)
+      }
+
+      /** A short-lived URL for one of your own photos. */
+      if (url.pathname === '/api/logs/image/sign' && request.method === 'POST') {
+        const me = await verifyMe()
+        if (!me) return privateJson({ error: 'Sign in first' }, 401)
+        let body: { path?: string } = {}
+        try {
+          body = (await request.json()) as { path?: string }
+        } catch {
+          // falls through to the ownership check
+        }
+        const path = String(body.path ?? '')
+        // The one check that matters: a path outside your own folder is never
+        // signed, however it was come by
+        if (!path || !path.startsWith(`${accountFolder(me.email)}/`)) {
+          return privateJson({ error: 'Not found' }, 404)
+        }
+        const signed = await fetch(`${env.SUPABASE_URL}/storage/v1/object/sign/log-images/${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          // Long enough to look at, short enough that a copied link is no use
+          body: JSON.stringify({ expiresIn: 3600 }),
+        })
+        if (!signed.ok) return privateJson({ error: 'Not found' }, 404)
+        const { signedURL } = (await signed.json()) as { signedURL: string }
+        return privateJson({ url: `${env.SUPABASE_URL}/storage/v1${signedURL}` })
+      }
+
+      const logMatch = url.pathname.match(/^\/api\/logs\/([^/]+)$/)
+      if (logMatch && request.method === 'PATCH') {
+        const me = await verifyMe()
+        if (!me) return privateJson({ error: 'Sign in first' }, 401)
+        const id = decodeURIComponent(logMatch[1])
+        // Read scoped to the account, so someone else's id simply is not found
+        const found = await sb(
+          env,
+          `watch_logs?id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(me.email)}` +
+            '&select=id,ts,watched_on,kind,where_kind,title,title_id,venue,city,note,image,image_position,image_fit&limit=1'
+        )
+        const rows = found.ok ? ((await found.json()) as Array<Record<string, unknown>>) : []
+        if (rows.length === 0) return privateJson({ error: 'Not found' }, 404)
+        const r = rows[0]
+        let body: unknown = {}
+        try {
+          body = await request.json()
+        } catch {
+          // an unreadable body edits nothing, which applyWatchLogEdit handles
+        }
+        const updated = applyWatchLogEdit(
+          {
+            id: String(r.id),
+            ts: String(r.ts),
+            watchedOn: String(r.watched_on),
+            userEmail: me.email,
+            kind: r.kind === 'match' ? 'match' : 'movie',
+            where: r.where_kind === 'home' ? 'home' : 'out',
+            title: String(r.title),
+            ...(r.title_id ? { titleId: String(r.title_id) } : {}),
+            ...(r.venue ? { venue: String(r.venue) } : {}),
+            ...(r.city ? { city: String(r.city) } : {}),
+            ...(r.note ? { note: String(r.note) } : {}),
+            ...(r.image ? { image: String(r.image) } : {}),
+            ...(r.image_position ? { imagePosition: String(r.image_position) } : {}),
+            ...(r.image_fit === 'contain' ? { imageFit: 'contain' as const } : {}),
+          },
+          body
+        )
+        // Cleared fields must be written as explicit nulls, or the removal
+        // silently does nothing — the same trap the article PATCH has
+        const patch = await sb(
+          env,
+          `watch_logs?id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(me.email)}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({
+              watched_on: updated.watchedOn,
+              kind: updated.kind,
+              where_kind: updated.where,
+              title: updated.title,
+              title_id: updated.titleId ?? null,
+              venue: updated.venue ?? null,
+              city: updated.city ?? null,
+              note: updated.note ?? null,
+              image: updated.image ?? null,
+              image_position: updated.imagePosition ?? null,
+              image_fit: updated.imageFit ?? null,
+            }),
+          }
+        )
+        if (!patch.ok) return privateJson({ error: 'Could not save that' }, 502)
+        // The picture it no longer has must not outlive it. Removing or
+        // replacing a photo left the old object sitting in the bucket for
+        // ever, which is a copy of something its owner believed they had
+        // taken down.
+        const wasImage = r.image ? String(r.image) : ''
+        if (wasImage && wasImage !== updated.image) await dropLogImage(env, wasImage)
+        const { userEmail, ...pub } = updated
+        return privateJson(pub)
+      }
+
+      if (logMatch && request.method === 'DELETE') {
+        const me = await verifyMe()
+        if (!me) return privateJson({ error: 'Sign in first' }, 401)
+        const id = decodeURIComponent(logMatch[1])
+        // Both conditions in the delete itself: someone else's id matches
+        // nothing and answers 404, which never confirms that it exists
+        const res = await sb(
+          env,
+          `watch_logs?id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(me.email)}`,
+          { method: 'DELETE', headers: { Prefer: 'return=representation' } }
+        )
+        if (!res.ok) return privateJson({ error: 'Could not remove that' }, 502)
+        const gone = (await res.json()) as Array<Record<string, unknown>>
+        if (!Array.isArray(gone) || gone.length === 0) return privateJson({ error: 'Not found' }, 404)
+        // Representation is asked for above so the row can name its photo on
+        // the way out — delete the entry and the picture goes with it, rather
+        // than being orphaned in a bucket nothing points at any more
+        if (gone[0]?.image) await dropLogImage(env, String(gone[0].image))
+        return privateJson({ ok: true })
+      }
+
       if (url.pathname === '/api/adda' && request.method === 'GET') {
         const me = await verifyMe()
         const { listings, interests } = await loadAdda(env)
@@ -1485,4 +1735,39 @@ const routes = {
 
     return json({ error: 'Not found' }, 404)
   },
+}
+
+/**
+ * One account's own folder in the private photo bucket.
+ *
+ * Hashed rather than the address itself: an object path can end up in a log
+ * line, a CDN record or a bug report, and none of those should carry somebody's
+ * email. The hash only ever has to be stable and unique per account — it is
+ * never reversed, and never compared against anything but itself.
+ */
+/**
+ * Remove one photo from the private bucket.
+ *
+ * Best-effort by design: the entry it belonged to is already gone, and a
+ * storage hiccup must not turn a successful delete into an error the writer
+ * has to retry. Awaited rather than fired off, so in the ordinary case the
+ * object really is gone before we answer.
+ */
+async function dropLogImage(env: Env, path: string): Promise<void> {
+  try {
+    await fetch(`${env.SUPABASE_URL}/storage/v1/object/log-images/${path}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` },
+    })
+  } catch {
+    // nothing to do about it here, and nothing worth failing the request for
+  }
+}
+
+function accountFolder(email: string): string {
+  let h = 0
+  for (let i = 0; i < email.length; i++) {
+    h = (Math.imul(31, h) + email.charCodeAt(i)) | 0
+  }
+  return `u${(h >>> 0).toString(36)}`
 }

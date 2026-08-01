@@ -228,6 +228,72 @@ export function deleteArticle(id: string, token: string): Promise<{ deleted: str
   })
 }
 
+// ---------------------------------------------------------------- watch log
+
+/**
+ * The private log. Every call carries the token — there is no anonymous read,
+ * because there is no such thing as somebody else's log being visible.
+ */
+export function fetchLogs(token: string): Promise<{ logs: import('./types').WatchLog[] }> {
+  return api('/logs', { headers: { Authorization: `Bearer ${token}` } })
+}
+
+export function createLog(
+  entry: Partial<import('./types').WatchLog>,
+  token: string
+): Promise<import('./types').WatchLog> {
+  return api('/logs', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(entry),
+  })
+}
+
+/**
+ * A log photo. Returns a storage **path**, not a URL — the bucket is private
+ * and nothing can read it without a signature.
+ */
+export async function uploadLogImage(file: File, token?: string): Promise<{ path: string }> {
+  const res = await fetch('/api/logs/image', {
+    method: 'POST',
+    headers: { 'Content-Type': file.type, Authorization: `Bearer ${token}` },
+    body: file,
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || 'Could not upload that')
+  return body as { path: string }
+}
+
+/** A short-lived URL for one of your own photos. Expires in an hour. */
+export async function signLogImage(path: string, token: string): Promise<string> {
+  const res = await api<{ url: string }>('/logs/image/sign', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ path }),
+  })
+  return res.url
+}
+
+/** Only what changed needs sending; a cleared field goes as an empty string. */
+export function updateLog(
+  id: string,
+  entry: Partial<import('./types').WatchLog>,
+  token: string
+): Promise<import('./types').WatchLog> {
+  return api(`/logs/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(entry),
+  })
+}
+
+export function deleteLog(id: string, token: string): Promise<{ ok: true }> {
+  return api(`/logs/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 // ---------------------------------------------------------------- owner stats
 
 /** Click stats for the private /stats dashboard — owner account only (403 otherwise). */

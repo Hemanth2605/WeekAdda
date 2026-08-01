@@ -125,7 +125,11 @@ export default function AllArticles() {
             </p>
           )}
         </div>
-        <Link className="community-cta" to="/reviews?compose=article">
+        <Link
+          className="community-cta"
+          to="/reviews?compose=article"
+          state={{ from: '/articles' }}
+        >
           <PenLine size={18} /> Write an article
         </Link>
       </header>
@@ -200,7 +204,11 @@ export default function AllArticles() {
             The 1983 final, a top ten, an old film worth another look — anything that isn’t tied to
             this week’s releases. Yours could be the first.
           </p>
-          <Link className="empty-onward" to="/reviews?compose=article">
+          <Link
+          className="empty-onward"
+          to="/reviews?compose=article"
+          state={{ from: '/articles' }}
+        >
             Write the first one
           </Link>
         </div>

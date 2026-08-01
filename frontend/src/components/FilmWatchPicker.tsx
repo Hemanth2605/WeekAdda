@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Film, Plus, Search, X } from 'lucide-react'
+import { Check, Film, Plus, Search, X } from 'lucide-react'
 import { api } from '../api'
 import { OTT_PLATFORMS } from '../platforms'
+import { platformClass } from '../share'
 import { ArticleFilm, Release } from '../types'
 
 /**
@@ -128,15 +129,27 @@ export default function FilmWatchPicker({
             </button>
           </div>
           <div className="genre-row film-platforms">
-            {OTT_PLATFORMS.map((p) => (
-              <button
-                key={p.slug}
-                className={`genre-chip${f.platforms.some((x) => x.name === p.name) ? ' active' : ''}`}
-                onClick={() => togglePlatform(i, p.name)}
-              >
-                {p.short ?? p.name}
-              </button>
-            ))}
+            {/* The same badge a release card wears: the service's brand colour
+                with its name on it, always — so Netflix looks like Netflix here
+                and there rather than like a chip that happens to say Netflix.
+                Selection is a white ring and a tick, not a colour change: the
+                colour is the platform's identity and dimming it to mean
+                "unpicked" would make eight live choices look switched off. */}
+            {OTT_PLATFORMS.map((p) => {
+              const picked = f.platforms.some((x) => x.name === p.name)
+              const brand = platformClass(p.name)
+              return (
+                <button
+                  key={p.slug}
+                  className={`platform-chip ${brand}${picked ? ' picked' : ''}`}
+                  onClick={() => togglePlatform(i, p.name)}
+                  aria-pressed={picked}
+                >
+                  {picked && <Check size={13} />}
+                  {p.short ?? p.name}
+                </button>
+              )
+            })}
           </div>
           {/* A pasted title-page URL beats the search we would build: a search
               can land on the wrong film, or on nothing */}

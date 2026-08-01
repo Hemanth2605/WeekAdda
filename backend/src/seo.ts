@@ -1268,6 +1268,10 @@ export function buildPrivacySeo(): string {
     WRAP_OPEN +
     '<h1>WeekAdda Privacy Policy</h1>' +
     '<p>Browsing WeekAdda needs no account and uses no tracking cookies. Google sign-in (name, email, photo) is required only to publish a review, rate one, or post and respond on the Adda community board. Emails are never shown publicly; on the Adda they are shared mutually, and only between a poster and someone who responds. Release notifications are anonymous: no account and no email are stored, only the browser&rsquo;s own delivery address, your chosen languages and timezone, and they stop the moment you turn the bell off. Data is stored in Supabase and served via Cloudflare; nothing is sold or shared with advertisers. Contact the maintainer via the About page to have your data removed.</p>' +
+    // The private watch log, described here for the same reason as everything
+    // else on this page — and it is the one paragraph a reader is most likely
+    // to want before they write anything down.
+    '<p>The private watch log — the Private tab on your reviews page — is yours alone: what you watched, where and when, with an optional note and photo. It is never published. It has no public page, nothing links to it, and it can only be read by the signed-in account that wrote it. Each entry is stored with your email address — what makes it yours and what keeps it from anyone else — and it is never shown to another person or returned by any public part of the site. Entries stay until you delete them, and they are never counted or sampled for statistics. It is kept out of search deliberately: log pages are never pre-rendered, are absent from the sitemap, carry a noindex instruction, are blocked in robots.txt, and are never announced to a search engine the way a published review is. Photos live in a private bucket behind short-lived signed links, and deleting an entry deletes its photo.</p>' +
     NAV +
     '</div>'
   )

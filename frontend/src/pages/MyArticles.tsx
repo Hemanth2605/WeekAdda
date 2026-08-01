@@ -102,7 +102,13 @@ export default function MyArticles() {
           </p>
           )}
         </div>
-        <Link className="community-cta" to="/reviews?compose=article">
+        {/* Says where it was opened from, so closing the composer without
+            publishing comes back here rather than leaving you on /reviews */}
+        <Link
+          className="community-cta"
+          to="/reviews?compose=article"
+          state={{ from: '/my-articles' }}
+        >
           <PenLine size={18} /> Write an article
         </Link>
       </header>
@@ -167,7 +173,11 @@ export default function MyArticles() {
             The 1983 final, a top ten, an old film worth another look — anything that isn’t tied to
             this week’s releases.
           </p>
-          <Link className="empty-onward" to="/reviews?compose=article">
+          <Link
+          className="empty-onward"
+          to="/reviews?compose=article"
+          state={{ from: '/my-articles' }}
+        >
             Write your first one
           </Link>
         </div>

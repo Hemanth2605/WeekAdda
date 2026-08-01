@@ -2,5 +2,9 @@ User-agent: *
 Allow: /
 # Private owner dashboard — not part of the site
 Disallow: /stats
+# The private watch log — and only that. Every article and every public review
+# has its own URL (/article/... , /review/...), those are in the sitemap and
+# they are what should rank; nothing here touches them.
+Disallow: /log/
 
 Sitemap: https://weekadda.com/sitemap.xml

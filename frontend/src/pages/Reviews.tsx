@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Feather,
   Film,
@@ -12,6 +12,8 @@ import {
   ArrowRight,
   Star,
   Newspaper,
+  Globe,
+  Lock,
   ExternalLink,
   Eye,
   Pencil,
@@ -19,6 +21,7 @@ import {
 } from 'lucide-react'
 import {
   api,
+  fetchLogs,
   fetchPosts,
   fetchMyPosts,
   fetchRatings,
@@ -46,6 +49,7 @@ import {
   RatingSummary,
   Release,
   CricketMatch,
+  WatchLog,
 } from '../types'
 import PipShow from '../components/PipShow'
 import ArticleIndex from '../components/ArticleIndex'
@@ -55,6 +59,7 @@ import FirstCheer, {
   type Kind as CheerKind,
 } from '../components/FirstCheer'
 import FilmWatchPicker from '../components/FilmWatchPicker'
+import WatchLogForm from '../components/WatchLogForm'
 import ArticleImagePicker, { DEFAULT_POSITION } from '../components/ArticleImagePicker'
 import Prose from '../components/Prose'
 import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
@@ -299,6 +304,7 @@ function Composer({
   onClose,
   onPublished,
   onArticlePublished,
+  onLogged,
   preset,
   startMode,
   canPublishAsSite,
@@ -311,6 +317,8 @@ function Composer({
   onClose: () => void
   onPublished: (post: BlogPost) => void
   onArticlePublished: (article: Article) => void
+  /** A private log entry was saved — the page keeps its own copy. */
+  onLogged: (log: WatchLog) => void
   /** Opened from a starter — the film is already chosen. */
   preset?: BlogTag | null
   /** Which side of the switch to open on, when the way in already said. */
@@ -328,6 +336,14 @@ function Composer({
   // review is pinned to something this week's caches hold, an article is not.
   // The switch is first because it changes every field below it.
   const [mode, setMode] = useState<'review' | 'article'>('review')
+  // null until the public/private question is answered; 'public' is the review
+  // form, 'private' hands over to WatchLogForm entirely
+  const [privacy, setPrivacy] = useState<'public' | 'private' | null>(null)
+  // Film or match for the log, held here because its toggle sits in the
+  // heading row beside the title rather than inside the form
+  const [logKind, setLogKind] = useState<'movie' | 'match'>('movie')
+  // Editing an existing review is always public — it already is
+  const reviewFields = mode !== 'article' && (privacy === 'public' || Boolean(editingPost))
   const [kind, setKind] = useState<'movie' | 'match'>('movie')
   const [tag, setTag] = useState<BlogTag | null>(null)
   const [topic, setTopic] = useState<Article['topic']>('movie')
@@ -339,11 +355,42 @@ function Composer({
   // have always had; unticking it publishes under the writer's own name.
   const [asSite, setAsSite] = useState(true)
 
+  /**
+   * A fresh open starts blank.
+   *
+   * Publishing already clears these on the way out, but relying on that makes
+   * an empty form a consequence of the last composition having ended tidily —
+   * and it does not always: a publish that fails, a close mid-write, or a
+   * navigation in between all leave the fields sitting there, so the next
+   * "Write a review" opens on somebody's last draft. Clearing on the way *in*
+   * needs nothing to have gone right beforehand.
+   *
+   * Editing is exempt: those two effects below fill the fields deliberately,
+   * and they run after this one.
+   */
+  useEffect(() => {
+    if (!open || editing || editingPost) return
+    setTag(null)
+    setTagSearch('')
+    setTitle('')
+    setBody('')
+    setFilms([])
+    setImage(undefined)
+    setImagePosition(DEFAULT_POSITION)
+    setImageFit('cover')
+    setError('')
+    setInvalid(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   // "Write an article" must open the article side of the switch. Keyed on the
   // mode itself, not just on `open`, so it cannot re-apply and yank someone
   // back after they have switched by hand.
   useEffect(() => {
     if (open && startMode) setMode(startMode)
+    // Asked again on every fresh open: it is a decision about this piece, not
+    // a preference to remember
+    if (open) setPrivacy(editingPost ? 'public' : null)
   }, [open, startMode])
 
   // Load an article being edited into the fields. Keyed on its id, so typing
@@ -508,46 +555,110 @@ function Composer({
               ? 'Edit your article'
               : mode === 'article'
                 ? 'Your article'
-                : 'Your take'}
+                : privacy === 'private'
+                  ? 'Your log'
+                  : privacy === 'public'
+                    ? 'Your take'
+                    : 'What are you writing?'}
         </h2>
+        {/* Beside the heading rather than inside the form: it is the first
+            thing that has to be true — everything below reads from it — and a
+            heading row is where a page says what it is about. */}
+        {privacy === 'private' && !editingPost && (
+          <div className="log-kind-head">
+            {(
+              [
+                ['movie', 'A film', 'ico-movies'],
+                ['match', 'A match', 'ico-results'],
+              ] as const
+            ).map(([value, label, palette]) => (
+              <button
+                key={value}
+                className={`log-where-btn ${palette}${logKind === value ? ' active' : ''}`}
+                onClick={() => setLogKind(value)}
+                aria-pressed={logKind === value}
+              >
+                <span className={`log-ico ${palette}`}>
+                  {/* The Adda's own pair: 🍿 is what its "Company for a movie"
+                      starter uses, and 🏏 is the bat-and-ball from the reviews
+                      letter-rain. Emoji rather than lucide because lucide has
+                      no cricket bat — and one of each would have been worse
+                      than two of the same. */}
+                  <span className="log-emoji">{value === 'movie' ? '🍿' : '🏏'}</span>
+                </span>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <button className="share-close" onClick={onClose} aria-label="Close composer">
           <X size={16} />
         </button>
       </div>
 
-      {/* Hidden while editing: an article and a review are different stores, so
-          switching sides mid-edit would have nowhere to save */}
-      <div
-        className="blog-mode"
-        role="tablist"
-        aria-label="What are you writing?"
-        hidden={Boolean(editing || editingPost)}
+      {/* Reviews ask one question first: is this for everyone, or for you?
+          A step rather than a toggle — it is answered once and then gone, and
+          the two answers lead to genuinely different forms rather than to the
+          same form with a flag on it. Articles skip it: an article is a piece
+          of published writing by definition, and a private one would be a
+          document with nowhere to go. */}
+      {mode !== 'article' && !editingPost && !privacy && (
+        <div className="privacy-choice">
+          <button className="privacy-btn public" onClick={() => setPrivacy('public')}>
+            <span className="privacy-ico ico-theatre">
+              <Globe size={17} />
+            </span>
+            <b>Share it publicly</b>
+            <em>A review anyone can read, tagged to the film or match</em>
+          </button>
+          <button className="privacy-btn private" onClick={() => setPrivacy('private')}>
+            <span className="privacy-ico ico-soon">
+              <Lock size={17} />
+            </span>
+            <b>Just for me</b>
+            <em>A private log — what you watched, where, and when. Nobody else sees it.</em>
+          </button>
+        </div>
+      )}
+
+      {/* What you are writing is decided by how you got here — "Write a review"
+          opens a review, the rail's "Write an article" opens an article — so the
+          form shows one set of fields and no switch (owner, Aug 2026). The
+          toggle that used to sit here made every opening a two-step: choose the
+          kind you had already chosen, then write. It also had to be hidden
+          while editing, since an article and a review are different stores and
+          switching sides mid-edit had nowhere to save. The way out is the other
+          entry point, not a control inside the form.
+          `mode` is still the branch below; only the manual switch is gone.
+
+          Above the form in all three cases, private included: the line says
+          what you are filling in, and a caption underneath the thing it
+          captions has already been read too late. */}
+      {(mode === 'article' || privacy) && (
+      <span
+        className={`blog-mode-note ${
+          mode === 'article' ? 'ico-article' : privacy === 'private' ? 'ico-soon' : 'ico-review'
+        }`}
       >
-        <button
-          role="tab"
-          aria-selected={mode === 'review'}
-          className={`blog-mode-btn${mode === 'review' ? ' active' : ''}`}
-          onClick={() => setMode('review')}
-        >
-          <span className="mode-ico ico-review">
-            <Star size={14} />
-          </span>{' '}
-          Review
-          <em>Something out this week</em>
-        </button>
-        <button
-          role="tab"
-          aria-selected={mode === 'article'}
-          className={`blog-mode-btn${mode === 'article' ? ' active' : ''}`}
-          onClick={() => setMode('article')}
-        >
-          <span className="mode-ico ico-article">
-            <Newspaper size={14} />
-          </span>{' '}
-          Article
-          <em>Anything else — the 1983 final, a top ten, an old favourite</em>
-        </button>
-      </div>
+        {mode === 'article' ? (
+          <>
+            <Newspaper size={13} /> An article — anything not tied to a release date
+          </>
+        ) : privacy === 'private' ? (
+          <>
+            <Lock size={13} /> Your day out — where you watched it, and when. Only you ever see it.
+          </>
+        ) : (
+          <>
+            <Star size={13} /> A review — something out this week
+          </>
+        )}
+      </span>
+      )}
+
+      {mode !== 'article' && privacy === 'private' && !editingPost && (
+        <WatchLogForm kind={logKind} onSaved={onLogged} />
+      )}
 
       {mode === 'article' ? (
         <div className="blog-kind">
@@ -596,7 +707,7 @@ function Composer({
           cricket and still wants to point at the film of it */}
       {mode === 'article' && <FilmWatchPicker films={films} onChange={setFilms} />}
 
-      {mode === 'article' ? null : (
+      {!reviewFields ? null : (
       <div className="blog-kind">
         <button
           className={`genre-chip${kind === 'movie' ? ' active' : ''}`}
@@ -619,7 +730,7 @@ function Composer({
       </div>
       )}
 
-      {mode === 'article' ? null : tag ? (
+      {!reviewFields ? null : tag ? (
         <div className="blog-tag-picked">
           {tag.poster ? (
             <img src={tag.poster} alt="" />
@@ -694,7 +805,46 @@ function Composer({
                 </span>
               </button>
             ))}
-            {suggestions.length === 0 && (
+            {/* Whatever was typed, as the tag. The picker only knows thirteen
+                weeks of releases and the recent fixtures, so a film from last
+                year — or one we simply never listed — had no way through here
+                at all, and the review could not be published. Same escape hatch
+                the article composer's film picker already offers.
+                The tag carries no id, which is exactly what an unlisted title
+                is: `TagLine` renders it as plain text rather than a link to a
+                title page that does not exist, and `relatedReviews` groups on
+                id, so it never pretends to be another review's subject. */}
+            {tagSearch.trim().length >= 2 &&
+              !suggestions.some(
+                (o) => o.label.toLowerCase() === tagSearch.trim().toLowerCase()
+              ) && (
+                <button
+                  className="blog-tag-option add-own"
+                  onClick={() => {
+                    setTag({
+                      kind,
+                      id: '',
+                      label: tagSearch.trim(),
+                      sub: kind === 'movie' ? 'Not in this week’s list' : 'Not in the recent list',
+                      poster: null,
+                    })
+                    if (invalid === 'tag') setInvalid(null)
+                  }}
+                >
+                  <span className={`blog-tag-icon ${kind}`}>
+                    {kind === 'movie' ? <Film size={15} /> : <Trophy size={15} />}
+                  </span>
+                  <span className="blog-tag-text">
+                    <b>Use “{tagSearch.trim()}”</b>
+                    <small>
+                      {kind === 'movie'
+                        ? 'Not one of this week’s releases — write about it anyway'
+                        : 'Not one of the recent matches — write about it anyway'}
+                    </small>
+                  </span>
+                </button>
+              )}
+            {suggestions.length === 0 && tagSearch.trim().length < 2 && (
               <p className="blog-tag-empty">
                 {kind === 'movie'
                   ? 'No film found — try another name, or a shorter one.'
@@ -705,6 +855,15 @@ function Composer({
         </div>
       )}
 
+      {/* Title and body belong to the two writing forms only. Ungated, they sat
+          under the private log's own fields asking for a headline and a review
+          of something already logged. */}
+      {/* Conditionally rendered, never `hidden`. The attribute only carries the
+          UA rule `[hidden] { display: none }`, which any class setting `display`
+          silently beats — that is how the Publish button stayed on screen under
+          the private log and answered a click with a review's validation. */}
+      {(mode === 'article' || reviewFields) && (
+      <>
       <input
         className={invalid === 'title' ? 'blog-input invalid' : 'blog-input'}
         value={title}
@@ -739,6 +898,8 @@ function Composer({
             : "What did you feel about it? The moments that worked, the ones that didn't…"
         }
       />
+      </>
+      )}
       {/* Links become platform buttons only when the article renders, so
           without this the writer cannot tell whether a pasted URL was
           recognised until after publishing — by which time fixing it means
@@ -753,6 +914,7 @@ function Composer({
         </div>
       )}
 
+      {(mode === 'article' || reviewFields) && (
       <div className="blog-composer-foot">
         <input
           className="blog-input author"
@@ -781,13 +943,14 @@ function Composer({
           </button>
         )}
       </div>
-      {needsSignIn && (
+      )}
+      {needsSignIn && (mode === 'article' || reviewFields) && (
         <p className="blog-signin-hint">
           Sign in with Google to publish — only used to keep reviews spam-free; your review shows
           the display name you choose.
         </p>
       )}
-      {error && <p className="blog-error">{error}</p>}
+      {error && (mode === 'article' || reviewFields) && <p className="blog-error">{error}</p>}
     </section>
   )
 }
@@ -1000,11 +1163,16 @@ export default function Reviews() {
   // The signed-in visitor's own contributions ("My takes")
   const user = useGoogleUser()
   const [myPosts, setMyPosts] = useState<BlogPost[] | null>(null)
+  // Only the size of it, and only to decide whether the link to your own page
+  // is worth showing — none of the entries are wanted here, and this page is
+  // public
+  const [myLogCount, setMyLogCount] = useState(0)
   const [ratings, setRatings] = useState<Record<string, RatingSummary>>({})
   const [selected, setSelected] = useState<BlogPost | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
   // The first-publish party, once per kind ever (see FirstCheer)
   const navigate = useNavigate()
+  const location = useLocation()
   // Every publish gets an answer to "did that work?"; only the first gets a
   // party. Reviews celebrate here, where the new review is at the top of the
   // feed; an article celebrates on /articles, which is where it gets sent.
@@ -1069,6 +1237,12 @@ export default function Reviews() {
     )
   }, [wantedEditReview, setParams])
 
+  // Where the composer was opened from, when that was another page. Closing it
+  // goes back there rather than stranding you on /reviews — clicking "Write an
+  // article" on /my-articles and then changing your mind should not move you to
+  // a different page than the one you were reading.
+  const [composeFrom, setComposeFrom] = useState<string | null>(null)
+
   // Arriving from "Write an article" opens the composer already on the article
   // side, then drops the key — so a refresh is a plain visit to /reviews rather
   // than a form reopening itself forever.
@@ -1076,6 +1250,10 @@ export default function Reviews() {
     if (wantedCompose !== 'article' && wantedCompose !== 'review') return
     setComposeMode(wantedCompose)
     setComposerOpen(true)
+    // Captured before the key is dropped, and only for a real in-app origin: a
+    // pasted /reviews?compose=article has no referrer to return to
+    const from = (location.state as { from?: string } | null)?.from ?? null
+    setComposeFrom(from && from !== '/reviews' ? from : null)
     setParams(
       (prev) => {
         const next = new URLSearchParams(prev)
@@ -1084,6 +1262,7 @@ export default function Reviews() {
       },
       { replace: true }
     )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantedCompose, setParams])
 
   // Rating summaries — refetched on sign-in/out so "your rating" stays right
@@ -1097,11 +1276,17 @@ export default function Reviews() {
     const fresh = user && refreshUser()
     if (!fresh) {
       setMyPosts(null)
+      setMyLogCount(0)
       return
     }
     fetchMyPosts(fresh.token)
       .then((r) => setMyPosts(r.posts))
       .catch(() => setMyPosts([]))
+    // Only the count is kept. A failure leaves it at zero, which at worst hides
+    // a link that has another way in from the composer.
+    fetchLogs(fresh.token)
+      .then((r) => setMyLogCount(r.logs.length))
+      .catch(() => setMyLogCount(0))
   }, [user])
 
   const mineIds = useMemo(() => new Set((myPosts ?? []).map((p) => p.id)), [myPosts])
@@ -1256,12 +1441,21 @@ export default function Reviews() {
             setPreset(null)
             setEditing(null)
             setEditingPost(null)
+            // Back where the form was opened from, when that was another page.
+            // Only on cancel — publishing has its own destination.
+            if (composeFrom) {
+              setComposeFrom(null)
+              navigate(composeFrom)
+            }
           }}
           onPublished={(post) => {
             setPosts((p) => [post, ...p])
             if (user) setMyPosts((mine) => [post, ...(mine ?? [])])
             celebrate('review')
           }}
+          // Kept in page state so /my-reviews shows it without a round trip if
+          // the visitor goes straight there
+          onLogged={() => {}}
           onArticlePublished={(article) => {
             setArticles((a) => [article, ...a])
             // Marked as yours straight away, rather than only after a reload
@@ -1306,12 +1500,20 @@ export default function Reviews() {
             </button>
           ))}
           {/* A link out, not a filter in place: your own reviews want sorting
-              and searching, which a shared feed cannot give them */}
-          {user && myPosts !== null && myPosts.length > 0 && (
+              and searching, which a shared feed cannot give them.
+              Shown for a private log too — gating it on public posts alone left
+              anyone who only keeps the log with no way to reach it from here at
+              all, which is the one page their work is on. The count stays the
+              number of *reviews*: a log entry is not a review, and adding them
+              together would make the chip lie to save a word. */}
+          {user && (myPosts?.length || myLogCount > 0) ? (
             <Link className="genre-chip mine" to="/my-reviews">
-              My reviews<span className="mine-count">{myPosts.length}</span>
+              My reviews
+              {(myPosts?.length ?? 0) > 0 && (
+                <span className="mine-count">{myPosts?.length}</span>
+              )}
             </Link>
-          )}
+          ) : null}
         </div>
 
         <div className="blog-layout">
@@ -1391,7 +1593,14 @@ export default function Reviews() {
             articles={articles}
             mineIds={mineArticleIds}
             likes={articleLikes}
-            empty="Nothing here yet — the 1983 final, a top ten, an old favourite. Write one from “Write a review”."
+            // Leads with the write invitation, as the rail on an article page
+            // already did. The page's own CTA says "Write a review", so without
+            // this the rail is the only place that offers the other kind — and
+            // it was the one place not offering it.
+            // No `empty` copy: with the invitation always present the rail is
+            // never blank, and the invitation's own line already says what an
+            // article can be
+            write
           />
         </div>
       </div>

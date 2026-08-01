@@ -136,6 +136,36 @@ cd frontend && npm run build
   so both are in `NOINDEX_PAGES` in `worker.ts` and out of `buildSitemap`.
   Cards carry `state={{ from, fromLabel }}`, which is how a piece's own back
   link and its post-delete redirect return where you actually came from.
+- **The private watch log** (Aug 2026): what the visitor watched, where and
+  when — `WatchLogForm.tsx`, the Private tab on `/my-reviews`, one entry at
+  `/log/:id` (`LogEntry.tsx`), `routes/logs.ts` + `/api/logs*` in the Worker,
+  Supabase `watch_logs`, local `cache/logs.json`. **This is the one part of
+  the site that is nobody's business but its owner's, and that is enforced in
+  seven places, not intended in one**: every route requires a verified token
+  and filters on `user_email`, so there is no such thing as an anonymous read;
+  there is deliberately **no `GET /api/logs/:id`** — an entry is found by
+  loading your own log, so an id you do not own is simply not in what you are
+  given; photos live in a **private** `log-images` bucket reached only through
+  hour-long signed URLs, under a folder hashed from the verified email so no
+  address appears in a path; every log response is `Cache-Control: private,
+  no-store` (`privateJson` in `worker.ts`, the router-level header in
+  `logs.ts`) so nothing in front of us keeps a copy; `/log/:id` and
+  `/my-reviews` are **never pre-rendered**, carry `X-Robots-Tag: noindex,
+  nofollow`, are absent from `buildSitemap` and `SEO_PAGES`, and **never ping
+  IndexNow** — publishing a review shouts, a log entry must not. Only `/log/`
+  is `Disallow`ed in robots.txt: the owner's articles and public reviews rank
+  through their **own** URLs (`/article/:id/:slug`, `/review/:id/:slug`, both
+  in `buildSitemap`), and blocking the personal index pages was mistaken for
+  blocking those. Don't add the personal pages back to robots.txt.
+  **Deleting an entry deletes its photo** (`dropLogImage` in `worker.ts`,
+  `dropImage` in `routes/logs.ts`), and so does replacing one on edit —
+  otherwise the object outlives the entry its owner believed they had taken
+  down. `/privacy` says all of this in plain language, in both the page and
+  `buildPrivacySeo`; if any of it changes, change the policy in the same
+  commit, because it is now a promise made to the reader. Local `cache/` is gitignored, so a test log never
+  reaches the public repo. **Nothing here may ever grow a public surface**: no
+  sharing, no "friends can see", no crawlable anything. Adding one would not
+  be a feature on top of this — it would undo the reason the log exists.
 - **Per-review pages** (`/review/:id/:slug`, `ReviewDetail.tsx`, July 2026): the
   feed can only ever show an opening, so each review has its own URL — shareable,
   pre-rendered by `buildReviewPage` in `seo.ts` and listed in `buildSitemap`

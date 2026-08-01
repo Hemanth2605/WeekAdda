@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
-import { ArrowRight, Film, Heart, PenLine, Trophy } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { ArrowRight, Film, Heart, Newspaper, PenLine, Trophy } from 'lucide-react'
 import { articlePath } from '../seo'
 import { Article, LikeSummary } from '../types'
 import OfficialStamp from './OfficialStamp'
@@ -47,6 +47,9 @@ export default function ArticleIndex({
   write?: boolean
 }) {
   const mineCount = mineIds ? articles.filter((a) => mineIds.has(a.id)).length : 0
+  // The rail renders on /reviews and on article pages; the composer uses this
+  // to know whether closing should navigate anywhere at all
+  const fromPath = useLocation().pathname
 
   if (articles.length === 0 && !write) {
     return empty ? (
@@ -84,7 +87,20 @@ export default function ArticleIndex({
           <li>
             {/* Opens the composer already switched to Article — landing on the
                 reviews form after clicking "write an article" is a small lie */}
-            <Link className="blog-index-item write" to="/reviews?compose=article">
+            {/* Carries where it was opened from, so closing the composer
+                without publishing comes back to this page. `from` is read only
+                when it is not /reviews itself — the rail is on that page too. */}
+            <Link
+              className="blog-index-item write"
+              to="/reviews?compose=article"
+              state={{ from: fromPath }}
+            >
+              {/* The composer's own Article mark, so the row and the thing it
+                  opens are recognisably the same choice — click this and the
+                  form opens on a button wearing exactly this tile. */}
+              <span className="blog-index-ico ico-article" aria-hidden="true">
+                <Newspaper size={14} />
+              </span>
               <span className="blog-index-text">
                 <span className="blog-index-title">Write an article</span>
                 <span className="blog-index-sub">An old match, an old film, a top ten</span>

@@ -19,7 +19,7 @@ export default function Privacy() {
           <ShieldCheck size={13} /> Privacy policy
         </span>
         <h1>Your data on WeekAdda, in plain language</h1>
-        <p className="privacy-updated">Effective 27 July 2026</p>
+        <p className="privacy-updated">Effective 2 August 2026</p>
 
         <h2>Browsing needs nothing</h2>
         <p>
@@ -54,6 +54,29 @@ export default function Privacy() {
             statistics like unique visitors and popular titles.
           </li>
         </ul>
+
+        <h2>Your private watch log</h2>
+        <p>
+          The <b>Private</b> tab on your reviews page is yours alone — what you watched, where
+          and when, with an optional note and photo. It is not a review and it is never
+          published. There is no public page for it, nothing links to it, and no request
+          without your own sign-in can read it: every entry is fetched by your verified
+          account, so an entry that is not yours is simply not among the ones you are handed.
+          Each entry is stored with your email address — that is what makes it yours and
+          what keeps it from anyone else — and it is never shown to another person or
+          returned by any public part of the site. Entries stay until you delete them; we
+          don&apos;t expire or archive them, and they are not counted or sampled for
+          statistics of any kind.
+        </p>
+        <p>
+          It is also kept out of search deliberately. Log pages are never rendered for
+          crawlers, are absent from our sitemap, are served with a <i>noindex</i> instruction
+          and are blocked in robots.txt, and — unlike a published review — nothing about a log
+          entry is ever announced to a search engine. Photos are stored in a private bucket and
+          shown only through a short-lived link signed for you; they are never public URLs.
+          Delete an entry and the photo goes with it, and replacing a photo removes the old
+          one.
+        </p>
 
         <h2>Release notifications</h2>
         <p>
@@ -94,7 +117,7 @@ export default function Privacy() {
         <h2>Your choices</h2>
         <p>
           Sign out anytime from the navbar, and turn notifications off with the bell beside it.
-          Adda listings leave the board when you close them or after 30 days. To have a post, rating, listing or your account data removed, contact
+          Adda listings leave the board when you close them or after 30 days. Any log entry can be deleted from the entry itself, which removes its photo too. To have a post, rating, listing or your account data removed, contact
           the maintainer via the <Link to="/about">About page</Link> and it will be deleted.
         </p>
 

@@ -52,6 +52,18 @@ link opens where the sender was.
   (keeps it spam-free — display names stay self-chosen). Writers can **edit or delete
   their own** reviews, and `/my-reviews` collects everything they've written with
   search, Movies/Cricket filters and Newest / Oldest / Best-rated sorting.
+- 🔒 **A private watch log** (the **Private** tab on `/my-reviews`) — the other half of
+  "write a review": sometimes you don't want to publish anything, you just want to
+  remember that you saw it. An entry records **what** (a film or a match, searched from
+  the site or simply typed), **where** (a cinema or a stadium, or at home — with an
+  optional venue and city), **when**, plus an optional note and photo. It reads back as
+  your year: a summary line — films, matches, trips out, nights in, venues — with a
+  **year dropdown** that carries the counts, so *how many did I watch in 2025* is one
+  click; below it, a month-by-month timeline, and each entry has a ticket-stub page of
+  its own (`/log/:id`) with its note in full. Entries can be edited in place and deleted
+  (with a confirm, since an evening you logged can't be looked up again anywhere).
+  **This is the one part of the site that is nobody's business but its owner's** — see
+  [Privacy](#privacy-of-the-watch-log) below.
 - 📰 **Articles** (`/article/:id/:slug`) — the other kind of writing: the pieces with no
   release date to hang on. The 1983 World Cup final, a best-of-the-decade list, an old
   film worth another look. **Deliberately kept apart from reviews** — a review answers
@@ -82,7 +94,8 @@ link opens where the sender was.
   older than 30 days auto-expires. House rules keep it clean (nothing against any
   service's terms, tickets at face value only).
 - 👤 **About & Privacy** (`/about`, `/privacy`) — the founder story and a plain-language
-  privacy policy (what's collected, why, and who can see it).
+  privacy policy (what's collected, why, and who can see it — including a section on
+  the private watch log, which is a promise the code has to keep, not a description).
 - 📍 **Your language and your team, first** — the page opens on what the visitor
   actually watches. Cloudflare knows each request's country (and Indian state) from the
   IP, so **Karnataka lands on Kannada**, Kerala on Malayalam, Tamil Nadu on Tamil, the
@@ -144,7 +157,9 @@ link opens where the sender was.
   "today" has to mean today in India. Not part of the app — no nav link, absent from the
   sitemap, `Disallow`ed and `noindex`ed. **Access is enforced server-side, not by the
   unlisted URL**: the endpoint verifies the Google token against `OWNER_EMAIL` and fails
-  closed, so an unset variable locks everyone out rather than letting everyone in.
+  closed, so an unset variable locks everyone out rather than letting everyone in. It
+  counts clicks, posts, ratings, listings and Adda interests — and **never reads the
+  watch log**, not even to count it.
   Counts only — no visitor email is ever returned.
 
 ## Look and feel
@@ -174,9 +189,17 @@ link opens where the sender was.
   the brand and the controls on one line. It is the same `<nav>` in the same place in the
   DOM, so crawlers and screen readers see no difference; only where it is painted changes.
 - 🔖 **One brand mark everywhere.** The gold serif **WA** on black is the favicon, the
-  home-screen icon, what Google shows in search results, and the mark in the header —
-  redrawn in CSS rather than re-styled per surface, because a logo that changes with its
-  background is not a logo.
+  home-screen icon, what Google shows in search results, the mark in the header, and —
+  at label size — the one in the footer and on the About page. Redrawn in CSS rather
+  than re-styled per surface, because a logo that changes with its background is not a
+  logo. The calendar glyph it replaced is gone from all four.
+- 🎟️ **The log reads as a ticket, not a table.** An entry's own page is a stub with a
+  torn perforation: where and what above, the date set large in the display serif below,
+  the note as a pull quote. On `/my-reviews` the same year is a summary line — films,
+  matches, trips out, nights in, venues — behind a **year dropdown** that shows each
+  year's count before you pick it, so the list itself answers *which year have I got
+  anything in*. Deleting an entry asks first, in words rather than a second bin icon,
+  on the row you were looking at.
 
 ## Tech stack
 
@@ -298,6 +321,12 @@ Cricket needs no key.
 | GET    | `/api/articles/:id`     | One article + the related rail beside it |
 | PATCH  | `/api/articles/:id`     | Edit your own article. Identity (id, timestamp, author, stamp) is not editable |
 | DELETE | `/api/articles/:id`     | Delete your own article |
+| GET    | `/api/logs`             | **Your own** watch log, newest watch first. Bearer required — there is no anonymous read, and no by-id route: an entry you don't own is not among the ones returned |
+| POST   | `/api/logs`             | Add an entry: `{ watchedOn, kind, where, title, titleId?, venue?, city?, note?, image?, imagePosition?, imageFit? }` |
+| POST   | `/api/logs/image`       | Upload a log photo — raw body, 4 MB cap. Returns a storage **path**, not a URL: the bucket is private |
+| POST   | `/api/logs/image/sign`  | A one-hour signed URL for one of **your own** photos |
+| PATCH  | `/api/logs/:id`         | Edit your own entry. Someone else's answers **404**. A replaced photo's old file is deleted |
+| DELETE | `/api/logs/:id`         | Delete your own entry — and its photo with it |
 | GET    | `/api/adda`             | Open board listings (a token also reveals your own + contacts you've unlocked) |
 | POST   | `/api/adda`             | Post a listing (Bearer required): `{ title, details, author?, whatsapp? }` |
 | POST   | `/api/adda/:id/interest`| Express interest (Bearer required) — returns the poster's contact |
@@ -313,7 +342,7 @@ Cricket needs no key.
 backend/
   src/
     index.ts               # Express app, cron schedule, boot syncs
-    routes/                # releases, cricket, track, blog, adda, push
+    routes/                # releases, cricket, track, blog, adda, push, logs (private)
     agent/                 # releaseAgent, cricketAgent + data sources
     data/                  # built-in sample data (no-key fallback)
     worker.ts              # Cloudflare Worker: API + static assets + pre-render
@@ -323,21 +352,25 @@ backend/
     notify.ts              # the hourly send, separate from the sweep
     pushSender.ts          # Web Push via VAPID; 9 AM in each subscriber's zone
   cache/                   # JSON caches, clicks.jsonl, blog.json, ratings.json, adda.json,
-                           #   articles.json, article-likes.json, uploads/ (local covers)
+                           #   articles.json, article-likes.json, uploads/ (local covers),
+                           #   logs.json + log-uploads/ (the private watch log — gitignored,
+                           #   like everything under cache/)
 frontend/
   src/
     pages/                 # Releases, Cricket, Reviews, MovieDetail, PlatformHub (/ott/:slug),
                            #   Adda, About, Privacy, Stats,
                            #   ReviewDetail + ArticleDetail (one piece per page),
                            #   AllArticles (/articles — every article, public + indexable),
-                           #   MyReviews + MyArticles (your own work, searchable and sortable)
+                           #   MyReviews + MyArticles (your own work, searchable and sortable),
+                           #   LogEntry (/log/:id — one private watch-log entry, noindex)
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
                            #   NotifyBell / NotifyCard / NotifySheet / NotifyPrompt, BackToTop,
                            #   PipShow (mini player), WeekTimeline (week chips), PlatformLinks,
                            #   ArticleIndex (the rail), ReviewBits (shared review pieces),
                            #   Prose (paragraphs + link-to-platform-button), LikeButton,
                            #   OfficialStamp, ArticleImagePicker, FilmWatchPicker, Skeletons,
-                           #   FirstCheer (the publish confirmation + first-time confetti)
+                           #   FirstCheer (the publish confirmation + first-time confetti),
+                           #   WatchLogForm + LogPhoto + DayPicker (the private log composer)
     filmLinks.ts           # which URL a platform badge points at; finds films named in prose
     platforms.ts           # the /ott hub list — mirrors OTT_PLATFORMS in backend queries.ts
     focusTarget.ts         # ?match= / ?post= → scroll that card into view and flash it
@@ -351,8 +384,9 @@ frontend/
   public/flags/            # 69 bundled country flags served from our own domain
 .github/workflows/         # sweep.yml (daily) + notify.yml (9 AM per timezone)
 supabase/schema.sql        # caches, clicks, posts, post_ratings, articles, article_likes,
-                           #   listings, listing_interests, push_subscriptions
-                           #   (+ the article-images Storage bucket, made by hand)
+                           #   watch_logs, listings, listing_interests, push_subscriptions
+                           #   (+ the article-images and log-images Storage buckets, made
+                           #    by hand — article-images public, log-images NOT)
 SEO-PLAN.md                # URL taxonomy roadmap + the four-place route coupling
 PUSH-PLAN.md               # notification design, send rules and deploy order
 ```
@@ -409,7 +443,25 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
   lists every one of them, pre-rendered, so nothing becomes an orphan by ageing.
 - **Personal pages are kept out**: `/my-reviews`, `/my-articles` and `/stats` are real
   pages that are empty for anyone but their owner, so the Worker serves them
-  `noindex, nofollow` and `buildSitemap` never lists them.
+  `noindex, nofollow` and `buildSitemap` never lists them. They are still *crawlable* —
+  the header is what removes a page from an index, and robots.txt would only stop the
+  crawler from ever reading it. The writing itself ranks through its own URLs
+  (`/review/:id/:slug`, `/article/:id/:slug`), which is what the sitemap carries.
+
+<a id="privacy-of-the-watch-log"></a>
+- **The private watch log is walled off, in seven places rather than one**: every
+  `/api/logs*` route verifies the Google token and queries on `user_email`, so there is
+  no anonymous read; there is deliberately **no `GET /api/logs/:id`** — you load your
+  own log, so an id you don't own is simply not among the entries you're handed; the
+  `watch_logs` table has RLS on with no policies (service key only); responses are
+  `Cache-Control: private, no-store` so nothing in front of us keeps a copy; `/log/:id`
+  is never pre-rendered, absent from the sitemap and `SEO_PAGES`, `noindex, nofollow`,
+  and the **one** path in robots.txt besides `/stats`; publishing a log entry **never**
+  pings IndexNow, unlike a review; and photos live in a **private** `log-images` bucket
+  behind hour-long signed URLs, in a folder hashed from the verified email so no address
+  appears in a path. Deleting an entry deletes its photo, and replacing one removes the
+  old file. `/privacy` states all of this in plain language — if the behaviour changes,
+  the policy changes in the same commit.
 - **Thin title pages are served but not submitted**: almost everything on a
   `/movie/:id/:slug` page comes from TMDB, so one with no poster or barely a sentence
   of synopsis is a near-duplicate of the same film on far stronger domains. Those are
@@ -480,9 +532,15 @@ free tiers plus the domain:
   Configuration → Purge Everything). Deploying does not evict cached pages, so the edge
   keeps serving the previous HTML — including to Googlebot. Hashed JS/CSS filenames are
   immune; it's HTML, which reuses its URL, that goes stale.
-- **Database**: Supabase — schema in `supabase/schema.sql` (`caches`, `clicks`,
-  `posts`, `post_ratings`, `listings`, `listing_interests`); run new tables/columns in
-  the Supabase SQL Editor before deploying Worker code that uses them
+- **Database**: Supabase — schema in `supabase/schema.sql` (`caches`, `clicks`, `posts`,
+  `post_ratings`, `articles`, `article_likes`, `watch_logs`, `listings`,
+  `listing_interests`, `push_subscriptions`); run new tables/columns in the Supabase SQL
+  Editor before deploying Worker code that uses them
+- **Two Storage buckets, and SQL cannot create either.** Storage → New bucket:
+  `article-images` **Public** — readers and social-preview crawlers fetch cover URLs
+  directly, so a private bucket 403s every cover and every `og:image`; and `log-images`
+  **not public** — every watch-log photo is served through an hour-long signed URL, and
+  a public bucket would hand out permanent ones instead
 - **Auth**: `GOOGLE_CLIENT_ID` is a plaintext Worker var in `wrangler.jsonc` (OAuth
   client IDs are public), so it deploys with the Worker — no `wrangler secret put`. The
   same value must be in `frontend/.env` as `VITE_GOOGLE_CLIENT_ID` at build time. Set

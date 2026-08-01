@@ -28,6 +28,7 @@ const Reviews = lazy(() => import('./pages/Reviews'))
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'))
 const ArticleDetail = lazy(() => import('./pages/ArticleDetail'))
 const AllArticles = lazy(() => import('./pages/AllArticles'))
+const LogEntry = lazy(() => import('./pages/LogEntry'))
 const MyArticles = lazy(() => import('./pages/MyArticles'))
 const MyReviews = lazy(() => import('./pages/MyReviews'))
 const Stats = lazy(() => import('./pages/Stats'))
@@ -104,6 +105,9 @@ export default function App() {
         {/* A writer's own body of work. Personal, not private — it only ever
             shows what the asking account wrote — but there is nothing here for
             a crawler, so the Worker serves it noindex. */}
+        {/* One private log entry, in full. Never indexed — the Worker sends
+            noindex for /log/:id, and it is empty for anyone but its owner. */}
+        <Route path="/log/:id" element={<LogEntry />} />
         <Route path="/my-articles" element={<MyArticles />} />
         <Route path="/my-reviews" element={<MyReviews />} />
         {/* Renamed from /blog in July 2026 — the content was always reviews,

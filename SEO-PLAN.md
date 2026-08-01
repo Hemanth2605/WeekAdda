@@ -133,7 +133,34 @@ out of nothing because a query string is not a separate page to Google.
 
 Not indexed, deliberately: `/my-reviews`, `/my-articles` and `/stats` are real
 pages that are empty for anyone but their owner. They are in `NOINDEX_PAGES` in
-`worker.ts`, served `noindex, nofollow`, and absent from `buildSitemap`.
+`worker.ts`, served `noindex, nofollow`, and absent from `buildSitemap`. They
+are **not** in robots.txt, and that is the right way round: the header is what
+removes a page from an index, and a robots.txt block would stop the crawler ever
+reading the header. Blocking them was briefly mistaken for protecting the
+writing itself — the writing has its own URLs (`/review/:id/:slug`,
+`/article/:id/:slug`) and those are what the sitemap carries and what ranks.
+
+### The private watch log — out of search entirely (Aug 2026)
+
+`/log/:id` is the exception to everything above. It is not "a page we chose not
+to submit"; it is a page that must never appear anywhere, so the exclusion is
+belt and braces:
+
+- never pre-rendered — the noindex branch in `worker.ts` returns before any
+  injection can run, so there is no HTML for a crawler to read even by accident
+- absent from `SEO_PAGES` and `buildSitemap`
+- `X-Robots-Tag: noindex, nofollow` on `/log/:id` and `/my-reviews`
+- `Disallow: /log/` in robots.txt — the **only** path there besides `/stats`
+- **never pings IndexNow.** Publishing a review or article shouts at Bing,
+  Yandex and Seznam on purpose; a log entry must not, and the ping calls sit in
+  the article/review handlers only
+- `Cache-Control: private, no-store` on every `/api/logs*` response, so nothing
+  between the Worker and its owner keeps a copy
+
+`seo.ts` contains **zero** references to logs, which is the real guarantee: the
+pre-render and sitemap builders cannot leak what they have never been given.
+Keep it that way — if a future builder needs the log for anything, the answer is
+that it doesn't.
 
 ### Tier 3 — per-language hubs (**not started**)
 
@@ -169,7 +196,10 @@ invisible to everyone including Google.
    a `SPA_ROUTES` string: add a regex beside `MOVIE_ROUTE` / `REVIEW_ROUTE` /
    `ARTICLE_ROUTE`, include it in `isKnownRoute`, and give it a branch in the
    pre-render `if` — three edits, not one. A page nobody should index goes in
-   `NOINDEX_PAGES` instead of `SEO_PAGES`.
+   `NOINDEX_PAGES` instead of `SEO_PAGES`. A page carrying **private** data
+   (`LOG_ROUTE`) needs the noindex branch *and* everything in the watch-log
+   section above — the difference between "not worth indexing" and "must never
+   be seen" is several edits, not a flag.
 3. `backend/src/seo.ts` — `routeMeta` (title/description), the `seoBlockFor`
    branch in `worker.ts`, and the static list in `buildSitemap`
 4. The page's `usePageMeta` call — `PAGE_META` in `Releases.tsx`, `RESULTS_META`

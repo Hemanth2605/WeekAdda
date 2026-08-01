@@ -163,6 +163,14 @@ input {
   width: 22px;
   height: 22px;
 }
+/* The mark at label size, for lines that name the site rather than link to it */
+.brand-ico.sm {
+  width: 21px;
+  height: 21px;
+  border-width: 1.5px;
+  border-radius: 7px;
+  font-size: 9.5px;
+}
 .nav-brand:hover .brand-ico {
   transform: translateY(-1px) rotate(-3deg) scale(1.04);
   box-shadow: 0 6px 18px rgba(232, 179, 75, 0.35);
@@ -474,13 +482,15 @@ input {
   color: var(--gold);
   margin-bottom: 10px;
 }
-.footer-brand span {
+/* The wordmark only. It used to be every span in here, which then repainted
+   the WA mark beside it in body text colour — a class beats a descendant. */
+.footer-word {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 17px;
   color: var(--text);
 }
-.footer-brand span em {
+.footer-word em {
   color: var(--gold);
   font-style: italic;
 }
@@ -641,7 +651,7 @@ input {
 .notify-prompt-icon,
 .reel-ico,
 .compose-ico,
-.mode-ico {
+.log-ico {
   position: relative;
   isolation: isolate;
   display: grid;
@@ -665,7 +675,7 @@ input {
 .notify-prompt-icon::before,
 .reel-ico::before,
 .compose-ico::before,
-.mode-ico::before {
+.log-ico::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -3504,6 +3514,20 @@ input {
   border-color: var(--gold);
   background: rgba(255, 255, 255, 0.03);
 }
+/* The lead mark on the write row. Lit, and the same lime → emerald the
+   composer's Article button wears, so the invitation and the form it opens
+   carry one colour. */
+.blog-index-ico {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: linear-gradient(140deg, var(--ico-a), var(--ico-b));
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
 /* min-width:0 or the sub line's ellipsis never kicks in inside the flex row */
 .blog-index-text {
   flex: 1;
@@ -4109,7 +4133,7 @@ input {
 }
 :root[data-theme='light'] .tab-ico,
 :root[data-theme='light'] .nav-ico,
-:root[data-theme='light'] .mode-ico {
+:root[data-theme='light'] .log-ico {
   color: var(--ico-deep);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
 }
@@ -4119,8 +4143,7 @@ input {
 :root[data-theme='light'] .opp-tabs button.active .tab-ico,
 :root[data-theme='light'] .opp-tabs a.active .tab-ico,
 :root[data-theme='light'] .nav-link.active .nav-ico,
-:root[data-theme='light'] .blog-mode-btn:hover .mode-ico,
-:root[data-theme='light'] .blog-mode-btn.active .mode-ico {
+:root[data-theme='light'] .log-where-btn.active .log-ico {
   color: #fff;
 }
 :root[data-theme='light'] .opp-tabs button.active .tab-ico,
@@ -4709,10 +4732,25 @@ input {
   line-height: 1.7;
   font-size: 14.5px;
 }
+/* The four features are the four sections, so each takes the tile its own icon
+   wears in the navbar — Movies violet, Cricket green, Reviews orange, the Adda
+   amber. Four gold glyphs told you nothing about which was which, on the one
+   page whose job is explaining what the site is. Lit rather than glass: these
+   are descriptions, not a set where one is current. */
+.about-ico {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-top: 2px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--ico-a), var(--ico-b));
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
 .about-features svg {
   flex-shrink: 0;
-  margin-top: 4px;
-  color: var(--gold);
 }
 .about-features b {
   color: var(--text);
@@ -4889,84 +4927,6 @@ input {
 }
 .blog-post-modal .post-rating {
   margin-top: 16px;
-}
-
-/* The composer's first choice: a review is pinned to something out this week,
-   an article is not. It sits above everything because it changes every field
-   below it — hence two wide buttons with their own explaining line, not chips. */
-.blog-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.blog-mode-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 11px 14px;
-  text-align: left;
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 12px;
-  color: var(--text-dim);
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
-}
-:root[data-theme='light'] .blog-mode-btn {
-  border-color: rgba(0, 0, 0, 0.12);
-}
-.blog-mode-btn em {
-  font-style: normal;
-  font-size: 11.5px;
-  font-weight: 500;
-  line-height: 1.4;
-  opacity: 0.8;
-}
-.blog-mode-btn:hover {
-  color: var(--text);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-.blog-mode-btn.active {
-  color: var(--gold-bright);
-  border-color: var(--gold);
-  background: rgba(212, 175, 55, 0.08);
-}
-.blog-mode-btn svg {
-  vertical-align: -2px;
-}
-/* The switch is a two-way choice, so its tiles behave like tabs: glass while
-   unselected, the full gradient once chosen. Each side carries its own new
-   palette — see .ico-review / .ico-article. */
-.mode-ico {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-}
-.mode-ico svg {
-  width: 14px;
-  height: 14px;
-}
-.blog-mode-btn:hover .mode-ico {
-  color: #fff;
-}
-.blog-mode-btn:hover .mode-ico::before {
-  opacity: 0.7;
-}
-.blog-mode-btn.active .mode-ico {
-  color: #fff;
-  box-shadow: 0 3px 10px var(--ico-glow);
-}
-.blog-mode-btn.active .mode-ico::before {
-  opacity: 1;
-}
-@media (max-width: 560px) {
-  .blog-mode {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* "Where to watch" in the composer. The platform is picked, not looked up —
@@ -7091,4 +7051,1542 @@ a.genre-chip.mine {
 }
 .blog-index-all:hover svg {
   transform: translateX(2px);
+}
+
+/* Says which form this is, now that there is no switch to read it from. A line,
+   not a control: the choice was made at the door and the way to change it is to
+   leave and use the other door. */
+.blog-mode-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+:root[data-theme='light'] .blog-mode-note {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.03);
+}
+/* Reads the kind's own palette rather than repeating its hex, so the line
+   matches the tile on the row that opened it and cannot drift from it */
+.blog-mode-note svg {
+  color: var(--ico-soft);
+}
+:root[data-theme='light'] .blog-mode-note svg {
+  color: var(--ico-deep);
+}
+
+
+/* ---------------- platform chips in the film picker ----------------
+   The same badge a release card wears — brand colour, name on it, always. The
+   site has never carried platform logo files; colour + name *is* how a service
+   is shown here, so the picker matches the cards instead of inventing a third
+   look. Selection is a ring and a tick rather than a colour change: the colour
+   belongs to the platform, and dimming it to mean "unpicked" would make eight
+   live choices look switched off. */
+.platform-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+.platform-chip:hover {
+  transform: translateY(-1px);
+}
+/* Two rings: the page colour first, so the white one reads as a gap around the
+   badge rather than as a thick border drawn on it */
+.platform-chip.picked {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #fff;
+}
+:root[data-theme='light'] .platform-chip.picked {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #1a1a1a;
+}
+.platform-chip.pf-netflix { background: #e50914; }
+.platform-chip.pf-amazonprimevideo { background: #00a8e1; color: #04222d; }
+.platform-chip.pf-jiohotstar { background: linear-gradient(115deg, #ec2a7f, #1f5ee0); }
+.platform-chip.pf-sonyliv { background: #5a4fcf; }
+.platform-chip.pf-zee5 { background: #8230c6; }
+.platform-chip.pf-aha { background: #ff6a00; }
+.platform-chip.pf-etvwin { background: #d6006e; }
+.platform-chip.pf-sunnxt { background: #a3141d; }
+.platform-chip.pf-appletv { background: #1c1c1e; }
+
+/* ---------------- public or private: the composer's first question ----------
+   Two full-height choices rather than a toggle, because they lead to different
+   forms and the difference matters — one is published under your name, the
+   other nobody ever sees. Answered once per opening, then gone. */
+.privacy-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+@media (max-width: 560px) {
+  .privacy-choice {
+    grid-template-columns: 1fr;
+  }
+}
+.privacy-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+:root[data-theme='light'] .privacy-btn {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+}
+.privacy-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.05);
+}
+.privacy-btn em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.privacy-ico {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(140deg, var(--ico-a), var(--ico-b));
+  color: #fff;
+  box-shadow: 0 4px 12px var(--ico-glow);
+}
+
+/* ---------------- the private log form ---------------- */
+.log-form {
+  display: grid;
+  gap: 14px;
+}
+.log-where {
+  display: flex;
+  gap: 10px;
+}
+/* The navbar's own treatment: no outline at all, a soft gold wash and gold
+   text once chosen. The pill border was drawing a box around every option and
+   competing with the tile inside it — the tile lighting up is the signal. */
+.log-where-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 13px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.log-where-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+:root[data-theme='light'] .log-where-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.log-where-btn.active {
+  color: var(--gold);
+  background: rgba(232, 179, 75, 0.1);
+}
+.log-field {
+  display: grid;
+  gap: 6px;
+}
+.log-field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.log-field .search-wrap {
+  margin: 0;
+}
+/* Two side by side on a wide form, stacked once that would squeeze them */
+.log-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .log-row {
+    grid-template-columns: 1fr;
+  }
+}
+.log-suggest {
+  margin-top: 2px;
+}
+.log-other {
+  margin-top: 8px;
+}
+.log-note {
+  min-height: 76px;
+}
+
+/* ---------------- public / private tabs on your own page ---------------- */
+.log-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root[data-theme='light'] .log-tabs {
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+.log-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.log-tab:hover {
+  color: var(--text);
+}
+.log-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+/* The year in one line — the reason the log is worth keeping */
+.log-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin: 4px 0 2px;
+  padding: 13px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(115deg, rgba(232, 179, 75, 0.08), transparent 65%);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+:root[data-theme='light'] .log-summary {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+/* The year dropdown. Numerals are tabular so 2025 and 2026 are the same width
+   — the stats beside them must not shuffle sideways when the year changes. */
+@keyframes log-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.log-year-pick {
+  position: relative;
+}
+.log-year-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid rgba(232, 179, 75, 0.3);
+  border-radius: 999px;
+  background: none;
+  color: var(--gold-bright);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.log-year-btn b {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-bright);
+}
+.log-year-btn svg {
+  transition: transform 0.18s;
+}
+.log-year-btn:hover,
+.log-year-btn.open {
+  border-color: var(--gold-bright);
+  background: rgba(232, 179, 75, 0.14);
+}
+.log-year-btn.open svg {
+  transform: rotate(180deg);
+}
+.log-year-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  /* Long enough to scroll rather than run off the page: a log that reaches
+     back to 2013 is fourteen rows */
+  max-height: 46vh;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  /* Opaque, and named correctly: `var(--card)` is not a variable this site
+     has, so it resolved to nothing and the menu came up transparent over the
+     page behind it */
+  background: var(--bg-card);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  animation: log-menu-in 0.14s ease-out;
+}
+:root[data-theme='light'] .log-year-menu {
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+}
+/* Says what the number is, so the control reads as a year picker rather than
+   as a heading that happens to have an arrow */
+.log-year-btn .log-year-cap {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.log-year-menu button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.log-year-menu button:hover {
+  background: rgba(232, 179, 75, 0.12);
+}
+.log-year-menu button.active {
+  background: rgba(232, 179, 75, 0.16);
+  color: var(--gold-bright);
+}
+/* How much is in that year, read before choosing it */
+.log-year-menu em {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text-dim);
+}
+/* An empty year is a real answer — you looked, and nothing was logged */
+.log-year-none {
+  align-self: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.log-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Each stat wears the colour of the toggle that sets it — amber for a trip
+   out, teal for at home, blue for a venue. Gold on all five said nothing about
+   which was which. */
+.log-summary .stat-out svg {
+  color: #ffc98f;
+}
+.log-summary .stat-home svg {
+  color: #8fd3e8;
+}
+.log-summary .stat-venue svg {
+  color: #7cc4ff;
+}
+:root[data-theme='light'] .log-summary .stat-out svg {
+  color: #c66a3a;
+}
+:root[data-theme='light'] .log-summary .stat-home svg {
+  color: #1c6ba8;
+}
+:root[data-theme='light'] .log-summary .stat-venue svg {
+  color: #1d4ed8;
+}
+.log-summary .log-emoji {
+  font-size: 13px;
+}
+
+/* ---------------- the log itself ---------------- */
+.log-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: var(--bg-card);
+}
+:root[data-theme='light'] .log-entry {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+/* Out and home are the two halves of the log, told apart at a glance rather
+   than by reading the line underneath. 'Out' covers a cinema and a stadium
+   alike — it is the same kind of evening either way. */
+.log-entry-ico {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  color: #fff;
+}
+.log-entry-ico.out {
+  background: linear-gradient(140deg, #f5a524, #e0457b);
+}
+.log-entry-ico.home {
+  background: linear-gradient(140deg, #16b8a6, #2f6fe4);
+}
+.log-entry-body {
+  flex: 1;
+  min-width: 0;
+}
+.log-entry-body b {
+  display: block;
+  font-size: 14.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.log-entry-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.log-entry-note {
+  margin-top: 7px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+}
+/* On the row, unlike reviews — a log entry has no page of its own to carry the
+   control, and removing one is a correction rather than a publication undone */
+.log-entry-del {
+  flex-shrink: 0;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.log-entry-del:hover {
+  color: #ff6b6b;
+}
+
+/* ---------------- "when" on a log entry ----------------
+   Today and Yesterday cover almost every entry, so they are one tap; the
+   calendar is for the rest. The native input stays because nothing else gets
+   locales, keyboards and screen readers right — it is just no longer the only
+   way in. */
+.log-when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.log-day {
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+:root[data-theme='light'] .log-day {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+.log-day:hover {
+  color: var(--text);
+}
+.log-day.active {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+  background: rgba(212, 175, 55, 0.1);
+}
+
+/* ---------------- our own calendar ----------------
+   The native picker's popup is browser chrome and no stylesheet can reach it,
+   so the grid is drawn here instead. See DayPicker.tsx for the trade this
+   makes and why it is worth making for this one field. */
+.daypick {
+  position: relative;
+  display: inline-block;
+}
+.log-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+:root[data-theme='light'] .log-date {
+  border-color: rgba(0, 0, 0, 0.14);
+}
+.log-date:hover,
+.log-date.open {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+.daypick-pop {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 262px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: var(--bg-raised);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+  animation: daypick-in 0.16s ease-out;
+}
+:root[data-theme='light'] .daypick-pop {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18);
+}
+@keyframes daypick-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.daypick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.daypick-head b {
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  color: var(--text);
+}
+.daypick-head button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.daypick-head button:hover:not(:disabled) {
+  color: var(--gold);
+  background: rgba(232, 179, 75, 0.12);
+}
+/* Dimmed rather than hidden: a control that vanishes moves the two beside it */
+.daypick-head button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.daypick-week,
+.daypick-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.daypick-week {
+  margin-bottom: 4px;
+}
+.daypick-week span {
+  padding: 4px 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.daypick-day {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.daypick-day:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+/* Not yet watchable — shown so the month keeps its shape, but plainly dead */
+.daypick-day:disabled {
+  color: var(--text-dim);
+  opacity: 0.28;
+  cursor: default;
+}
+/* Today is a ring, the chosen day is a fill: one is a landmark, the other is
+   an answer, and they have to be told apart when they are the same day */
+.daypick-day.today {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.daypick-day.picked {
+  background: var(--gold);
+  color: #171205;
+  box-shadow: none;
+}
+
+
+/* `[hidden]` is a user-agent rule with almost no specificity, so any class
+   setting `display` silently overrides it — which is how a "hidden" Publish
+   button stayed on screen under the private log form and answered a click with
+   a review's validation error. This makes the attribute mean what it says. */
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- "added to your log" ----------------
+   Its own moment rather than a panel further down the page: on a phone the form
+   fills the screen, and a confirmation below the fold is a confirmation nobody
+   sees. Sits over the composer, offers the only two things anyone wants next,
+   and defaults to staying — whoever logs one film from a weekend usually has a
+   second. */
+.logdone {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 6, 10, 0.6);
+  backdrop-filter: blur(3px);
+  animation: logdone-fade 0.2s ease-out;
+}
+:root[data-theme='light'] .logdone {
+  background: rgba(20, 18, 12, 0.32);
+}
+@keyframes logdone-fade {
+  from {
+    opacity: 0;
+  }
+}
+.logdone-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  width: min(360px, 100%);
+  padding: 28px 24px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: var(--bg-raised);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6);
+  animation: logdone-in 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+:root[data-theme='light'] .logdone-card {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.22);
+}
+@keyframes logdone-in {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+}
+.logdone-card > strong {
+  font-size: 17px;
+  color: var(--text);
+}
+/* What actually landed, so the confirmation is checkable rather than merely
+   reassuring */
+.logdone-what {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+:root[data-theme='light'] .logdone-what {
+  background: rgba(0, 0, 0, 0.03);
+}
+.logdone-what .log-entry-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+.logdone-what b {
+  font-size: 13.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.logdone-what small {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.logdone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.logdone-actions .article-owner-btn {
+  text-decoration: none;
+}
+
+
+/* ---------------- colours in the log form ----------------
+   The two toggles wear the same tiles the navbar does: glass while unselected,
+   the full gradient once chosen. Each takes the palette of what it names — a
+   film is the violet Movies uses, a match the green Cricket uses — so the form
+   is colour-coded the same way the rest of the site is. */
+.log-ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+.log-ico svg {
+  width: 15px;
+  height: 15px;
+}
+.log-where-btn:hover .log-ico {
+  color: #fff;
+}
+.log-where-btn:hover .log-ico::before {
+  opacity: 0.7;
+}
+.log-where-btn.active .log-ico {
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
+.log-where-btn.active .log-ico::before {
+  opacity: 1;
+}
+/* A map pin in blue, which is what a map pin is everywhere else in the world.
+   It was amber, which made it read as part of the "out" toggle above rather
+   than as a field of its own. */
+.log-pin {
+  color: #7cc4ff;
+}
+:root[data-theme='light'] .log-pin {
+  color: #1d4ed8;
+}
+/* Crimson, the colour of the date tile on every release and fixture card. That
+   tile is the site's mark for a date, so the calendar that sets one matches it
+   rather than borrowing a section's colour. */
+.log-date svg {
+  color: #ff7a90;
+}
+:root[data-theme='light'] .log-date svg {
+  color: #c9184a;
+}
+.log-date:hover svg,
+.log-date.open svg {
+  color: #ffa3b3;
+}
+:root[data-theme='light'] .log-date:hover svg,
+:root[data-theme='light'] .log-date.open svg {
+  color: #9e0f38;
+}
+
+/* The film/match toggle sits in the composer's heading row, beside "Your log".
+   `margin-right: auto` keeps it next to the title rather than drifting to the
+   middle — the head is space-between, so without it the close button would end
+   up flanked. */
+.log-kind-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  /* Clear of the heading on the left, hard against it on the right: the head is
+     space-between, so without the auto margin these would drift to the middle
+     and leave the close button flanked. Without the left margin they sat on the
+     word "log". */
+  margin-left: 16px;
+  margin-right: auto;
+}
+.log-kind-head .log-where-btn {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.log-kind-head .log-ico {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+}
+.log-kind-head .log-ico svg {
+  width: 13px;
+  height: 13px;
+}
+/* On a phone the heading and two chips will not share a line, so the row wraps
+   underneath rather than squeezing the title to nothing */
+@media (max-width: 560px) {
+  .blog-composer-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .log-kind-head {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* An emoji standing in for a lucide glyph. Sized and centred to match the ones
+   beside it, and colour-reset because an emoji ignores `color` anyway — the
+   white the tile sets would otherwise look like a bug that failed to apply. */
+.log-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Edit sits beside delete on the row. Both are on the row rather than on a page
+   of their own, unlike a review's — a log entry has no page, and correcting a
+   theatre name is a correction, not a publication undone. */
+.log-entry-edit {
+  flex-shrink: 0;
+  padding: 6px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.log-entry-edit:hover {
+  color: #6fa8ff;
+}
+:root[data-theme='light'] .log-entry-edit:hover {
+  color: #2563eb;
+}
+/* The row becomes the form: no icon column, no side padding fighting the
+   fields inside it */
+.log-entry.editing {
+  display: block;
+  padding: 16px;
+  border-color: var(--border-strong);
+}
+.log-entry.editing .log-form {
+  gap: 12px;
+}
+
+/* ---------------- the log as a year ----------------
+   Year at the top, twelve months down the side, entries on a line inside the
+   month you open. A flat list answers "what did I watch"; this answers "what
+   did my year look like", which is the question a log is kept for. */
+.log-year {
+  margin-top: 4px;
+}
+.log-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.log-months {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.log-month {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+:root[data-theme='light'] .log-month {
+  border-top-color: rgba(0, 0, 0, 0.09);
+}
+.log-month:last-child {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+:root[data-theme='light'] .log-month:last-child {
+  border-bottom-color: rgba(0, 0, 0, 0.09);
+}
+.log-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 4px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.log-month-head:hover:not(:disabled) {
+  color: var(--gold);
+}
+/* Empty months stay in the list — twelve months is the shape of a year, and
+   removing the quiet ones would make a thin year look like a full one */
+.log-month.empty .log-month-head {
+  color: var(--text-dim);
+  opacity: 0.5;
+  cursor: default;
+}
+.log-month.open .log-month-head {
+  color: var(--gold);
+}
+.log-month-count {
+  min-width: 26px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+}
+.log-month.open .log-month-count {
+  background: rgba(232, 179, 75, 0.16);
+  color: var(--gold-bright);
+}
+
+/* The line itself: one vertical rule, a dot per day hung off it */
+.log-line {
+  list-style: none;
+  position: relative;
+  margin: 0 0 14px;
+  padding: 4px 0 4px 0;
+}
+.log-line::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 15px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--border-strong), rgba(255, 255, 255, 0.07));
+}
+.log-dot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+}
+/* The day number is the dot — a bare circle would need the date written twice */
+.log-dot-mark {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 0 4px var(--bg);
+}
+.log-dot-mark.out {
+  background: linear-gradient(140deg, #f5a524, #e0457b);
+}
+.log-dot-mark.home {
+  background: linear-gradient(140deg, #16b8a6, #2f6fe4);
+}
+.log-dot-line {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.log-dot-line:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+:root[data-theme='light'] .log-dot-line:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.log-dot-line b {
+  font-size: 14px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.log-dot-line small {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+/* Says there is more behind the line, which is the reason to click it */
+.log-dot-has-note {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(232, 179, 75, 0.14);
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.log-dot.editing {
+  display: block;
+  padding: 14px 0 14px 44px;
+}
+
+
+/* ---------------- one entry, as a ticket ----------------
+   The entry is the record of a ticket, so it is drawn as one: the where on the
+   top half, the stub below, a tear between them. Everything here is CSS —
+   notches are two circles the page colour, the perforation a dashed rule — so
+   it themes with the site instead of being an image that does not. */
+.log-page {
+  max-width: 620px;
+}
+.log-ticket {
+  position: relative;
+  margin: 10px 0 22px;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+:root[data-theme='light'] .log-ticket {
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.14);
+}
+/* The half that carries the trip, in the colour the log already uses for it */
+.log-ticket-top {
+  padding: 26px 26px 24px;
+  color: #fff;
+}
+.log-ticket.out .log-ticket-top {
+  background: linear-gradient(140deg, #f5a524, #e0457b);
+}
+.log-ticket.home .log-ticket-top {
+  background: linear-gradient(140deg, #16b8a6, #2f6fe4);
+}
+.log-ticket-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.log-ticket-top h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(23px, 4vw, 32px);
+  line-height: 1.15;
+  color: #fff;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+/* A dark chip inside the gradient. The icons carry the same colours they do
+   everywhere else — amber for a trip out, teal for at home, blue for the pin —
+   and on the amber-pink header those would vanish into their own background
+   without something to sit on. */
+.log-ticket-venue {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(8, 8, 12, 0.34);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.log-ticket-venue.out > svg:first-child {
+  color: #ffd08a;
+}
+.log-ticket-venue.home > svg:first-child {
+  color: #9fe4f5;
+}
+.log-ticket-pin {
+  color: #9fd4ff;
+}
+.log-ticket-sep {
+  opacity: 0.45;
+}
+/* The tear. The notches are page-coloured circles pulled half outside the card,
+   which is what makes the edge read as torn rather than as a border. */
+.log-ticket-tear {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.28);
+}
+:root[data-theme='light'] .log-ticket-tear {
+  border-top-color: rgba(0, 0, 0, 0.14);
+}
+.log-ticket-tear span {
+  position: absolute;
+  top: -13px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg);
+}
+.log-ticket-tear span:first-child {
+  left: -13px;
+}
+.log-ticket-tear span:last-child {
+  right: -13px;
+}
+.log-ticket-stub {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px 26px 26px;
+}
+.log-ticket-body {
+  min-width: 0;
+  flex: 1;
+}
+/* Under the year, in the date column — the third line of one block rather
+   than a label sitting beside it */
+.log-ticket-day {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.85;
+}
+/* The note is the reason to open this page, so it is set as prose rather than
+   as another field with a label on it */
+.log-ticket-note {
+  margin-top: 2px;
+  font-family: var(--font-display);
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.log-ticket-empty {
+  margin-top: 2px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+@media (max-width: 560px) {
+  .log-ticket-top {
+    padding: 20px 18px 18px;
+  }
+  .log-ticket-stub {
+    gap: 14px;
+    padding: 18px;
+  }
+  .log-ticket-date {
+    min-width: 58px;
+    padding: 10px 8px;
+  }
+  .log-ticket-date b {
+    font-size: 25px;
+  }
+}
+
+/* The edit form in place of the ticket. Boxed rather than bare, so the page
+   still reads as being about one entry while it is being changed. */
+.log-edit-panel {
+  margin: 12px 0 20px;
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: var(--bg-card);
+}
+.log-edit-panel > .log-page-label {
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* ---------------- the year, as a date tile ----------------
+   Same rule as the release cards' date tile, widened for four digits. A year is
+   a date, and there is one way this site draws a date. */
+.year-cal {
+  width: auto;
+  min-width: 62px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+.year-cal .date-cal-day {
+  padding: 5px 10px 6px;
+  font-family: var(--font-display);
+  font-size: 19px;
+}
+/* Only ever disabled when it is the only year — a heading rather than a
+   choice — so it must not look switched off */
+.year-cal:disabled {
+  cursor: default;
+}
+.year-cal:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+/* Unchosen years step back rather than change shape: the row has to read as
+   several of one thing with one of them current */
+.year-cal:not(.active):not(:disabled) {
+  opacity: 0.55;
+  filter: saturate(0.5);
+}
+.year-cal.active {
+  box-shadow: 0 6px 18px rgba(201, 24, 74, 0.35);
+}
+.log-years {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 560px) {
+  .log-ticket-top {
+    padding: 20px 18px 18px;
+  }
+  .log-ticket-stub {
+    gap: 14px;
+    padding: 18px;
+  }
+  .log-ticket-date {
+    min-width: 58px;
+    padding: 10px 8px;
+  }
+  .log-ticket-date b {
+    font-size: 25px;
+  }
+}
+
+/* The edit form in place of the ticket. Boxed rather than bare, so the page
+   still reads as being about one entry while it is being changed. */
+.log-edit-panel {
+  margin: 12px 0 20px;
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: var(--bg-card);
+}
+.log-edit-panel > .log-page-label {
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* ---------------- the year, as a date tile ----------------
+   Same rule as the release cards' date tile, widened for four digits. A year is
+   a date, and there is one way this site draws a date. */
+.year-cal {
+  width: auto;
+  min-width: 62px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+.year-cal .date-cal-day {
+  padding: 5px 10px 6px;
+  font-family: var(--font-display);
+  font-size: 19px;
+}
+/* Only ever disabled when it is the only year — a heading rather than a
+   choice — so it must not look switched off */
+.year-cal:disabled {
+  cursor: default;
+}
+.year-cal:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+/* Unchosen years step back rather than change shape: the row has to read as
+   several of one thing with one of them current */
+.year-cal:not(.active):not(:disabled) {
+  opacity: 0.55;
+  filter: saturate(0.5);
+}
+.year-cal.active {
+  box-shadow: 0 6px 18px rgba(201, 24, 74, 0.35);
+}
+.log-years {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+/* The stub's date: the same tile again, with the year under it — a tile has no
+   room for four more digits and the ticket already has the space */
+.log-ticket-date {
+  flex-shrink: 0;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+.log-ticket-date .date-cal {
+  width: 52px;
+}
+.log-ticket-date .date-cal-month {
+  font-size: 9.5px;
+  padding: 4px 0 3px;
+}
+.log-ticket-date .date-cal-day {
+  font-family: var(--font-display);
+  font-size: 22px;
+  padding: 6px 0 8px;
+}
+.log-ticket-date small {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+/* ---------------- the stub ----------------
+   The date set as a date: the day large in the display serif, weekday and month
+   stacked beside it behind a hairline. A 12px calendar tile is right on a
+   poster in a grid of forty; on a page about one evening it was a stamp where
+   there was room for the thing itself. */
+.log-ticket-stub {
+  display: block;
+  padding: 22px 26px 26px;
+}
+.log-ticket-when {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.log-ticket-when b {
+  font-family: var(--font-display);
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 0.9;
+  /* The crimson the date tile uses, as ink rather than as a fill — at this
+     size a block of it would be a headline the date is not */
+  background: linear-gradient(150deg, #ff6b85, #c9184a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.log-ticket-when-rest {
+  display: grid;
+  gap: 4px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+:root[data-theme='light'] .log-ticket-when-rest {
+  border-left-color: rgba(0, 0, 0, 0.12);
+}
+.log-ticket-when-rest em {
+  font-style: normal;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.log-ticket-when-rest small {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* The note is the only writing on the page, so it is set as a pull quote —
+   with a real quotation mark rather than a label saying "note" */
+.log-ticket-note {
+  position: relative;
+  margin: 22px 0 0;
+  padding: 4px 0 0 34px;
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.log-ticket-note::before {
+  content: '“';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  font-family: var(--font-display);
+  font-size: 52px;
+  line-height: 1;
+  color: var(--gold);
+  opacity: 0.55;
+}
+.log-ticket-empty {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13.5px;
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+:root[data-theme='light'] .log-ticket-empty {
+  border-top-color: rgba(0, 0, 0, 0.09);
+}
+@media (max-width: 560px) {
+  .log-ticket-when b {
+    font-size: 44px;
+  }
+  .log-ticket-note {
+    font-size: 15.5px;
+    padding-left: 28px;
+  }
+}
+
+/* The two tabs carry the composer's marks and palettes — globe for what anyone
+   can read, padlock for what nobody can. Glass until the tab is current, then
+   the full gradient, exactly like the section icons. */
+.log-tab {
+  gap: 9px;
+}
+.log-tab .log-ico {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+}
+.log-tab .log-ico svg {
+  width: 14px;
+  height: 14px;
+}
+.log-tab:hover .log-ico {
+  color: #fff;
+}
+.log-tab:hover .log-ico::before {
+  opacity: 0.7;
+}
+.log-tab.active .log-ico {
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
+.log-tab.active .log-ico::before {
+  opacity: 1;
+}
+:root[data-theme='light'] .log-tab:hover .log-ico,
+:root[data-theme='light'] .log-tab.active .log-ico {
+  color: #fff;
+}
+
+/* The photo on a log entry uses the article picker, so it needs no styles of
+   its own — only the one place it is shown afterwards. Fixed height, because
+   the framing chosen in the composer only means anything against a known box. */
+.log-ticket-photo {
+  display: block;
+  width: 100%;
+  height: 260px;
+  margin-top: 20px;
+  border-radius: 14px;
+}
+
+
+/* The second press on a delete, on the row itself. Words rather than a second
+   bin — the point of the step is that it must not look like the first press. */
+.log-confirm {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.log-confirm button {
+  padding: 5px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.log-confirm-yes {
+  border-color: rgba(255, 107, 107, 0.5) !important;
+  color: #ff6b6b;
+}
+.log-confirm-yes:hover {
+  background: #c92a2a;
+  border-color: #c92a2a !important;
+  color: #fff;
+}
+.log-confirm-no {
+  color: var(--text-dim);
+}
+.log-confirm-no:hover {
+  color: var(--text);
+}
+
+/* The year tile is a heading now — the year is chosen in the banner dropdown,
+   so the tile must not invite a click it cannot answer. Raised past
+   .year-cal:not(:disabled):hover rather than reordered: ordering holds only
+   until someone moves a block. */
+span.year-cal {
+  cursor: default;
+}
+span.year-cal:not(:disabled):hover {
+  transform: none;
 }

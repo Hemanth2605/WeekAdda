@@ -123,6 +123,14 @@ Shape, both built the same way as `buildTitlePage`:
 in its pre-render, and each article links its related ones. Principle 5 applies
 to leaf pages exactly as it does to hubs.
 
+`/articles` (Aug 2026) is what makes that durable. The rail on `/reviews` links
+only the newest twenty, so an article's one inbound link disappeared the moment
+twenty newer ones existed — reachable on the day it was published, an orphan a
+month later. `/articles` pre-renders a link to **every** article, with no cap,
+so ageing can no longer orphan anything. It is public and indexed, unlike the
+two `/my-*` pages; the "Yours" view is `?mine=1` on the same URL, which stays
+out of nothing because a query string is not a separate page to Google.
+
 Not indexed, deliberately: `/my-reviews`, `/my-articles` and `/stats` are real
 pages that are empty for anyone but their owner. They are in `NOINDEX_PAGES` in
 `worker.ts`, served `noindex, nofollow`, and absent from `buildSitemap`.
@@ -166,6 +174,13 @@ invisible to everyone including Google.
    branch in `worker.ts`, and the static list in `buildSitemap`
 4. The page's `usePageMeta` call — `PAGE_META` in `Releases.tsx`, `RESULTS_META`
    in `Cricket.tsx`
+
+**Point 2 is the one that 404s in production and not in dev.** Vite's dev server
+serves the SPA shell for any path, so a route missing from `SPA_ROUTES` works
+perfectly locally and dies at the edge. `/articles` was added to `App.tsx`,
+`SEO_PAGES`, `routeMeta`, `seoBlockFor` and `buildSitemap` — five of the six —
+and still would have 404'd for every visitor, because `SPA_ROUTES` was the one
+left out. Check that set first when a new page works locally.
 
 **Point 4 is the one that looks fine and is not.** Two systems set the meta
 tags: the Worker writes `routeMeta` into the HTML, which is what social

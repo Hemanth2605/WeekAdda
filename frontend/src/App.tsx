@@ -27,6 +27,7 @@ const Cricket = lazy(() => import('./pages/Cricket'))
 const Reviews = lazy(() => import('./pages/Reviews'))
 const ReviewDetail = lazy(() => import('./pages/ReviewDetail'))
 const ArticleDetail = lazy(() => import('./pages/ArticleDetail'))
+const AllArticles = lazy(() => import('./pages/AllArticles'))
 const MyArticles = lazy(() => import('./pages/MyArticles'))
 const MyReviews = lazy(() => import('./pages/MyReviews'))
 const Stats = lazy(() => import('./pages/Stats'))
@@ -97,6 +98,9 @@ export default function App() {
             the rail beside the reviews feed, never from the feed itself. */}
         <Route path="/article/:id" element={<ArticleDetail />} />
         <Route path="/article/:id/:slug" element={<ArticleDetail />} />
+        {/* Every article by everyone. Public and indexable, unlike the two
+            /my-* pages below — the rail can only ever carry the newest few. */}
+        <Route path="/articles" element={<AllArticles />} />
         {/* A writer's own body of work. Personal, not private — it only ever
             shows what the asking account wrote — but there is nothing here for
             a crawler, so the Worker serves it noindex. */}

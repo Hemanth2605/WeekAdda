@@ -177,7 +177,7 @@ export default function ReviewDetail() {
               ))}
             </span>
           ) : (
-            <span className="blog-card-poster fallback">
+            <span className={`blog-card-poster fallback ${post.tag.kind}`}>
               {post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
             </span>
           )}
@@ -209,7 +209,7 @@ export default function ReviewDetail() {
         {mine && (
           <div className="article-owner-tools">
             <Link
-              className="article-owner-btn"
+              className="article-owner-btn edit"
               to={`/reviews?editReview=${encodeURIComponent(post.id)}`}
             >
               <Pencil size={14} /> Edit
@@ -224,7 +224,7 @@ export default function ReviewDetail() {
                 </button>
               </>
             ) : (
-              <button className="article-owner-btn" onClick={() => setConfirming(true)}>
+              <button className="article-owner-btn del" onClick={() => setConfirming(true)}>
                 <Trash2 size={14} /> Delete
               </button>
             )}

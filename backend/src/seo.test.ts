@@ -5,6 +5,7 @@ import {
   buildTitlePage,
   buildReviewPage,
   buildArticlePage,
+  buildAllArticlesSeo,
   buildBlogSeo,
   buildSitemap,
   buildAboutSeo,
@@ -871,5 +872,54 @@ describe('meta strings', () => {
       // must never appear is an entity that was already an entity
       expect(meta.description).not.toContain('&#39;')
     }
+  })
+})
+
+describe('/articles in the pre-render', () => {
+  it('is linked from every block, not only from the sitemap', () => {
+    // Principle 5: a page only the sitemap knows about is an orphan. NAV is the
+    // footer of every pre-rendered block, so any landing page reaches it.
+    expect(buildAboutSeo()).toContain('href="/articles"')
+    expect(buildBlogSeo([], [])).toContain('href="/articles"')
+  })
+
+  it('links every article, with no cap that could orphan an old one', () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: `a${i}`,
+      ts: `2026-07-${String((i % 28) + 1).padStart(2, '0')}T10:00:00.000Z`,
+      author: 'Someone',
+      topic: 'movie' as const,
+      title: `Piece ${i}`,
+      body: 'x',
+    }))
+    const html = buildAllArticlesSeo(many)
+    for (const a of many) expect(html).toContain(`/article/${a.id}/`)
+  })
+
+  it('says so plainly when there is nothing yet, rather than shipping an empty list', () => {
+    expect(buildAllArticlesSeo([])).toContain('No articles published yet')
+  })
+})
+
+describe('buildAllArticlesSeo JSON-LD', () => {
+  const some = [
+    { id: 'a1', ts: '2026-07-30T10:00:00.000Z', author: 'A', topic: 'movie' as const, title: 'One', body: 'x' },
+    { id: 'a2', ts: '2026-07-29T10:00:00.000Z', author: 'B', topic: 'match' as const, title: 'Two', body: 'x' },
+  ]
+
+  it('describes the list as urls, never as nested Article copies', () => {
+    const html = buildAllArticlesSeo(some)
+    const ld = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/)![1])
+    expect(ld['@type']).toBe('ItemList')
+    // Every item is position + url and nothing else. A nested Article here would
+    // be a second, thinner copy of a page that already has its own markup.
+    for (const item of ld.itemListElement) {
+      expect(Object.keys(item).sort()).toEqual(['@type', 'position', 'url'])
+      expect(item.url).toMatch(/^https:\/\/weekadda\.com\/article\//)
+    }
+  })
+
+  it('emits no list at all when there is nothing to list', () => {
+    expect(buildAllArticlesSeo([])).not.toContain('ld+json')
   })
 })

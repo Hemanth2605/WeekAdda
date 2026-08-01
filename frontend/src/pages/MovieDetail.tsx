@@ -290,7 +290,20 @@ export default function MovieDetail() {
       {data.related.length > 0 && (
         <>
           <div className="section-head movie-related-head">
-            <h2>More {r.languageLabel} releases</h2>
+            {/* Names exactly which pool these came from. The list matches the
+                title you are reading about — a film in cinemas is followed by
+                other films in cinemas, an upcoming one by upcoming ones — and
+                the heading has to say so, or the row reads as a mixed bag. */}
+            <h2>
+              More {r.languageLabel}{' '}
+              {data.status === 'streaming'
+                ? 'OTT releases'
+                : data.status === 'upcoming-ott'
+                  ? 'films coming to OTT'
+                  : data.status === 'in-theatres'
+                    ? 'releases in theatres'
+                    : 'films coming to theatres'}
+            </h2>
           </div>
           <div className="release-grid">
             {data.related.map((rel, i) => (

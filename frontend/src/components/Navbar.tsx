@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Link } from 'react-router-dom'
-import { CalendarRange, Film, Trophy, Feather, HandHeart, Sun, Moon, LogOut } from 'lucide-react'
+import { Film, Trophy, Feather, HandHeart, Sun, Moon, LogOut } from 'lucide-react'
 import { authEnabled, signOut, useGoogleUser } from '../auth'
 import GoogleButton from './GoogleButton'
 import NotifyBell from './NotifyBell'
@@ -26,8 +26,13 @@ export default function Navbar() {
   return (
     <header className="navbar">
       <Link to="/movies" className="nav-brand">
-        <CalendarRange size={26} />
-        <span>
+        {/* The favicon's letters, not a glyph. The tab icon, the home-screen
+            icon and this are one mark now — and letters survive being shrunk to
+            16px in a way a calendar outline never did. */}
+        <span className="brand-ico" aria-hidden="true">
+          WA
+        </span>
+        <span className="brand-word">
           Week<em>Adda</em>
         </span>
       </Link>
@@ -38,28 +43,40 @@ export default function Navbar() {
           aria-label="Movies"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Film size={16} /> <span className="nav-link-label">Movies</span>
+          <span className="nav-ico ico-movies">
+            <Film size={16} />
+          </span>{' '}
+          <span className="nav-link-label">Movies</span>
         </NavLink>
         <NavLink
           to="/cricket"
           aria-label="Cricket"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Trophy size={16} /> <span className="nav-link-label">Cricket</span>
+          <span className="nav-ico ico-results">
+            <Trophy size={16} />
+          </span>{' '}
+          <span className="nav-link-label">Cricket</span>
         </NavLink>
         <NavLink
           to="/reviews"
           aria-label="Reviews"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <Feather size={16} /> <span className="nav-link-label">Reviews</span>
+          <span className="nav-ico ico-theatre">
+            <Feather size={16} />
+          </span>{' '}
+          <span className="nav-link-label">Reviews</span>
         </NavLink>
         <NavLink
           to="/adda"
           aria-label="Adda"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          <HandHeart size={16} /> <span className="nav-link-label">Adda</span>
+          <span className="nav-ico ico-adda">
+            <HandHeart size={16} />
+          </span>{' '}
+          <span className="nav-link-label">Adda</span>
         </NavLink>
       </nav>
 

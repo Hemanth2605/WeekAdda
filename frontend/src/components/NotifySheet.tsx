@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Bell, Check, X } from 'lucide-react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { Bell, Check, Globe, X } from 'lucide-react'
 import { LanguageInfo } from '../types'
+import { ALL_LANGUAGES } from '../languages'
 import { NOTIFY_EVENT, NotifyPayload, notifyChanged } from '../notify'
 import { PushDenied, pushSupported, subscribe } from '../push'
 import { api } from '../api'
@@ -26,7 +27,10 @@ export default function NotifySheet() {
   useEffect(() => {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<NotifyPayload>).detail
-      setPicked(detail?.languages?.filter((l) => l && l !== 'all') ?? [])
+      // Browsing with no language filter *is* "all", so it now pre-ticks that
+      // rather than arriving with nothing chosen and the button disabled
+      const wanted = detail?.languages?.filter(Boolean) ?? []
+      setPicked(wanted.includes(ALL_LANGUAGES) ? [ALL_LANGUAGES] : wanted)
       setError('')
       setDone(false)
       setOpen(true)
@@ -55,6 +59,14 @@ export default function NotifySheet() {
 
   const toggle = (code: string) =>
     setPicked((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]))
+
+  // "All languages" is stored as the sentinel rather than as every code we
+  // happen to publish today — someone who asked for everything means everything,
+  // including whatever gets added later. Ticking a single language therefore
+  // replaces it rather than adding to it.
+  const allPicked = picked.includes(ALL_LANGUAGES)
+  const pickAll = () => setPicked(allPicked ? [] : [ALL_LANGUAGES])
+  const pickOne = (code: string) => (allPicked ? setPicked([code]) : toggle(code))
 
   async function confirm() {
     setBusy(true)
@@ -86,7 +98,9 @@ export default function NotifySheet() {
 
         {done ? (
           <div className="notify-done">
-            <Check size={30} />
+            <span className="notify-done-ring">
+              <Check size={30} />
+            </span>
             <h3>You’re all set</h3>
             <p>The next release will find you.</p>
           </div>
@@ -102,16 +116,33 @@ export default function NotifySheet() {
             </p>
 
             <div className="notify-langs">
+              <button
+                className={allPicked ? 'notify-lang all picked' : 'notify-lang all'}
+                onClick={pickAll}
+                aria-pressed={allPicked}
+              >
+                {/* The globe stays in both states rather than turning into a
+                    tick: it is what tells this chip apart from the twelve, and
+                    a tick would make it look like the thirteenth language.
+                    Selection shows as the globe's own colour change — plus the
+                    chip filling — not as a different icon. */}
+                <Globe size={13} className="notify-globe" /> All languages
+              </button>
               {languages
-                .filter((l) => l.code !== 'all')
-                .map((l) => (
+                .filter((l) => l.code !== ALL_LANGUAGES)
+                .map((l, i) => (
                   <button
                     key={l.code}
-                    className={picked.includes(l.code) ? 'notify-lang picked' : 'notify-lang'}
-                    onClick={() => toggle(l.code)}
-                    aria-pressed={picked.includes(l.code)}
+                    className={
+                      allPicked || picked.includes(l.code) ? 'notify-lang picked' : 'notify-lang'
+                    }
+                    // Position in the row, so ticking "All" fills it left to
+                    // right instead of flashing twelve boxes at once
+                    style={{ '--i': i } as CSSProperties}
+                    onClick={() => pickOne(l.code)}
+                    aria-pressed={allPicked || picked.includes(l.code)}
                   >
-                    {picked.includes(l.code) && <Check size={13} />} {l.label}
+                    {(allPicked || picked.includes(l.code)) && <Check size={13} />} {l.label}
                   </button>
                 ))}
             </div>
@@ -128,7 +159,9 @@ export default function NotifySheet() {
                   ? 'Setting it up…'
                   : picked.length === 0
                     ? 'Pick a language to start'
-                    : `Keep me posted (${picked.length})`}
+                    : allPicked
+                      ? 'Keep me posted (all)'
+                      : `Keep me posted (${picked.length})`}
               </button>
             </div>
           </>

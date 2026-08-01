@@ -194,7 +194,7 @@ export default function FilmWatchPicker({
                   {r.poster ? (
                     <img src={r.poster} alt="" loading="lazy" />
                   ) : (
-                    <span className="blog-tag-icon">
+                    <span className="blog-tag-icon movie">
                       <Film size={15} />
                     </span>
                   )}

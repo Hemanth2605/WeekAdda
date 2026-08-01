@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Feather,
   Film,
@@ -49,6 +49,11 @@ import {
 } from '../types'
 import PipShow from '../components/PipShow'
 import ArticleIndex from '../components/ArticleIndex'
+import FirstCheer, {
+  alreadyCheered,
+  markCheered,
+  type Kind as CheerKind,
+} from '../components/FirstCheer'
 import FilmWatchPicker from '../components/FilmWatchPicker'
 import ArticleImagePicker, { DEFAULT_POSITION } from '../components/ArticleImagePicker'
 import Prose from '../components/Prose'
@@ -206,6 +211,9 @@ function useTagOptions(kind: 'movie' | 'match', open: boolean) {
 
   return options
 }
+
+/** Which composer field the current error belongs to, if any. */
+type Invalid = 'tag' | 'title' | 'body' | null
 
 /**
  * The starters shown when the feed is empty.
@@ -386,6 +394,7 @@ function Composer({
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [invalid, setInvalid] = useState<Invalid>(null)
   // Publishing needs Google sign-in (when configured); reading never does.
   // The state is app-wide: signing in from the navbar covers the composer too.
   const user = useGoogleUser()
@@ -405,19 +414,32 @@ function Composer({
     return pool.slice(0, 8)
   }, [options, tagSearch])
 
+  // Which field the error is about, so the message and the field agree. Named
+  // rather than boolean: "something is wrong" at the foot of a five-field form
+  // still leaves you hunting.
+  const fail = (field: Invalid, message: string) => {
+    setInvalid(field)
+    setError(message)
+  }
+
   const publish = () => {
     if (sending) return
     if (mode === 'review' && !tag)
-      return setError(`Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`)
-    if (!title.trim()) return setError(`Give your ${mode} a title`)
-    if (body.trim().length < 20) return setError('Write a little more — at least a few sentences')
+      return fail(
+        'tag',
+        `Please tag the ${kind === 'movie' ? 'movie' : 'match'} you are writing about`
+      )
+    if (!title.trim()) return fail('title', `Give your ${mode} a title`)
+    if (body.trim().length < 20)
+      return fail('body', 'Write a little more — at least a few sentences')
     let token: string | undefined
     if (authEnabled) {
       const fresh = refreshUser()
-      if (!fresh) return setError('Please sign in with Google to publish')
+      if (!fresh) return fail(null, 'Please sign in with Google to publish')
       token = fresh.token
     }
     setError('')
+    setInvalid(null)
     setSending(true)
     try {
       localStorage.setItem('weekadda-author', author.trim())
@@ -474,7 +496,12 @@ function Composer({
     <section className="blog-composer">
       <div className="blog-composer-head">
         <h2>
-          <Feather size={17} />{' '}
+          {/* Same tile as the Reviews icon in the navbar, lit — the form and the
+              section it writes into are the same thing, so they wear the same
+              mark rather than a bare glyph that happens to be the same shape */}
+          <span className="compose-ico ico-theatre">
+            <Feather size={17} />
+          </span>{' '}
           {editingPost
             ? 'Edit your review'
             : editing
@@ -502,7 +529,10 @@ function Composer({
           className={`blog-mode-btn${mode === 'review' ? ' active' : ''}`}
           onClick={() => setMode('review')}
         >
-          <Star size={14} /> Review
+          <span className="mode-ico ico-review">
+            <Star size={14} />
+          </span>{' '}
+          Review
           <em>Something out this week</em>
         </button>
         <button
@@ -511,7 +541,10 @@ function Composer({
           className={`blog-mode-btn${mode === 'article' ? ' active' : ''}`}
           onClick={() => setMode('article')}
         >
-          <Newspaper size={14} /> Article
+          <span className="mode-ico ico-article">
+            <Newspaper size={14} />
+          </span>{' '}
+          Article
           <em>Anything else — the 1983 final, a top ten, an old favourite</em>
         </button>
       </div>
@@ -593,11 +626,13 @@ function Composer({
           ) : matchFlags(tag).length > 0 ? (
             <span className="blog-tag-flags">
               {matchFlags(tag).map((l, i) => (
-                <img key={i} src={l} alt="" />
+                <img key={i} src={l} alt="" onError={(e) => e.currentTarget.classList.add('gone')} />
               ))}
             </span>
           ) : (
-            <span className="blog-tag-icon">{tag.kind === 'movie' ? <Film size={16} /> : <Trophy size={16} />}</span>
+            <span className={`blog-tag-icon ${tag.kind}`}>
+              {tag.kind === 'movie' ? <Film size={16} /> : <Trophy size={16} />}
+            </span>
           )}
           <span className="blog-tag-text">
             <b>{tag.label}</b>
@@ -608,7 +643,7 @@ function Composer({
           </button>
         </div>
       ) : (
-        <div className="blog-tag-picker">
+        <div className={invalid === 'tag' ? 'blog-tag-picker invalid' : 'blog-tag-picker'}>
           <div className="search-wrap">
             <Search size={16} />
             <input
@@ -626,17 +661,32 @@ function Composer({
           </div>
           <div className="blog-tag-options">
             {suggestions.map((o) => (
-              <button key={o.id} className="blog-tag-option" onClick={() => setTag(o)}>
+              <button
+                key={o.id}
+                className="blog-tag-option"
+                onClick={() => {
+                  setTag(o)
+                  if (invalid === 'tag') setInvalid(null)
+                }}
+              >
                 {o.poster ? (
                   <img src={o.poster} alt="" loading="lazy" />
                 ) : matchFlags(o).length > 0 ? (
                   <span className="blog-tag-flags">
                     {matchFlags(o).map((l, i) => (
-                      <img key={i} src={l} alt="" loading="lazy" />
+                      <img
+                        key={i}
+                        src={l}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => e.currentTarget.classList.add('gone')}
+                      />
                     ))}
                   </span>
                 ) : (
-                  <span className="blog-tag-icon">{o.kind === 'movie' ? <Film size={15} /> : <Trophy size={15} />}</span>
+                  <span className={`blog-tag-icon ${o.kind}`}>
+                    {o.kind === 'movie' ? <Film size={15} /> : <Trophy size={15} />}
+                  </span>
                 )}
                 <span className="blog-tag-text">
                   <b>{o.label}</b>
@@ -656,9 +706,14 @@ function Composer({
       )}
 
       <input
-        className="blog-input"
+        className={invalid === 'title' ? 'blog-input invalid' : 'blog-input'}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        // The highlight clears as soon as they act on it — a field that stays
+        // red while you are fixing it is arguing with you
+        onChange={(e) => {
+          setTitle(e.target.value)
+          if (invalid === 'title') setInvalid(null)
+        }}
         maxLength={120}
         placeholder={
           mode === 'article'
@@ -669,9 +724,12 @@ function Composer({
         }
       />
       <textarea
-        className="blog-textarea"
+        className={invalid === 'body' ? 'blog-textarea invalid' : 'blog-textarea'}
         value={body}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => {
+          setBody(e.target.value)
+          if (invalid === 'body') setInvalid(null)
+        }}
         // An article has room to be an essay; a review is about one thing
         maxLength={mode === 'article' ? 20000 : 5000}
         rows={mode === 'article' ? 12 : 6}
@@ -799,7 +857,7 @@ function PostModal({
               ))}
             </span>
           ) : (
-            <span className="blog-card-poster fallback">
+            <span className={`blog-card-poster fallback ${post.tag.kind}`}>
               {post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
             </span>
           )}
@@ -828,7 +886,7 @@ function PostModal({
             again when either one is actually used */}
         {own && (
           <div className="article-owner-tools">
-            <button className="article-owner-btn" onClick={() => onEdit(post)}>
+            <button className="article-owner-btn edit" onClick={() => onEdit(post)}>
               <Pencil size={14} /> Edit
             </button>
             {confirming ? (
@@ -841,7 +899,7 @@ function PostModal({
                 </button>
               </>
             ) : (
-              <button className="article-owner-btn" onClick={() => setConfirming(true)}>
+              <button className="article-owner-btn del" onClick={() => setConfirming(true)}>
                 <Trash2 size={14} /> Delete
               </button>
             )}
@@ -895,7 +953,9 @@ function PostCard({
             ))}
           </span>
         ) : (
-          <span className="blog-card-poster fallback">{post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}</span>
+          <span className={`blog-card-poster fallback ${post.tag.kind}`}>
+            {post.tag.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
+          </span>
         )}
         <div className="blog-card-meta">
           <TagLine tag={post.tag} />
@@ -943,6 +1003,17 @@ export default function Reviews() {
   const [ratings, setRatings] = useState<Record<string, RatingSummary>>({})
   const [selected, setSelected] = useState<BlogPost | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
+  // The first-publish party, once per kind ever (see FirstCheer)
+  const navigate = useNavigate()
+  // Every publish gets an answer to "did that work?"; only the first gets a
+  // party. Reviews celebrate here, where the new review is at the top of the
+  // feed; an article celebrates on /articles, which is where it gets sent.
+  const [cheer, setCheer] = useState<{ kind: CheerKind; first: boolean } | null>(null)
+  const celebrate = (kind: CheerKind) => {
+    const first = !alreadyCheered(kind)
+    if (first) markCheered(kind)
+    setCheer({ kind, first })
+  }
   // A film chosen from the empty-state starters, handed to the composer
   const [preset, setPreset] = useState<BlogTag | null>(null)
   const [params, setParams] = useSearchParams()
@@ -1189,11 +1260,20 @@ export default function Reviews() {
           onPublished={(post) => {
             setPosts((p) => [post, ...p])
             if (user) setMyPosts((mine) => [post, ...(mine ?? [])])
+            celebrate('review')
           }}
           onArticlePublished={(article) => {
             setArticles((a) => [article, ...a])
             // Marked as yours straight away, rather than only after a reload
             if (user) setMyArticles((mine) => [article, ...(mine ?? [])])
+            // Straight to the list it just joined, filtered to yours. Publishing
+            // an article from /reviews otherwise left you on the reviews feed,
+            // where the thing you just wrote is not even shown — the rail links
+            // it, twenty entries deep. The celebration travels with the
+            // navigation rather than being cut short by it.
+            const first = !alreadyCheered('article')
+            if (first) markCheered('article')
+            navigate('/articles?mine=1', { state: { cheer: { kind: 'article', first } } })
           }}
           startMode={composeMode}
           canPublishAsSite={isOwner}
@@ -1315,6 +1395,9 @@ export default function Reviews() {
           />
         </div>
       </div>
+      {cheer && (
+        <FirstCheer kind={cheer.kind} first={cheer.first} onDone={() => setCheer(null)} />
+      )}
       {selected && (
         <PostModal
           post={selected}

@@ -189,7 +189,7 @@ export default function MyArticles() {
                   }}
                 />
               ) : (
-                <span className="my-article-thumb fallback">
+                <span className={`my-article-thumb fallback ${a.topic}`}>
                   {a.topic === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
                 </span>
               )}

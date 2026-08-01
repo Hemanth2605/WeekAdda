@@ -25,6 +25,10 @@ import {
   imageExtension,
   publicArticle,
   relatedArticles,
+  relatedTitles,
+  buildPushSubscription,
+  todaysReleasesFor,
+  ALL_LANGUAGES_CODE,
   type ReleaseCache,
   type OttRelease,
   type Release,
@@ -64,6 +68,8 @@ const ott = (over: Partial<OttRelease> & { id: string }): OttRelease => ({
   contentType: 'movie',
   ...over,
 })
+
+const todaysIds = (list: Array<{ id: string }>) => list.map((r) => r.id)
 
 const cache = (over: Partial<ReleaseCache> = {}): ReleaseCache => ({
   fetchedAt: new Date().toISOString(),
@@ -883,5 +889,95 @@ describe('reviewUrl', () => {
 describe('articleUrl', () => {
   it('gets its own namespace, distinct from reviews and titles', () => {
     expect(articleUrl({ id: 'a-3', title: 'My top 10 films!' })).toBe('/article/a-3/my-top-10-films')
+  })
+})
+
+// ---------------------------------------------------------------- notifications
+
+describe('buildPushSubscription', () => {
+  const body = (languages: unknown) => ({
+    subscription: { endpoint: 'https://push.example/abc', keys: { p256dh: 'k', auth: 'a' } },
+    languages,
+  })
+
+  it('collapses "all" to the sentinel, not to today’s list of codes', () => {
+    // Storing the expansion would quietly exclude any language added later —
+    // the opposite of what someone asking for everything meant
+    expect(buildPushSubscription(body([ALL_LANGUAGES_CODE, 'te']))?.languages).toEqual([
+      ALL_LANGUAGES_CODE,
+    ])
+  })
+
+  it('keeps a normal pick as itself', () => {
+    expect(buildPushSubscription(body(['te', 'ml']))?.languages).toEqual(['te', 'ml'])
+  })
+
+  it('drops codes we do not publish, and refuses a subscription to nothing', () => {
+    expect(buildPushSubscription(body(['te', 'xx']))?.languages).toEqual(['te'])
+    expect(buildPushSubscription(body(['xx']))).toBeNull()
+    expect(buildPushSubscription(body([]))).toBeNull()
+  })
+})
+
+describe('todaysReleasesFor', () => {
+  // Fixed instant: 11:30 IST, far from either midnight, so the IST day is not
+  // in question whatever timezone the suite runs in
+  const now = new Date('2026-08-01T06:00:00Z')
+  const data = cache({
+    ott: [
+      ott({ id: 'te-today', language: 'te', releaseDate: '2026-08-01' }),
+      ott({ id: 'ml-today', language: 'ml', releaseDate: '2026-08-01' }),
+      ott({ id: 'te-yesterday', language: 'te', releaseDate: '2026-07-31' }),
+    ],
+  })
+
+  it('sends only what landed today, in the languages asked for', () => {
+    expect(todaysReleasesFor(data, ['te'], now).map((r) => r.id)).toEqual(['te-today'])
+  })
+
+  it('takes every language for a subscriber who asked for all', () => {
+    expect(todaysReleasesFor(data, [ALL_LANGUAGES_CODE], now).map((r) => r.id)).toEqual([
+      'te-today',
+      'ml-today',
+    ])
+  })
+
+  it('still sends nothing to a subscription with no languages at all', () => {
+    expect(todaysReleasesFor(data, [], now)).toEqual([])
+  })
+})
+
+describe('relatedTitles', () => {
+  // Each status draws from its own pool — a film in cinemas must never be
+  // followed by things already streaming, which is what it used to do
+  const data = cache({
+    ott: [ott({ id: 'ott-now', releaseDate: iso(-2) })],
+    ottUpcoming: [ott({ id: 'ott-soon', releaseDate: iso(5) })],
+    releases: [
+      release({ id: 'cinema-now', releaseDate: iso(-3) }),
+      release({ id: 'cinema-soon', releaseDate: iso(9) }),
+    ],
+  })
+  const subject = release({ id: 'subject' })
+
+  it('follows a streaming title with streaming titles', () => {
+    expect(todaysIds(relatedTitles(data, subject, 8, 'streaming'))).toEqual(['ott-now'])
+  })
+
+  it('follows a coming-to-OTT title with other coming-to-OTT titles', () => {
+    expect(todaysIds(relatedTitles(data, subject, 8, 'upcoming-ott'))).toEqual(['ott-soon'])
+  })
+
+  it('follows a cinema release with what else is in cinemas, never with OTT', () => {
+    expect(todaysIds(relatedTitles(data, subject, 8, 'in-theatres'))).toEqual(['cinema-now'])
+  })
+
+  it('follows an upcoming cinema release with the other upcoming ones', () => {
+    expect(todaysIds(relatedTitles(data, subject, 8, 'upcoming-theatre'))).toEqual(['cinema-soon'])
+  })
+
+  it('never lists the title you are already reading', () => {
+    const self = release({ id: 'cinema-now', releaseDate: iso(-3) })
+    expect(todaysIds(relatedTitles(data, self, 8, 'in-theatres'))).toEqual([])
   })
 })

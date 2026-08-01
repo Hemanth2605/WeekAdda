@@ -9,6 +9,9 @@
   --text: #ece8df;
   --text-dim: #9a958a;
   --danger: #e05a4e;
+  /* Laid over a section's gradient to make its unselected tile: the hue stays,
+     the intensity goes. See the .tab-ico / .nav-ico block. */
+  --ico-scrim: rgba(16, 16, 23, 0.88);
   --font-display: 'Playfair Display', Georgia, serif;
   --font-body: 'Inter', system-ui, sans-serif;
 }
@@ -134,14 +137,58 @@ input {
   color: var(--gold);
   text-decoration: none;
 }
-.nav-brand span {
+/* The mark is the favicon, redrawn in CSS: black tile, gold rule, gold serif
+   "WA". One mark in every place it appears — browser tab, phone home screen,
+   search results and here — because a logo that changes per surface is not a
+   logo. Deliberately the same in light mode too: it is a stamp, not a
+   component, and a stamp does not restyle itself for its background. */
+.brand-ico {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #0c0c10;
+  border: 2px solid var(--gold);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  transition: transform 0.28s, box-shadow 0.28s;
+}
+.brand-ico svg {
+  width: 22px;
+  height: 22px;
+}
+.nav-brand:hover .brand-ico {
+  transform: translateY(-1px) rotate(-3deg) scale(1.04);
+  box-shadow: 0 6px 18px rgba(232, 179, 75, 0.35);
+}
+/* Section icons: the tab tile at navbar scale — shared styling lives with
+   .tab-ico, this is just the size */
+.nav-ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+.nav-ico svg {
+  width: 15px;
+  height: 15px;
+}
+/* `.brand-word`, not `.nav-brand span` — the mark is a span in here too, and at
+   0,1,1 that selector outscored `.brand-ico` (0,1,0) and silently set the
+   letters in the tile to the wordmark's 21px. */
+.brand-word {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 21px;
   color: var(--text);
   letter-spacing: 0.03em;
 }
-.nav-brand span em {
+.brand-word em {
   color: var(--gold);
   font-style: italic;
 }
@@ -168,7 +215,8 @@ input {
   font-size: 13.5px;
   font-weight: 500;
   letter-spacing: 0.06em;
-  padding: 9px 16px;
+  /* Tighter on the left so the pill hugs its icon tile rather than framing it */
+  padding: 6px 16px 6px 7px;
   border-radius: 999px;
   transition: color 0.2s, background 0.2s;
 }
@@ -300,9 +348,12 @@ input {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: var(--gold);
-  color: #171205;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 16px rgba(232, 179, 75, 0.35);
+  /* Cricket's own green → cyan, not the site gold: the badge belongs to the
+     section it appears in, the same way each tab tile does, and gold on a card
+     already edged in gold was the least visible thing it could have been. */
+  background: linear-gradient(140deg, #2bc46b, #10a5c4);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 16px rgba(30, 180, 160, 0.5);
   opacity: 0;
   transform: scale(0.6) rotate(-20deg);
   transition: opacity 0.2s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -330,8 +381,13 @@ input {
   color: var(--text-dim);
   transition: color 0.2s;
 }
+/* The footer's "Scorecard →" follows the badge, so one hover lights one colour
+   rather than two */
 .match-card.clickable:hover .match-open {
-  color: var(--gold);
+  color: #4fd6b0;
+}
+:root[data-theme='light'] .match-card.clickable:hover .match-open {
+  color: #0d8f7e;
 }
 .match-venue {
   display: inline-flex;
@@ -528,21 +584,217 @@ input {
   margin: 0 0 4px;
 }
 /* Tabs are real links so crawlers can follow them; buttons kept for any tab
-   that is still local state */
+   that is still local state.
+   Icon over label at every width (owner decision, Aug 2026) — the phone shape
+   read better than the side-by-side one, where the 15px icon was decoration
+   next to the text. Desktop keeps natural tab widths rather than the phone's
+   equal-share stretch: three tabs pulled across 1400px stop reading as a row. */
 .opp-tabs button,
 .opp-tabs a {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 104px;
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-dim);
   font-size: 14px;
   font-weight: 500;
-  padding: 10px 16px 14px;
+  padding: 10px 16px 12px;
+  text-align: center;
   text-decoration: none;
   transition: color 0.2s, border-color 0.2s;
+}
+/* Each tab icon rides in its own gradient tile. Gold is the site's ambient
+   accent — on the glyph it read as more furniture, so the icon is white on a
+   coloured tile and only the label and underline stay gold. A tab's two colours
+   and its glow come in on --ico-a/--ico-b/--ico-glow, so an inactive tile is the
+   same gradient dimmed: the active tab reads as lit, not as a different shape. */
+.opp-tabs .tab-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+}
+/* Beats lucide's width/height attributes — CSS wins over presentational
+   attributes, so the icons resize without touching every `size={15}` */
+.opp-tabs .tab-ico svg {
+  width: 19px;
+  height: 19px;
+}
+/* ---------------- section icon tiles (tabs + navbar) ----------------
+   Unselected is a style of its own, not the selected one faded out. Dimming by
+   opacity made a live link look disabled — the whole tile went grey-ish and
+   receded. Instead the tile keeps its section's hue as a dark tinted glass
+   (the gradient under a scrim) with the glyph in the palette's light tone, and
+   selecting it lifts the full gradient in over the top via ::before, glyph
+   flipping to white. Both states are legible and clearly clickable; the
+   difference between them is saturation, not life. */
+.tab-ico,
+.nav-ico,
+.notify-bell,
+.theme-toggle,
+.notify-icon,
+.notify-card-icon,
+.notify-prompt-icon,
+.reel-ico,
+.compose-ico,
+.mode-ico {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: none;
+  background: linear-gradient(var(--ico-scrim), var(--ico-scrim)),
+    linear-gradient(140deg, var(--ico-a), var(--ico-b));
+  color: var(--ico-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  transition: color 0.22s, transform 0.22s, box-shadow 0.22s;
+}
+/* The lit gradient waits here at opacity 0 so the change can animate — you
+   cannot transition between two different background stacks */
+.tab-ico::before,
+.nav-ico::before,
+.notify-bell::before,
+.theme-toggle::before,
+.notify-icon::before,
+.notify-card-icon::before,
+.notify-prompt-icon::before,
+.reel-ico::before,
+.compose-ico::before,
+.mode-ico::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(140deg, var(--ico-a), var(--ico-b));
+  /* The top highlight rides on this layer, not the tile: a negative-z child
+     paints over the tile's own inset shadow, so a highlight left down there
+     would disappear at the moment it was meant to appear */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  opacity: 0;
+  transition: opacity 0.22s;
+}
+.opp-tabs button:hover .tab-ico,
+.opp-tabs a:hover .tab-ico,
+.nav-link:hover .nav-ico {
+  color: #fff;
+  transform: translateY(-1px);
+}
+.opp-tabs button:hover .tab-ico::before,
+.opp-tabs a:hover .tab-ico::before,
+.nav-link:hover .nav-ico::before {
+  opacity: 0.72;
+}
+.opp-tabs button.active .tab-ico,
+.opp-tabs a.active .tab-ico,
+.nav-link.active .nav-ico {
+  color: #fff;
+  box-shadow: 0 5px 16px var(--ico-glow);
+}
+.opp-tabs button.active .tab-ico::before,
+.opp-tabs a.active .tab-ico::before,
+.nav-link.active .nav-ico::before {
+  opacity: 1;
+}
+/* The palettes are their own classes, not tile-specific ones, so the navbar and
+   the tabs draw from one set: Movies is the same violet wherever it appears.
+   --ico-soft is the unselected glyph, light enough to read on the tinted tile;
+   --ico-deep is its counterpart for light mode, where the tile is pale. */
+/* Movies (the navbar section) and OTT India (its default tab) were one class,
+   so on /movies two lit violet tiles sat a few inches apart and read as a
+   repeat. They are split, but not unrelated: the tab picks up where the section
+   leaves off — nav ends at magenta, the tab starts there and runs to crimson —
+   so they still look like one family without looking like one tile. */
+.ico-movies {
+  --ico-a: #7c5cff;
+  --ico-b: #d247c8;
+  --ico-glow: rgba(150, 80, 235, 0.45);
+  --ico-soft: #cdb6ff;
+  --ico-deep: #7b3bd0;
+}
+.ico-ott {
+  --ico-a: #d247c8;
+  --ico-b: #e11d48;
+  --ico-glow: rgba(216, 40, 95, 0.45);
+  --ico-soft: #ffb0d4;
+  --ico-deep: #b81a52;
+}
+.ico-theatre {
+  --ico-a: #ff7a3d;
+  --ico-b: #f0326a;
+  --ico-glow: rgba(245, 80, 100, 0.42);
+  --ico-soft: #ffb79b;
+  --ico-deep: #d13a56;
+}
+.ico-soon {
+  --ico-a: #16b8a6;
+  --ico-b: #2f6fe4;
+  --ico-glow: rgba(45, 130, 225, 0.42);
+  --ico-soft: #8fd3e8;
+  --ico-deep: #1c6ba8;
+}
+.ico-results {
+  --ico-a: #2bc46b;
+  --ico-b: #10a5c4;
+  --ico-glow: rgba(30, 180, 160, 0.42);
+  --ico-soft: #90e0b8;
+  --ico-deep: #128a6e;
+}
+/* The two navbar buttons draw from the same set. The bell is warm because it is
+   the one control that wants noticing; the theme toggle carries the colour of
+   the mode it switches *to*, which is why the palette flips with the theme. */
+.notify-bell,
+.notify-icon,
+.notify-card-icon,
+.notify-prompt-icon {
+  --ico-a: #ffb020;
+  --ico-b: #ff5f6d;
+  --ico-glow: rgba(255, 125, 60, 0.45);
+  --ico-soft: #ffd08a;
+  --ico-deep: #c2610f;
+}
+.theme-toggle {
+  --ico-a: #ffd15c;
+  --ico-b: #ff8a3d;
+  --ico-glow: rgba(255, 155, 60, 0.4);
+}
+/* Night-sky blue rather than violet: the moon sits inches from the Movies tile,
+   which is lit violet on the page it is the default for */
+:root[data-theme='light'] .theme-toggle {
+  --ico-a: #6d8dff;
+  --ico-b: #232a5c;
+  --ico-glow: rgba(45, 60, 150, 0.35);
+}
+/* Two new pairs, not borrowed ones — the composer's switch would otherwise put
+   an existing section's colours on a control that is not that section.
+   Review reads purple → indigo (Movies is violet → magenta, the opposite end),
+   Article reads lime → emerald (Cricket is green → cyan, which is bluer and
+   never yellow). */
+.ico-review {
+  --ico-a: #a855f7;
+  --ico-b: #4338ca;
+  --ico-glow: rgba(120, 80, 220, 0.45);
+  --ico-soft: #d6b8ff;
+  --ico-deep: #5b21b6;
+}
+.ico-article {
+  --ico-a: #a3e635;
+  --ico-b: #059669;
+  --ico-glow: rgba(90, 190, 90, 0.42);
+  --ico-soft: #cdf08a;
+  --ico-deep: #3f7d16;
+}
+.ico-adda {
+  --ico-a: #f5a524;
+  --ico-b: #e0457b;
+  --ico-glow: rgba(230, 120, 70, 0.42);
+  --ico-soft: #ffc98f;
+  --ico-deep: #c66a3a;
 }
 .opp-tabs button:hover,
 .opp-tabs a:hover {
@@ -554,10 +806,9 @@ input {
   border-bottom-color: var(--gold);
 }
 @media (max-width: 560px) {
-  /* Phones get the icon stacked over its label, each tab an equal share of the
-     width — the app-bar shape a thumb already knows. Side by side, the 15px
-     icon was decoration next to the text and the whole row sat left-aligned,
-     leaving the third tab nearest the edge and the smallest target. */
+  /* Phones take the shared stack further: each tab an equal share of the width,
+     the app-bar shape a thumb already knows. Left-aligned, the third tab sat
+     nearest the edge and was the smallest target. */
   .opp-tabs {
     gap: 0;
     padding: 14px 10px 0;
@@ -565,27 +816,28 @@ input {
   .opp-tabs button,
   .opp-tabs a {
     flex: 1 1 0;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: 6px;
+    min-width: 0;
     /* Comfortably past the 44px thumb target, label included */
     min-height: 62px;
     padding: 8px 4px 10px;
     font-size: 11.5px;
     line-height: 1.25;
-    text-align: center;
   }
-  /* Beats lucide's width/height attributes — CSS wins over presentational
-     attributes, so the icons resize without touching every `size={15}` */
-  .opp-tabs svg {
-    width: 23px;
-    height: 23px;
+  .opp-tabs .tab-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+  .opp-tabs .tab-ico svg {
+    width: 20px;
+    height: 20px;
   }
 }
 /* Mini-player launcher: a floating action button pinned bottom-right, always
    in reach while scrolling, on every Movies tab. Sits under modals (z 100)
-   and the share menu (z 300). The icon wears the same circulating gold ring
-   as the sign-in button (google-ring keyframes) — only the icon, not the pill. */
+   and the share menu (z 300). The icon is a gradient tile like the section
+   icons — it used to wear the sign-in button's circulating gold ring, which
+   still exists on that button alone (google-ring keyframes). */
 .reel-btn {
   position: fixed;
   right: 20px;
@@ -606,50 +858,39 @@ input {
   transition: transform 0.2s, color 0.2s, border-color 0.2s;
 }
 .reel-btn:hover {
-  color: var(--gold);
-  border-color: rgba(232, 179, 75, 0.5);
+  color: #bfe2ff;
+  border-color: rgba(37, 99, 235, 0.55);
   transform: translateY(-2px);
 }
+/* The same tile as the Movies icon — rounded square, lit gradient, white glyph,
+   coloured glow — rather than the spinning gold ring it wore before. That ring
+   was borrowed from the sign-in button, and two controls circulating the same
+   gold read as two of the same thing when one signs you in and the other plays
+   the week. Tile styling comes from the shared .tab-ico/.nav-ico block; this is
+   the size, the palette and the lift. */
 .reel-ico {
-  position: relative;
-  z-index: 0;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  color: var(--gold);
-  box-shadow: 0 0 12px rgba(232, 179, 75, 0.35);
+  --ico-glow: rgba(45, 110, 235, 0.5);
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  color: #fff;
+  box-shadow: 0 4px 14px var(--ico-glow);
 }
+/* Three stops, where every section tile has two. The player belongs to no
+   section, so it must not wear one section's colours — it borrowed Movies'
+   violet and read as a second Movies button, and keeping violet even as a
+   midpoint kept it in that family. Now it is the only cool tile with no violet
+   and no green in it at all. The extra stop is the tell: two stops means a
+   section, three means site-wide, the same rule the brand mark follows. Set
+   here rather than through --ico-a/--ico-b, since those only carry a pair. */
 .reel-ico::before {
-  content: '';
-  position: absolute;
-  z-index: -2;
-  inset: -150%;
-  background: conic-gradient(
-    rgba(232, 179, 75, 0.25),
-    var(--gold) 12%,
-    var(--gold-bright) 20%,
-    var(--gold) 28%,
-    rgba(232, 179, 75, 0.25) 40%,
-    rgba(232, 179, 75, 0.25)
-  );
-  animation: google-ring 3s linear infinite;
+  background: linear-gradient(140deg, #2ee6f0, #2563eb 55%, #1e3a8a);
+  opacity: 1;
 }
-.reel-ico::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 2px;
-  border-radius: 50%;
-  background: var(--bg-raised);
-}
-@media (prefers-reduced-motion: reduce) {
-  .reel-ico::before {
-    animation: none;
-  }
+/* Glow only — the pill itself already lifts, and two nested rises read as
+   wobble rather than as one control responding */
+.reel-btn:hover .reel-ico {
+  box-shadow: 0 6px 20px var(--ico-glow);
 }
 /* On phones the label folds away, leaving a round thumb-sized glowing icon */
 @media (max-width: 560px) {
@@ -1410,26 +1651,35 @@ input {
   font-size: 11.5px;
 }
 /* mini calendar-page date tile */
+/* A real desk calendar in miniature: a red printed header over a paper body,
+   sitting slightly proud of the card. Red rather than the site's gold — a wall
+   calendar's header is red, so it is read as a date before it is read at all,
+   and gold on a card already edged in gold was one flat swatch on a flat panel.
+   It also stays clear of the green "New" flip on the reverse. */
 .date-cal {
   display: inline-flex;
   flex-direction: column;
   width: 34px;
   flex: 0 0 auto;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
+  border: 1px solid rgba(201, 24, 74, 0.55);
+  border-radius: 8px;
   overflow: hidden;
   text-align: center;
   line-height: 1;
-  background: var(--bg-raised);
+  background: linear-gradient(165deg, var(--bg-raised), var(--bg-card));
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.28);
 }
 .date-cal-month {
+  position: relative;
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   padding: 3px 0 2px;
-  background: var(--gold);
-  color: #171205;
+  background: linear-gradient(135deg, #ff6b85, #e5194f 55%, #c9184a);
+  color: #fff;
+  /* The fold line where the header meets the page */
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .date-cal-day {
   font-size: 13.5px;
@@ -1667,10 +1917,10 @@ input {
   .navbar { padding: 12px 16px; gap: 10px; }
   .nav-tagline { display: none; }
   .nav-brand { gap: 7px; }
-  .nav-brand span { font-size: 18px; }
+  .brand-word { font-size: 18px; }
   .nav-links { gap: 2px; }
   .nav-link { padding: 8px 10px; font-size: 12.5px; gap: 6px; }
-  .theme-toggle { width: 36px; height: 36px; }
+  .theme-toggle { width: 36px; height: 36px; border-radius: 12px; }
   .feature-grid { padding: 20px 20px 50px; }
   .site-footer { padding: 28px 20px 34px; }
   .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .time-band, .spotlight-head, .week-nav { padding-left: 20px; padding-right: 20px; }
@@ -1829,6 +2079,23 @@ input {
 .hero-card:hover .hero-fill {
   transform: scale(1.06);
 }
+/* Top-left, opposite corner from the rating in the overlay below, so the two
+   never collide on a narrow card */
+.hero-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffcf4d, #ff8a3d);
+  color: #2a1206;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
 .hero-overlay {
   position: absolute;
   inset: auto 0 0 0;
@@ -1847,38 +2114,105 @@ input {
   font-size: 11.5px;
   color: #f5cd7a;
 }
-@media (max-width: 980px) {
-  .hero-spotlight {
-    grid-template-columns: 1fr 1fr;
-    padding: 10px 18px 6px;
-  }
-  .hero-card.big {
-    grid-column: 1 / -1;
-  }
-  .hero-poster {
-    height: 160px;
-  }
+/* Holds the arrows against the carousel. Static on desktop so it adds nothing
+   to a layout that does not need it. */
+.hero-wrap {
+  position: relative;
 }
-/* Phones: the spotlight becomes a swipeable snap carousel */
-@media (max-width: 640px) {
+.hero-arrow {
+  display: none;
+}
+/* Tablets and phones: the spotlight becomes a swipeable snap carousel, one pick
+   at a time. The four-column grid squeezed each card to a strip on a tablet,
+   which is the opposite of what a "top pick" is for. */
+@media (max-width: 1024px) {
   .hero-spotlight {
     display: flex;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
-    gap: 12px;
-    padding: 10px 18px 14px;
+    gap: 14px;
+    padding: 10px 24px 14px;
     scrollbar-width: none;
+    /* The snap point respects the side padding, so the first card never sits
+       flush against the screen edge after a swipe */
+    scroll-padding-left: 24px;
+    scroll-padding-right: 24px;
   }
   .hero-spotlight::-webkit-scrollbar {
     display: none;
   }
+  /* One card, whole, centred. A card narrower than the scrollport leaves a
+     slice of the next one showing, and on a tablet that slice is 200px wide —
+     wide enough to read as a second, broken card rather than as a hint. */
   .hero-card,
   .hero-card.big {
-    flex: 0 0 84vw;
-    width: 84vw;
-    min-height: 210px;
+    flex: 0 0 calc(100% - 48px);
+    width: calc(100% - 48px);
+    min-height: 300px;
     scroll-snap-align: center;
+  }
+  /* The poster is the point of the lead card, so it gets the height back that
+     the desktop grid could not spare */
+  .hero-poster {
+    height: 100%;
+    max-height: 260px;
+    width: auto;
+  }
+  /* Over the cards rather than beside them: a tablet has no spare gutter, and
+     the row would lose 100px of card to hold two buttons. */
+  .hero-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    transform: translateY(-50%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 50%;
+    background: rgba(10, 10, 14, 0.72);
+    backdrop-filter: blur(6px);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .hero-arrow:hover {
+    background: rgba(10, 10, 14, 0.9);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .hero-arrow.prev {
+    left: 6px;
+  }
+  .hero-arrow.next {
+    right: 6px;
+  }
+  :root[data-theme='light'] .hero-arrow {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: rgba(0, 0, 0, 0.14);
+  }
+  :root[data-theme='light'] .hero-arrow:hover {
+    background: #fff;
+  }
+}
+/* Phones: narrower cards, and the padding tightens with the rest of the page */
+@media (max-width: 640px) {
+  .hero-spotlight {
+    gap: 12px;
+    padding: 10px 18px 14px;
+    scroll-padding-left: 18px;
+    scroll-padding-right: 18px;
+  }
+  .hero-card,
+  .hero-card.big {
+    flex: 0 0 calc(100% - 36px);
+    width: calc(100% - 36px);
+    min-height: 230px;
+  }
+  .hero-poster {
+    max-height: 190px;
   }
   .hero-big-inner {
     gap: 14px;
@@ -2083,27 +2417,43 @@ input {
 /* Gold, like everything else that wants attention here. Subscribed state is
    carried by the fill and the icon swapping to a ringing bell, not by colour —
    turning it grey once subscribed would read as "broken" rather than "done". */
+/* Tile styling is shared with the section icons; this is the size and the two
+   states. Off is the tinted glass — a live control, not a dimmed one — and
+   subscribed lights the gradient, so the bell answers "am I on?" by colour. */
+/* Rounded square, not a circle: it stands beside the four section tiles, and a
+   lone circle among squircles reads as a different kind of thing. Bigger than
+   the 28px nav tiles because it is a target on its own, without a label to
+   widen it — 12px radius keeps the same corner-to-size ratio.
+
+   Lit in both states, like the in-feed card's bell — a section tile goes glass
+   because it is one of four and only one can be current, but the bell is alone
+   up there and glass just made it look switched off. Subscribed is told by the
+   green dot and by the icon itself (Bell becomes BellRing), which is the
+   clearer signal anyway: colour alone never says *which* way round it is. */
 .notify-bell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(232, 179, 75, 0.3);
-  border-radius: 50%;
-  background: none;
-  color: var(--gold);
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: 0 4px 14px var(--ico-glow);
+}
+.notify-bell::before {
+  opacity: 1;
 }
 .notify-bell:hover {
-  color: var(--gold-bright, var(--gold));
-  border-color: var(--gold);
-  background: rgba(232, 179, 75, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px var(--ico-glow);
 }
-.notify-bell.on {
-  color: var(--gold);
-  border-color: rgba(232, 179, 75, 0.55);
-  background: rgba(232, 179, 75, 0.14);
+.notify-bell.on::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2bc46b;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 8px rgba(43, 196, 107, 0.8);
 }
 
 /* The bell rings itself, briefly, every few seconds — a static bell in a busy
@@ -2175,13 +2525,14 @@ input {
   }
 }
 .notify-prompt-icon {
-  display: grid;
-  place-items: center;
   flex: 0 0 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(232, 179, 75, 0.14);
-  color: var(--gold);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--ico-glow);
+}
+.notify-prompt-icon::before {
+  opacity: 1;
 }
 .notify-prompt-text {
   flex: 1 1 190px;
@@ -2286,14 +2637,18 @@ input {
   border-radius: 16px;
   background: linear-gradient(90deg, rgba(232, 179, 75, 0.07), transparent 70%);
 }
+/* Lit, like the sheet's bell and for the same reason: all four bells — navbar,
+   in-feed card, landing prompt, sheet — are the same object seen in different
+   places, so they carry one palette. This is the ask itself, not a state. */
 .notify-card-icon {
-  display: grid;
-  place-items: center;
   flex: 0 0 38px;
   height: 38px;
   border-radius: 50%;
-  background: rgba(232, 179, 75, 0.14);
-  color: var(--gold);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--ico-glow);
+}
+.notify-card-icon::before {
+  opacity: 1;
 }
 .notify-card-text {
   display: flex;
@@ -2351,15 +2706,19 @@ input {
   border-radius: 20px;
   background: var(--surface, #14141b);
 }
+/* The sheet's own bell, lit — it is the subject of the sheet, and it borrows the
+   navbar bell's palette so the thing you clicked and the thing you landed on
+   are visibly the same object */
 .notify-icon {
-  display: grid;
-  place-items: center;
   width: 42px;
   height: 42px;
   margin-bottom: 14px;
   border-radius: 50%;
-  background: rgba(232, 179, 75, 0.14);
-  color: var(--gold);
+  color: #fff;
+  box-shadow: 0 5px 16px var(--ico-glow);
+}
+.notify-icon::before {
+  opacity: 1;
 }
 .notify-sheet h3 {
   margin: 0 0 8px;
@@ -2406,6 +2765,106 @@ input {
   border-color: var(--gold);
   background: rgba(232, 179, 75, 0.1);
 }
+/* "All languages" is a different kind of control from the twelve beside it — it
+   sets them rather than joins them — so it leads the row on a line of its own
+   and is drawn a shade stronger. Selected, it fills with a three-stop gradient
+   rather than the flat gold the others use: "all" is the one chip that means
+   several things at once, and it is the only one that must not read as just
+   another language with a tick. */
+.notify-lang.all {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 100%;
+  justify-content: center;
+  font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text);
+  transition: color 0.2s, border-color 0.2s, background 0.3s, box-shadow 0.25s;
+}
+.notify-lang.all:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+/* Unchosen, the globe is dim and grey like the label beside it; chosen, it goes
+   white and gains a ring of its own — the same icon, visibly answered. */
+.notify-globe {
+  color: var(--text-dim);
+  border-radius: 50%;
+  transition: color 0.25s, box-shadow 0.25s, transform 0.25s;
+}
+.notify-lang.all:hover .notify-globe {
+  color: var(--text);
+}
+/* It turns while you consider it, and stops once you have chosen — motion is
+   the invitation, and an invitation you have accepted is over */
+.notify-lang.all:not(.picked):hover .notify-globe {
+  animation: globe-spin 2.4s linear infinite;
+}
+.notify-lang.all.picked .notify-globe {
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.28);
+  animation: globe-land 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes globe-land {
+  0% {
+    transform: rotate(-160deg) scale(0.5);
+  }
+  100% {
+    transform: rotate(0) scale(1);
+  }
+}
+.notify-lang.all.picked {
+  background: linear-gradient(115deg, #7c5cff, #e0457b 46%, #f5a524);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(190, 80, 140, 0.4);
+}
+/* One sweep of light across the chip at the moment of choosing. Runs once
+   because it is a confirmation, not an ornament. */
+.notify-lang.all.picked::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: translateX(-140%);
+  animation: all-sheen 0.75s ease-out 1;
+}
+@keyframes globe-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes all-sheen {
+  to {
+    transform: translateX(320%);
+  }
+}
+/* Every tick lands rather than appears — the overshoot is what makes a checkbox
+   feel answered instead of merely redrawn */
+@keyframes tick-pop {
+  0% {
+    transform: scale(0.2) rotate(-30deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18) rotate(8deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+/* --i is the chip's position, set in the sheet. Ticking "All" answers twelve
+   boxes at once; without the stagger that is one flat flash, with it the row
+   fills left to right and you can see what just happened. `backwards` keeps
+   each tick hidden through its own delay. */
+.notify-lang.picked svg {
+  animation: tick-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 26ms);
+}
 .notify-confirm {
   width: 100%;
   padding: 13px;
@@ -2427,7 +2886,51 @@ input {
 .notify-done {
   padding: 22px 0 14px;
   text-align: center;
-  color: var(--gold);
+  color: var(--text);
+}
+/* The confirmation earns one moment: the tick lands, and a single ring goes out
+   from it and stops. The sheet closes 1.4s later, so this has to say "done" in
+   well under that and then be quiet. */
+.notify-done-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #2bc46b, #10a5c4);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(25, 175, 150, 0.4);
+  animation: done-in 0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.notify-done-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(43, 196, 107, 0.6);
+  animation: done-ring 0.9s ease-out 0.12s 1 backwards;
+}
+@keyframes done-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes done-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.85);
+    opacity: 0;
+  }
 }
 .notify-done h3 {
   margin: 12px 0 6px;
@@ -2485,7 +2988,12 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .notify-sheet,
   .notify-bell svg,
-  .notify-card-icon svg {
+  .notify-card-icon svg,
+  .notify-lang.all:hover svg,
+  .notify-lang.picked svg,
+  .notify-lang.all.picked::after,
+  .notify-done-ring,
+  .notify-done-ring::after {
     animation: none;
   }
 }
@@ -2494,7 +3002,6 @@ input {
   background: #fff;
   border-color: rgba(0, 0, 0, 0.1);
 }
-:root[data-theme='light'] .notify-bell,
 :root[data-theme='light'] .notify-lang {
   border-color: rgba(0, 0, 0, 0.16);
 }
@@ -2533,7 +3040,12 @@ input {
 .pf-dot.pf-appletv { background: #8f8f94; }
 
 /* ---------------- blog ---------------- */
-.blog-page > *:not(.letter-rain):not(.modal-overlay):not(.reel-btn) {
+/* Lifts the page's own content above the falling-letter backdrop. Anything
+   already positioned for itself has to be excluded by name, or this quietly
+   turns its `fixed` into `relative` — which is exactly how the first-publish
+   cheer ended up laid out at the bottom of the document, off screen, instead
+   of over the viewport. Add new overlays to this list. */
+.blog-page > *:not(.letter-rain):not(.modal-overlay):not(.reel-btn):not(.cheer) {
   position: relative;
   z-index: 1;
 }
@@ -2647,9 +3159,42 @@ input {
   font-family: var(--font-display);
   font-size: 20px;
 }
+/* The composer's quill sits in the same lit tile as the Reviews icon in the
+   navbar (.ico-theatre, orange → rose), not just in the same colour: the form
+   and the section it writes into are one thing. Lit rather than glass — this
+   one has no unselected state to express. */
+.compose-ico {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #fff;
+  box-shadow: 0 4px 12px var(--ico-glow);
+}
+.compose-ico::before {
+  opacity: 1;
+}
 .blog-kind {
   display: flex;
   gap: 8px;
+}
+/* "About a movie" / "About a match" — and the article topics above them, which
+   are the same two chips — carry the sections they file into: Movies' violet
+   and Cricket's green, so the choice is colour-coded the way the navbar is.
+   Only while unselected: an active chip is a solid gold pill and its icon must
+   go dark with the label, or it disappears into the fill. Ordered by position,
+   since the two chips have no classes of their own — Film first, Trophy
+   second, in both places. */
+.blog-kind .genre-chip:not(.active):first-child svg {
+  color: #b79bff;
+}
+.blog-kind .genre-chip:not(.active):last-child svg {
+  color: #6fd6a0;
+}
+:root[data-theme='light'] .blog-kind .genre-chip:not(.active):first-child svg {
+  color: #7b3bd0;
+}
+:root[data-theme='light'] .blog-kind .genre-chip:not(.active):last-child svg {
+  color: #128a6e;
 }
 .blog-kind .genre-chip {
   display: inline-flex;
@@ -2698,17 +3243,42 @@ input {
   border-radius: 6px;
   flex: 0 0 auto;
 }
+/* Stands in for a missing poster, so it is coloured by what it stands for:
+   Movies' violet for a film, Cricket's green for a match — the navbar's own
+   pairing, rather than the gold it used to share with everything else. The
+   bare class is the neutral case ("Add <title>", which is neither yet). */
 .blog-tag-icon {
   display: grid;
   place-items: center;
   width: 34px;
   height: 48px;
   border-radius: 6px;
-  background: rgba(232, 179, 75, 0.12);
-  color: var(--gold);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
   flex: 0 0 auto;
 }
+.blog-tag-icon.movie {
+  background: rgba(124, 92, 255, 0.16);
+  color: #b79bff;
+}
+.blog-tag-icon.match {
+  background: rgba(43, 196, 107, 0.16);
+  color: #6fd6a0;
+}
+:root[data-theme='light'] .blog-tag-icon.movie {
+  background: rgba(124, 92, 255, 0.14);
+  color: #7b3bd0;
+}
+:root[data-theme='light'] .blog-tag-icon.match {
+  background: rgba(18, 138, 110, 0.14);
+  color: #128a6e;
+}
 /* two team flags, "versus" style, in the tag picker */
+/* The match thumbnail, whether it ends up holding flags or not. It wears the
+   same green wash and shape as .blog-tag-icon.match, so a row whose flags fail
+   to load still reads as a cricket row rather than as a hole — and so the two
+   cases look like one thing. Rings are green for the same reason: gold was
+   the one colour that said nothing about what the row was. */
 .blog-tag-flags {
   display: flex;
   align-items: center;
@@ -2716,6 +3286,11 @@ input {
   width: 46px;
   height: 48px;
   flex: 0 0 auto;
+  border-radius: 6px;
+  background: rgba(43, 196, 107, 0.16);
+}
+:root[data-theme='light'] .blog-tag-flags {
+  background: rgba(18, 138, 110, 0.14);
 }
 .blog-tag-flags img {
   width: 24px;
@@ -2723,7 +3298,12 @@ input {
   border-radius: 50%;
   object-fit: cover;
   background: #fff;
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(43, 196, 107, 0.55);
+}
+/* A flag that 404s leaves a broken-image glyph, which looks like a bug rather
+   than like missing data — hidden, letting the green tile stand in */
+.blog-tag-flags img.gone {
+  display: none;
 }
 .blog-tag-flags img + img {
   margin-left: -8px;
@@ -2850,10 +3430,12 @@ input {
   gap: 10px;
   margin-bottom: 10px;
 }
+/* The rail's own heading. It was 11px, smaller than the rows it labels, so it
+   read as a tag on the list rather than the name of it. */
 .blog-index-head h2 {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gold);
 }
@@ -2886,8 +3468,15 @@ input {
   border-color: var(--gold);
   background: rgba(212, 175, 55, 0.1);
 }
+/* The sub line is nowrap + ellipsis, so a badge at its end is the first thing
+   truncated away. Shrunk to fit and pinned against clipping — the badge is the
+   part of that line worth keeping. */
 .blog-index-sub .blog-you {
   margin-left: 5px;
+  flex-shrink: 0;
+  padding: 1px 7px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
 }
 .blog-index-list {
   list-style: none;
@@ -2901,7 +3490,7 @@ input {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 11px;
+  padding: 11px 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 10px;
   text-decoration: none;
@@ -2950,20 +3539,23 @@ input {
 .blog-index-item.current:hover .blog-index-go {
   color: var(--bg);
 }
+/* Stepped up from 13.5/11.5 — the rail is the only route to an article, and at
+   the old size the titles read as captions next to the feed's cards. Still
+   clamped to two lines, so a long title costs a row's height, not the rail. */
 .blog-index-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.35;
   color: var(--text);
 }
 .blog-index-sub {
   display: block;
-  margin-top: 3px;
-  font-size: 11.5px;
+  margin-top: 4px;
+  font-size: 12.5px;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -3046,19 +3638,41 @@ input {
   flex: 0 0 auto;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
+/* Stands in for the poster, so it is coloured by what it stands for — Movies'
+   violet or Cricket's green, the navbar's own pairing. Gold said nothing about
+   which, and was the same gold as the card's own edge. */
 .blog-card-poster.fallback {
   display: grid;
   place-items: center;
-  background: rgba(232, 179, 75, 0.12);
-  color: var(--gold);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
 }
-/* match posts: the two team flags in place of a poster */
+.blog-card-poster.fallback.movie {
+  background: rgba(124, 92, 255, 0.16);
+  color: #b79bff;
+}
+.blog-card-poster.fallback.match {
+  background: rgba(43, 196, 107, 0.16);
+  color: #6fd6a0;
+}
+:root[data-theme='light'] .blog-card-poster.fallback.movie {
+  color: #7b3bd0;
+}
+:root[data-theme='light'] .blog-card-poster.fallback.match {
+  background: rgba(18, 138, 110, 0.14);
+  color: #128a6e;
+}
+/* match posts: the two team flags in place of a poster — same green tile, so a
+   match reads the same whether its flags loaded or not */
 .blog-card-poster.flags {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(232, 179, 75, 0.08);
+  background: rgba(43, 196, 107, 0.14);
   box-shadow: none;
+}
+:root[data-theme='light'] .blog-card-poster.flags {
+  background: rgba(18, 138, 110, 0.12);
 }
 .blog-card-poster.flags img {
   width: 30px;
@@ -3066,7 +3680,7 @@ input {
   border-radius: 50%;
   object-fit: cover;
   background: #fff;
-  border: 1px solid var(--border-strong);
+  border: 1px solid rgba(43, 196, 107, 0.55);
 }
 .blog-card-poster.flags img + img {
   margin-left: -10px;
@@ -3127,19 +3741,30 @@ input {
   color: var(--text);
   overflow-wrap: anywhere;
 }
+/* Reviews' own orange → rose rather than gold — the same family the Reviews
+   tile wears in the navbar, so the one control on the card that opens the piece
+   is coloured by the section it belongs to. Deeper in light mode, where the
+   coral washes out against the cream page. */
 .blog-readmore {
   margin: 0 0 14px;
   align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
-  color: var(--gold);
+  color: #ff8f6b;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.2s;
 }
 .blog-readmore:hover {
-  color: var(--gold-bright);
+  color: #ffb79b;
+}
+:root[data-theme='light'] .blog-readmore {
+  color: #d13a56;
+}
+:root[data-theme='light'] .blog-readmore:hover {
+  color: #f0326a;
 }
 .blog-card-sk {
   height: 180px;
@@ -3365,6 +3990,23 @@ input {
 .india-cta:hover {
   background: rgba(232, 179, 75, 0.14);
 }
+/* Share here wears the same green as `.card-share`, the round share button on
+   release cards — sharing is one action and should look like itself wherever it
+   appears, and the solid gold pill outweighed the scorecard link beside it.
+   Scoped to this card: `.share-wa` is shared with Adda, the review composer and
+   the release modal, which stay gold. */
+.india-actions .share-wa {
+  border: 1px solid rgba(37, 211, 102, 0.35);
+  background: rgba(37, 211, 102, 0.12);
+  color: #4ce38a;
+  font-weight: 600;
+}
+.india-actions .share-wa:hover {
+  background: #25d366;
+  color: #06301a;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(37, 211, 102, 0.3);
+}
 @media (max-width: 720px) {
   .india-banner {
     flex-direction: column;
@@ -3379,29 +4021,22 @@ input {
 
 
 /* ---------------- theme toggle ---------------- */
+/* Always lit, unlike the bell: it has no off state, it just is what it does.
+   Turning on hover is the same gesture it had before the tile. */
 .theme-toggle {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border-strong);
-  background: rgba(232, 179, 75, 0.14);
-  color: var(--gold-bright);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  box-shadow: 0 0 14px rgba(232, 179, 75, 0.18);
-  transition: border-color 0.2s, background 0.2s, transform 0.25s;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: 0 4px 14px var(--ico-glow);
+  transition: transform 0.25s, box-shadow 0.2s;
+}
+.theme-toggle::before {
+  opacity: 1;
 }
 .theme-toggle:hover {
-  border-color: var(--gold);
-  background: rgba(232, 179, 75, 0.24);
   transform: rotate(20deg);
-}
-:root[data-theme='light'] .theme-toggle {
-  color: #6a4d0e;
-  border-color: rgba(122, 90, 20, 0.55);
-  background: rgba(169, 122, 28, 0.14);
-  box-shadow: none;
+  box-shadow: 0 5px 18px var(--ico-glow);
 }
 
 /* ---------------- light theme (dark is the default) ---------------- */
@@ -3464,6 +4099,34 @@ input {
 }
 :root[data-theme='light'] .opp-tabs {
   border-bottom-color: rgba(0, 0, 0, 0.09);
+}
+/* Light mode flips the scrim: the unselected tile becomes a pale wash of its
+   own hue, so the glyph has to go dark rather than light. The lit states need
+   restating here too — these selectors outscore the plain .active/:hover ones,
+   and without that the selected tile would keep the dark glyph. */
+:root[data-theme='light'] {
+  --ico-scrim: rgba(255, 255, 255, 0.86);
+}
+:root[data-theme='light'] .tab-ico,
+:root[data-theme='light'] .nav-ico,
+:root[data-theme='light'] .mode-ico {
+  color: var(--ico-deep);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+}
+:root[data-theme='light'] .opp-tabs button:hover .tab-ico,
+:root[data-theme='light'] .opp-tabs a:hover .tab-ico,
+:root[data-theme='light'] .nav-link:hover .nav-ico,
+:root[data-theme='light'] .opp-tabs button.active .tab-ico,
+:root[data-theme='light'] .opp-tabs a.active .tab-ico,
+:root[data-theme='light'] .nav-link.active .nav-ico,
+:root[data-theme='light'] .blog-mode-btn:hover .mode-ico,
+:root[data-theme='light'] .blog-mode-btn.active .mode-ico {
+  color: #fff;
+}
+:root[data-theme='light'] .opp-tabs button.active .tab-ico,
+:root[data-theme='light'] .opp-tabs a.active .tab-ico,
+:root[data-theme='light'] .nav-link.active .nav-ico {
+  box-shadow: 0 5px 16px var(--ico-glow);
 }
 :root[data-theme='light'] .btn-hero.outline {
   background: rgba(0, 0, 0, 0.05);
@@ -3548,22 +4211,37 @@ input {
   }
 }
 
-/* Phones: two rows instead of one.
-   Brand left, the controls (sign-in, bell, theme) right, and the four sections
-   on their own full-width row underneath. Everything used to fight for one
-   line, which is why the labels had to be hidden below 430px — with a row of
-   their own they fit, and a tab that reads "Cricket" beats a tab that is a
-   trophy someone has to decode. */
-@media (max-width: 640px) {
+/* Tablets and phones: the four sections leave the header and become a fixed bar
+   along the bottom of the screen (owner, Aug 2026) — where a thumb rests, and
+   where every app puts them. It used to be a second row under the header, which
+   is the furthest point from the thumb on a tall phone and scrolled out of
+   reach as soon as the page moved. The header keeps brand and controls on one
+   line; the bar stays put.
+
+   It is still the same <nav> in the same place in the DOM, so nothing changes
+   for a crawler or a screen reader — only where it is painted. */
+@media (max-width: 1024px) {
   .navbar {
     flex-wrap: wrap;
-    padding: 10px 16px 0;
-    gap: 8px;
+    padding: 12px 24px;
+    gap: 10px;
+    /* Dropped, and it has to be: `backdrop-filter` makes an element a
+       containing block for its fixed-position descendants, exactly as
+       `transform` and `filter` do. With it on, `.nav-links { position: fixed;
+       bottom: 0 }` anchored to the navbar instead of the viewport and the bar
+       sat under the header — looking like the second row it replaced. The
+       opaque background below stands in for the blur. */
+    backdrop-filter: none;
+    background: rgba(10, 10, 14, 0.97);
   }
   .nav-brand {
     flex: 1 1 auto;
     order: 1;
   }
+  /* Everything on the header row must be ordered, not just the brand — an
+     unordered item defaults to 0 and would jump ahead of it. The tagline is the
+     one that bites, since it still shows down to 720px. */
+  .nav-tagline,
   .nav-user,
   .navbar .google-btn.sm,
   .notify-bell,
@@ -3571,53 +4249,121 @@ input {
     order: 2;
   }
   .nav-links {
-    order: 3;
-    flex: 1 1 100%;
-    justify-content: space-between;
-    gap: 2px;
-    margin-top: 4px;
-    padding: 2px 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Over the page and the floating buttons, under modals (100), the share
+       sheet (300) and the publish celebration (250) */
+    z-index: 96;
+    justify-content: space-around;
+    gap: 0;
+    padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+    background: rgba(10, 10, 14, 0.94);
+    backdrop-filter: blur(18px);
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
   }
+  /* Stacked, like the page tabs and every bottom bar ever shipped */
   .nav-link {
     flex: 1;
+    flex-direction: column;
     justify-content: center;
-    padding: 10px 4px;
-    font-size: 12px;
-    gap: 5px;
+    gap: 4px;
+    padding: 6px 2px;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-align: center;
+    border-radius: 12px;
+  }
+  /* The pill highlight would fight the bar's own surface */
+  .nav-link.active {
+    background: none;
+  }
+  /* Clears the bar, so the last card and the footer are never trapped under it */
+  body {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+  /* The floating column stacks above the bar rather than on it */
+  .reel-btn {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+  .back-top {
+    bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+  .notify-prompt {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+}
+:root[data-theme='light'] .nav-links {
+  border-top-color: rgba(0, 0, 0, 0.1);
+}
+@media (max-width: 1024px) {
+  :root[data-theme='light'] .nav-links {
+    background: rgba(250, 247, 240, 0.95);
+  }
+  /* Matches the navbar's own light surface, minus the blur it can no longer use */
+  :root[data-theme='light'] .navbar {
+    background: rgba(250, 247, 240, 0.97);
   }
 }
 
-:root[data-theme='light'] .nav-links {
-  border-top-color: rgba(0, 0, 0, 0.08);
+/* Phones: tighter still, and the tile gives way before the label does — a
+   decoded trophy is worse than a small tile. */
+@media (max-width: 640px) {
+  .navbar {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .nav-link {
+    font-size: 10.5px;
+    gap: 3px;
+  }
+  .nav-ico {
+    width: 25px;
+    height: 25px;
+    border-radius: 8px;
+  }
+  .nav-ico svg {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 /* Very narrow phones: tighten spacing, but keep the labels — they have their
    own row now */
 @media (max-width: 430px) {
   .navbar {
-    padding: 10px 12px 0;
+    padding: 10px 12px;
     gap: 6px;
   }
-  .nav-brand span {
+  .brand-word {
     font-size: 17px;
   }
   .nav-link {
-    padding: 10px 2px;
-    font-size: 11.5px;
-    gap: 4px;
+    padding: 6px 2px;
+    font-size: 10px;
+    gap: 3px;
+  }
+  .brand-ico {
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    font-size: 15px;
+  }
+  .nav-ico {
+    width: 23px;
+    height: 23px;
+    border-radius: 7px;
   }
   .navbar .google-btn.sm {
     width: 36px;
     height: 36px;
   }
-  .notify-bell {
-    width: 34px;
-    height: 34px;
-  }
+  .notify-bell,
   .theme-toggle {
     width: 34px;
     height: 34px;
+    border-radius: 11px;
   }
   .nav-brand,
   .navbar .google-btn.sm,
@@ -3906,18 +4652,25 @@ input {
 }
 
 /* ---------------- my takes ---------------- */
+/* A filled badge, not an outline. It marks "this one is yours" in a line of
+   other people's names, and a hollow gold pill on a card already edged in gold
+   was the quietest thing in the row. Filled with the brand's own coral→violet
+   so it reads as the site pointing you out, and dark enough behind white text
+   to stay legible at 10.5px in either theme. */
 .blog-you {
   display: inline-block;
-  padding: 1px 8px;
-  margin-left: 2px;
+  padding: 2px 9px;
+  margin-left: 4px;
   border-radius: 999px;
-  border: 1px solid var(--gold);
-  color: var(--gold);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  border: none;
+  background: linear-gradient(135deg, #e8556d, #8b5cf6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   vertical-align: 1px;
+  box-shadow: 0 2px 8px rgba(180, 80, 170, 0.4);
 }
 .mine-count {
   display: inline-grid;
@@ -4082,9 +4835,17 @@ input {
   color: var(--text-dim);
   font-size: 12.5px;
 }
+/* "· you rated 2", "· your take", "be the first to rate" — the personal half of
+   the line. It was gold, the same as the filled stars sitting inches away, so
+   the row had two golds competing and neither read as the emphasis. The stars
+   keep gold, since a star rating is gold everywhere; the text takes Reviews'
+   coral, matching "Read the full take" on the same card. */
 .post-rating-meta em {
   font-style: normal;
-  color: var(--gold);
+  color: #ff8f6b;
+}
+:root[data-theme='light'] .post-rating-meta em {
+  color: #d13a56;
 }
 .post-rating-note {
   color: #e05a4e;
@@ -4177,6 +4938,31 @@ input {
 .blog-mode-btn svg {
   vertical-align: -2px;
 }
+/* The switch is a two-way choice, so its tiles behave like tabs: glass while
+   unselected, the full gradient once chosen. Each side carries its own new
+   palette — see .ico-review / .ico-article. */
+.mode-ico {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+.mode-ico svg {
+  width: 14px;
+  height: 14px;
+}
+.blog-mode-btn:hover .mode-ico {
+  color: #fff;
+}
+.blog-mode-btn:hover .mode-ico::before {
+  opacity: 0.7;
+}
+.blog-mode-btn.active .mode-ico {
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
+.blog-mode-btn.active .mode-ico::before {
+  opacity: 1;
+}
 @media (max-width: 560px) {
   .blog-mode {
     grid-template-columns: 1fr;
@@ -4206,6 +4992,23 @@ input {
   letter-spacing: normal;
   text-transform: none;
   color: var(--text-dim);
+}
+/* Both labels share this class with the gold lettering, so the glyphs are
+   picked out by their section instead: the cover belongs to the article being
+   written (lime, from .ico-article), "Where to watch" is about films (violet,
+   the same tone the "About a movie" chip uses). Only the icon moves — the two
+   labels must still read as the same kind of field. */
+.article-image-picker .film-picker-label svg {
+  color: #a3e635;
+}
+.film-picker .film-picker-label svg {
+  color: #b79bff;
+}
+:root[data-theme='light'] .article-image-picker .film-picker-label svg {
+  color: #3f7d16;
+}
+:root[data-theme='light'] .film-picker .film-picker-label svg {
+  color: #7b3bd0;
 }
 .film-picked {
   padding: 10px 12px;
@@ -4501,9 +5304,17 @@ a.article-watch-title:hover {
     animation: none;
   }
 }
-.blog-index-likes {
+/* Written as `.blog-index-sub em.blog-index-likes`, not `.blog-index-likes`.
+   The heart sits inside the sub line, and `.blog-index-sub em` (0,1,1) already
+   paints every em in there gold — it outscored the plain class (0,1,0), so the
+   like count came out gold no matter what this rule said. Same trap as the
+   rail's go-circle: win on specificity, not on source order. */
+.blog-index-sub em.blog-index-likes {
   font-style: normal;
-  color: #ff4d6d;
+  color: #ff3355;
+}
+:root[data-theme='light'] .blog-index-sub em.blog-index-likes {
+  color: #d61f3d;
 }
 .blog-index-likes svg {
   vertical-align: -1px;
@@ -4544,6 +5355,28 @@ a.article-watch-title:hover {
   color: var(--text);
   border-color: rgba(255, 255, 255, 0.3);
 }
+/* The icon carries the meaning while the button chrome stays quiet — blue to
+   change it, red to remove it, both legible before the label is read. The
+   buttons themselves stay outlined and dim on purpose: these sit under a piece
+   someone is reading, and two filled buttons there would outrank the writing. */
+.article-owner-btn.edit svg {
+  color: #6fa8ff;
+}
+.article-owner-btn.del svg {
+  color: #ff6b6b;
+}
+:root[data-theme='light'] .article-owner-btn.edit svg {
+  color: #2563eb;
+}
+:root[data-theme='light'] .article-owner-btn.del svg {
+  color: #d32f2f;
+}
+/* Hovering Delete turns the whole control red, so the last step before the
+   confirm already looks like what it does */
+.article-owner-btn.del:hover {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.5);
+}
 /* Destructive, so it says so — but only once it is the actual delete */
 .article-owner-btn.danger {
   color: #ff6b6b;
@@ -4567,9 +5400,12 @@ a.article-watch-title:hover {
   background: rgba(212, 175, 55, 0.05);
   cursor: pointer;
 }
+/* The brand's coral, not gold. The box around it is gold-tinted and the word
+   "WeekAdda" beside it is gold-bright, so a gold tick had nothing to tick
+   against — it read as one more gold thing in a gold box. */
 .compose-as-site input {
   margin-top: 2px;
-  accent-color: var(--gold);
+  accent-color: #e8556d;
 }
 .compose-as-site span {
   display: flex;
@@ -4828,14 +5664,27 @@ a.article-watch-title:hover {
     grid-template-columns: 1fr;
   }
 }
+/* The whole card opens the piece, not just its title — a 17px heading is a
+   small target for a card this size, and the thumbnail beside it looked
+   clickable and wasn't. Done with a stretched link (see .my-article-title
+   below) rather than an onClick on the card: there is still exactly one real
+   <a>, so middle-click, ⌘-click, "copy link address" and the keyboard tab order
+   all keep working, which an onClick div throws away. */
 .my-article-card {
+  position: relative;
   display: flex;
   gap: 14px;
   padding: 14px;
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 14px;
+  cursor: pointer;
   transition: border-color 0.2s, transform 0.2s;
+}
+/* Hovering anywhere on the card lights the title, so the target is legible
+   before it is clicked */
+.my-article-card:hover .my-article-title {
+  color: var(--gold-bright);
 }
 :root[data-theme='light'] .my-article-card {
   border-color: rgba(0, 0, 0, 0.1);
@@ -4851,9 +5700,11 @@ a.article-watch-title:hover {
   border-radius: 9px;
   object-fit: cover;
 }
-/* Gold, not grey: with no cover this icon is the only thing carrying the card,
-   and a dim glyph reads as something failing to load rather than as the mark
-   of a film or a match. */
+/* Coloured, not grey: with no cover this icon is the only thing carrying the
+   card, and a dim glyph reads as something failing to load rather than as the
+   mark of a film or a match. It takes its section's colour rather than the
+   site gold — Movies' violet, Cricket's green — so the card says which it is
+   before the meta line is read. */
 .my-article-thumb.fallback {
   display: inline-flex;
   align-items: center;
@@ -4861,6 +5712,22 @@ a.article-watch-title:hover {
   background: rgba(212, 175, 55, 0.1);
   border: 1px solid rgba(212, 175, 55, 0.28);
   color: var(--gold);
+}
+.my-article-thumb.fallback.movie {
+  background: rgba(124, 92, 255, 0.14);
+  border-color: rgba(124, 92, 255, 0.34);
+  color: #b79bff;
+}
+.my-article-thumb.fallback.match {
+  background: rgba(43, 196, 107, 0.14);
+  border-color: rgba(43, 196, 107, 0.34);
+  color: #6fd6a0;
+}
+:root[data-theme='light'] .my-article-thumb.fallback.movie {
+  color: #7b3bd0;
+}
+:root[data-theme='light'] .my-article-thumb.fallback.match {
+  color: #128a6e;
 }
 .my-article-body {
   min-width: 0;
@@ -4889,6 +5756,16 @@ a.article-watch-title:hover {
 }
 .my-article-title:hover {
   color: var(--gold-bright);
+}
+/* Stretched over the whole card. Sits above the card's own content but below
+   anything that needs its own click — nothing here does today, and anything
+   added later must set position + z-index to stay reachable. */
+.my-article-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
 }
 .my-article-excerpt {
   display: -webkit-box;
@@ -5503,6 +6380,10 @@ a.genre-chip.mine {
   box-shadow: 0 10px 30px rgba(232, 179, 75, 0.22);
   transition: transform 0.2s, box-shadow 0.2s;
 }
+/* The pen has no colour of its own — it inherits the label's brown, as it did
+   before any of this. Indigo, crimson, ink blue, green and maroon were each
+   tried on the gold pill and none beat leaving it alone: a coloured glyph on a
+   saturated fill competes with the fill instead of reading against it. */
 .community-cta:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 38px rgba(232, 179, 75, 0.34);
@@ -5935,4 +6816,279 @@ a.genre-chip.mine {
   line-height: 1.7;
   margin-top: 12px;
   max-width: 72ch;
+}
+
+/* ---------------- first-publish celebration ----------------
+   Fires once per kind, ever (see FirstCheer.tsx). Fixed over everything and
+   pointer-transparent except the card, so nothing it covers stops working —
+   someone who ignores it entirely loses nothing. */
+.cheer {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  pointer-events: none;
+  isolation: isolate;
+}
+.cheer-fall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.cheer-bit {
+  position: absolute;
+  top: -24px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: cheer-drop;
+  animation-timing-function: cubic-bezier(0.35, 0.1, 0.6, 1);
+  animation-fill-mode: forwards;
+}
+.cheer-bit.round {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+/* One pass down the screen, then gone — it must not loop, or a celebration
+   becomes weather */
+@keyframes cheer-drop {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0), 104vh, 0) rotate(620deg);
+    opacity: 0;
+  }
+}
+/* Centred, because publishing ends a task rather than passing by — a corner
+   toast asks to be noticed, the middle of the screen simply is where you are
+   already looking. A scrim sits behind it so the card reads over a busy feed. */
+.cheer-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  width: min(390px, calc(100% - 36px));
+  padding: 30px 26px 26px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: var(--bg-raised);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6);
+  /* Deliberately not `cheer-in`: that name already belongs to the article
+     like-burst, and the last @keyframes declared wins for every user of it */
+  animation: cheer-card-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.cheer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(6, 6, 10, 0.5);
+  backdrop-filter: blur(2px);
+  animation: cheer-scrim 0.3s ease-out;
+}
+:root[data-theme='light'] .cheer::after {
+  background: rgba(20, 18, 12, 0.26);
+}
+:root[data-theme='light'] .cheer-card {
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.25);
+}
+@keyframes cheer-card-in {
+  from {
+    transform: translate(-50%, -50%) scale(0.86);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes cheer-scrim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* The tick draws itself — the ring closes, then the mark is struck through it */
+.cheer-tick {
+  width: 62px;
+  height: 62px;
+  margin-bottom: 4px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cheer-tick-ring {
+  stroke: #2bc46b;
+  stroke-width: 3;
+  stroke-dasharray: 145;
+  stroke-dashoffset: 145;
+  animation: tick-ring 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.cheer-tick-mark {
+  stroke: #2bc46b;
+  stroke-width: 4.5;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: tick-mark 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.42s forwards;
+}
+@keyframes tick-ring {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes tick-mark {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.cheer-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffcf4d, #ff5fa2);
+  color: #2a1206;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.cheer-card strong {
+  font-size: 18px;
+  color: var(--text);
+}
+.cheer-line {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.cheer-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cheer-close:hover {
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .cheer-card {
+    padding: 26px 20px 22px;
+  }
+  .cheer-tick {
+    width: 54px;
+    height: 54px;
+  }
+}
+/* The message is the point; the confetti and the drawing are the flourish. */
+@media (prefers-reduced-motion: reduce) {
+  .cheer-fall {
+    display: none;
+  }
+  .cheer-card,
+  .cheer::after {
+    animation: none;
+  }
+  .cheer-tick-ring,
+  .cheer-tick-mark {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------------- a field the error is about ----------------
+   The message at the foot of the composer says what is wrong; this says where.
+   One at a time, because validation stops at the first failure — two red boxes
+   would claim both are wrong when only one has been checked. Cleared the moment
+   the field is touched: a box that stays red while you fix it is arguing. */
+.blog-input.invalid,
+.blog-textarea.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(224, 90, 78, 0.16);
+  animation: field-nudge 0.32s ease-out;
+}
+.blog-input.invalid:focus,
+.blog-textarea.invalid:focus {
+  border-color: var(--danger);
+}
+/* The tag picker is a panel, not a control, so it takes the ring on itself */
+.blog-tag-picker.invalid {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px var(--danger), 0 0 0 5px rgba(224, 90, 78, 0.16);
+  animation: field-nudge 0.32s ease-out;
+}
+/* A short shake — enough to pull the eye back up to the field from a message
+   that sits below the fold on a long article form */
+@keyframes field-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  60% {
+    transform: translateX(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-input.invalid,
+  .blog-textarea.invalid,
+  .blog-tag-picker.invalid {
+    animation: none;
+  }
+}
+
+/* The rail's way out: everything it cannot fit lives on /articles. A full-width
+   link rather than a chip — it leaves the page, and the rows above it do not. */
+.blog-index-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px dashed rgba(212, 175, 55, 0.45);
+  border-radius: 10px;
+  color: var(--gold);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.blog-index-all:hover {
+  color: var(--gold-bright);
+  border-style: solid;
+  border-color: var(--gold);
+  background: rgba(212, 175, 55, 0.08);
+}
+.blog-index-all svg {
+  transition: transform 0.2s;
+}
+.blog-index-all:hover svg {
+  transform: translateX(2px);
 }

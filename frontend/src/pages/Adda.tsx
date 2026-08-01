@@ -18,6 +18,7 @@ import { api } from '../api'
 import { authEnabled, refreshUser, signInWithGoogle, signOut, useGoogleUser } from '../auth'
 import GoogleButton from '../components/GoogleButton'
 import PipShow from '../components/PipShow'
+import FirstCheer, { alreadyCheered, markCheered } from '../components/FirstCheer'
 import { usePageMeta } from '../seo'
 import { useFocusTarget } from '../focusTarget'
 
@@ -246,6 +247,7 @@ function AddaComposer({
   const [whatsapp, setWhatsapp] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [invalid, setInvalid] = useState<'title' | 'details' | null>(null)
   const user = useGoogleUser()
 
   useEffect(() => {
@@ -258,13 +260,20 @@ function AddaComposer({
     if (open && preset) setTitle((prev) => prev || preset)
   }, [open, preset])
 
+  // Names the field the error is about, so the message and the box agree
+  const fail = (field: 'title' | 'details' | null, message: string) => {
+    setInvalid(field)
+    setError(message)
+  }
+
   const post = () => {
     if (sending) return
-    if (!title.trim()) return setError('Give your post a short title')
-    if (details.trim().length < 10) return setError('Add a few words of detail')
+    if (!title.trim()) return fail('title', 'Give your post a short title')
+    if (details.trim().length < 10) return fail('details', 'Add a few words of detail')
     const token = refreshUser()?.token
-    if (!token) return setError('Please sign in with Google to post')
+    if (!token) return fail(null, 'Please sign in with Google to post')
     setError('')
+    setInvalid(null)
     setSending(true)
     api<Listing>('/adda', {
       method: 'POST',
@@ -296,23 +305,35 @@ function AddaComposer({
     <section className="blog-composer">
       <div className="blog-composer-head">
         <h2>
-          <HandHeart size={17} /> Your post
+          {/* Same lit tile as the Adda icon in the navbar — the form and the
+              board it posts to wear one mark, exactly as the reviews composer
+              does with the Reviews tile */}
+          <span className="compose-ico ico-adda">
+            <HandHeart size={17} />
+          </span>{' '}
+          Your post
         </h2>
         <button className="share-close" onClick={onClose} aria-label="Close composer">
           <X size={16} />
         </button>
       </div>
       <input
-        className="blog-input"
+        className={invalid === 'title' ? 'blog-input invalid' : 'blog-input'}
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value)
+          if (invalid === 'title') setInvalid(null)
+        }}
         maxLength={120}
         placeholder="Title — e.g. “Extra ticket for Saturday's show (face value)”"
       />
       <textarea
-        className="blog-textarea"
+        className={invalid === 'details' ? 'blog-textarea invalid' : 'blog-textarea'}
         value={details}
-        onChange={(e) => setDetails(e.target.value)}
+        onChange={(e) => {
+          setDetails(e.target.value)
+          if (invalid === 'details') setInvalid(null)
+        }}
         maxLength={2000}
         rows={4}
         placeholder="The details — what, when, where, and anything a responder should know…"
@@ -419,6 +440,8 @@ export default function Adda() {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [composerOpen, setComposerOpen] = useState(false)
+  // Every post gets a confirmation; the first also gets the party (see FirstCheer)
+  const [cheer, setCheer] = useState<{ first: boolean } | null>(null)
   // A title stem chosen from the empty-state starters
   const [preset, setPreset] = useState<string | null>(null)
   const user = useGoogleUser()
@@ -497,7 +520,12 @@ export default function Adda() {
             setComposerOpen(false)
             setPreset(null)
           }}
-          onPosted={(l) => setListings((prev) => [l, ...prev])}
+          onPosted={(l) => {
+            setListings((prev) => [l, ...prev])
+            const first = !alreadyCheered('post')
+            if (first) markCheered('post')
+            setCheer({ first })
+          }}
         />
 
         {loading ? (
@@ -575,6 +603,7 @@ export default function Adda() {
           </p>
         </details>
       </div>
+      {cheer && <FirstCheer kind="post" first={cheer.first} onDone={() => setCheer(null)} />}
     </main>
   )
 }

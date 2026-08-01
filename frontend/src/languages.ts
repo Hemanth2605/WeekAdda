@@ -21,6 +21,13 @@ const LABELS: Record<string, string> = {
 export const languageLabel = (code: string) => LABELS[code] ?? code
 
 /**
+ * "Every language" — the filter chip's value, and what a notification
+ * subscription stores when someone asks for the lot. Mirrors
+ * ALL_LANGUAGES_CODE in backend/src/queries.ts.
+ */
+export const ALL_LANGUAGES = 'all'
+
+/**
  * The fixed display order for language sections: Telugu, Tamil, English,
  * Hindi, Malayalam, Kannada; anything else follows, largest section first.
  * Mirrors `byLanguage` in backend/src/seo.ts — keep the two in step.

@@ -68,6 +68,13 @@ export interface ReleaseCache {
 }
 
 // Display order: Telugu, Tamil, English, Hindi, Malayalam, Kannada, then the rest.
+/**
+ * "Every language" — the filter chip's value, and a real stored value on a push
+ * subscription. Deliberately not a member of LANGUAGES: it is the absence of a
+ * choice, not a thirteenth language.
+ */
+export const ALL_LANGUAGES_CODE = 'all'
+
 export const LANGUAGES = [
   { code: 'te', label: 'Telugu' },
   { code: 'ta', label: 'Tamil' },
@@ -394,11 +401,43 @@ export function findTitle(
   return null
 }
 
-/** Same-language titles for the detail page's "more like this" links. */
-export function relatedTitles(data: ReleaseCache, item: Release, limit = 8): Release[] {
+/**
+ * Same-language titles for the detail page's "more like this" links, from the
+ * same half of the site the title itself belongs to.
+ *
+ * It used to read `[...ott, ...releases, ...ottUpcoming]` for everything, so a
+ * film in cinemas was followed by eight things already streaming — an answer to
+ * a question nobody on that page asked. Each of the four statuses now draws
+ * from its own pool: streaming from OTT, coming-to-OTT from OTT upcoming, in
+ * cinemas from theatre releases already out, and coming-to-theatres from the
+ * ones that are not.
+ *
+ * No cross-padding when a pool is thin: five theatre titles is a true answer,
+ * five theatre titles and three streaming ones is the original bug in a smaller
+ * dose. `status` defaults to the OTT side, which is what the old call sites got.
+ */
+export function relatedTitles(
+  data: ReleaseCache,
+  item: Release,
+  limit = 8,
+  status: TitleStatus = 'streaming'
+): Release[] {
+  // One pool per status, not two halves: "coming to OTT" under a film that is
+  // already streaming is the same mismatch as a streaming film under one in
+  // cinemas. data.releases holds theatre titles either side of today, so that
+  // pair is split by date the same way findTitle decides the status itself.
+  const today = new Date().toISOString().slice(0, 10)
+  const pool =
+    status === 'streaming'
+      ? data.ott
+      : status === 'upcoming-ott'
+        ? data.ottUpcoming
+        : status === 'in-theatres'
+          ? data.releases.filter((r) => r.releaseDate <= today)
+          : data.releases.filter((r) => r.releaseDate > today)
   const seen = new Set<string>([item.id])
   const out: Release[] = []
-  for (const r of [...data.ott, ...data.releases, ...data.ottUpcoming]) {
+  for (const r of pool) {
     if (seen.has(r.id) || r.languageLabel !== item.languageLabel) continue
     seen.add(r.id)
     out.push(r)
@@ -892,10 +931,14 @@ export function buildPushSubscription(body: unknown): PushSubscriptionRecord | n
   const auth = typeof keys.auth === 'string' ? keys.auth : ''
   if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || !auth) return null
 
-  const known = new Set(LANGUAGES.map((l) => l.code))
-  const languages = Array.isArray(b.languages)
+  const known = new Set([...LANGUAGES.map((l) => l.code), ALL_LANGUAGES_CODE])
+  const picked = Array.isArray(b.languages)
     ? [...new Set(b.languages.filter((l): l is string => typeof l === 'string' && known.has(l)))]
     : []
+  // "Everything" is stored as the sentinel, not as today's twelve codes: the
+  // point of picking it is to keep hearing about a language we add next year,
+  // which an expanded list would silently miss.
+  const languages = picked.includes(ALL_LANGUAGES_CODE) ? [ALL_LANGUAGES_CODE] : picked
   if (languages.length === 0) return null
 
   // Validated by asking Intl to use it: a made-up zone throws, and anything
@@ -926,7 +969,10 @@ export function todaysReleasesFor(
 ): OttRelease[] {
   const today = istDay(now.toISOString())
   const wanted = new Set(languages)
-  return data.ott.filter((r) => r.releaseDate === today && wanted.has(r.language))
+  const everything = wanted.has(ALL_LANGUAGES_CODE)
+  return data.ott.filter(
+    (r) => r.releaseDate === today && (everything || wanted.has(r.language))
+  )
 }
 
 /** "3 new Telugu releases today" — plural, language-aware, no title list. */

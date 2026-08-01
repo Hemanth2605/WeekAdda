@@ -287,10 +287,16 @@ export default function Cricket() {
 
       <div className="opp-tabs">
         <Link to={TAB_PATH.upcoming} className={windowTab === 'upcoming' ? 'active' : ''}>
-          <CalendarClock size={15} /> Fixtures
+          <span className="tab-ico ico-soon">
+            <CalendarClock size={15} />
+          </span>
+          Fixtures
         </Link>
         <Link to={TAB_PATH.recent} className={windowTab === 'recent' ? 'active' : ''}>
-          <Sparkles size={15} /> Results
+          <span className="tab-ico ico-results">
+            <Sparkles size={15} />
+          </span>
+          Results
         </Link>
       </div>
 

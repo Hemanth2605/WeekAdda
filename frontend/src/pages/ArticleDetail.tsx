@@ -55,18 +55,31 @@ export default function ArticleDetail() {
   // The whole map, not just this article's: the rail beside it shows counts
   // too, and fetching the same endpoint twice for that would be daft
   const [likes, setLikes] = useState<Record<string, LikeSummary>>({})
+  const [mineIds, setMineIds] = useState<Set<string>>(new Set())
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const user = useGoogleUser()
   const navigate = useNavigate()
 
+  // The whole set, not just "is this one mine" — the rail beside it badges
+  // yours too, and it is the same request either way
   useEffect(() => {
     const fresh = user && refreshUser()
-    if (!fresh || !id) return setMine(false)
+    if (!fresh || !id) {
+      setMine(false)
+      return setMineIds(new Set())
+    }
     fetchMyArticles(fresh.token)
-      .then((r) => setMine(r.articles.some((a) => a.id === id)))
-      .catch(() => setMine(false))
+      .then((r) => {
+        const ids = new Set(r.articles.map((a) => a.id))
+        setMineIds(ids)
+        setMine(ids.has(id))
+      })
+      .catch(() => {
+        setMine(false)
+        setMineIds(new Set())
+      })
   }, [id, user])
 
   // Refetched on sign-in/out so "you liked this" stays true for whoever is
@@ -265,7 +278,10 @@ export default function ArticleDetail() {
                 checks the verified email again when either one is used */}
             {mine && (
               <div className="article-owner-tools">
-                <Link className="article-owner-btn" to={`/reviews?edit=${encodeURIComponent(article.id)}`}>
+                <Link
+                  className="article-owner-btn edit"
+                  to={`/reviews?edit=${encodeURIComponent(article.id)}`}
+                >
                   <Pencil size={14} /> Edit
                 </Link>
                 {confirming ? (
@@ -278,7 +294,7 @@ export default function ArticleDetail() {
                     </button>
                   </>
                 ) : (
-                  <button className="article-owner-btn" onClick={() => setConfirming(true)}>
+                  <button className="article-owner-btn del" onClick={() => setConfirming(true)}>
                     <Trash2 size={14} /> Delete
                   </button>
                 )}
@@ -296,6 +312,7 @@ export default function ArticleDetail() {
           articles={related}
           heading="More articles"
           currentId={article.id}
+          mineIds={mineIds}
           likes={likes}
           write
         />

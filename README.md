@@ -40,8 +40,10 @@ link opens where the sender was.
   scores** — completed results and upcoming fixtures only.
 - 🔗 **Per-title pages** (`/movie/:id/:slug`) — every movie and web series in the caches
   gets its own shareable page: poster, release dates, platforms with Watch/Book links,
-  rating, and more releases in the same language. Reached from each release's modal
-  ("Full page") and crawled by search engines via the sitemap.
+  rating, and **more releases of the same kind** in the same language — a film in cinemas
+  is followed by other films in cinemas, one coming to OTT by others coming to OTT, and
+  never by a mixture. Reached from each release's modal ("Full page") and crawled by
+  search engines via the sitemap.
 - ✍️ **Reviews** (`/reviews`) — visitors write their own reviews and **tag the movie or match**
   they're talking about (poster or team flags shown on the card), each with a 5-star
   **rating**. The full take opens in a modal, and every review also has **its own page**
@@ -62,7 +64,16 @@ link opens where the sender was.
   service's own button (Netflix, Prime Video, JioHotstar, Sun NXT, YouTube and more).
   Pieces published from the owner account carry a **✓ WeekAdda** stamp, which reads a
   server-set flag rather than the author name — the byline itself is reserved, so nobody
-  else can wear it. `/my-articles` does for articles what `/my-reviews` does for reviews.
+  else can wear it.
+- 📚 **Every article in one place** (`/articles`) — the rail beside the reviews feed can
+  only carry the newest handful, so this is where the rest live: all articles by everyone,
+  with search, a Movies / Cricket filter and Newest / Oldest sorting. Public and
+  indexable, and the **only durable link to an older article** — before it existed, a
+  piece's one inbound link vanished as soon as twenty newer ones appeared. Signed in, your
+  own pieces carry a **You** badge and a **Yours N** chip filters to them
+  (`/articles?mine=1`, so the filtered view can be shared and the back button works).
+  Publishing an article lands you here rather than back on the reviews feed, where the
+  thing you just wrote isn't even shown.
 - 🤝 **The Adda** (`/adda`) — a community board to **ask, offer and find company**: a
   spare ticket at face value, a movie plan that needs one more person, an honest
   question for fellow fans. Anyone can read; posting or clicking **"I'm interested"**
@@ -105,6 +116,12 @@ link opens where the sender was.
   anonymous per-browser visitor id (and the signed-in account when present); the
   aggregated stats endpoint reports unique visitors and popular titles. Emails never
   leave the server.
+- 🎉 **Publishing tells you it worked** — every review, article and Adda post confirms
+  itself with a card in the middle of the screen: a tick that draws itself, and confetti
+  across the page. The **first** of each kind gets the long version — *"Your first review
+  is live! Many more to go."* — and every one after it a short line. Publish with a
+  required field empty and the message names it *and* the field turns red and nudges,
+  clearing the moment you start fixing it.
 - 🔔 **Release notifications** — tap **Keep me posted**, pick your languages, and get a
   browser notification **at 9 AM your own time, only on days something actually arrives
   in one of them**. Silence on quiet days is the feature, not a fault — arrivals cluster,
@@ -112,7 +129,9 @@ link opens where the sender was.
   **Anonymous**: a push endpoint is issued by the browser vendor, so there is no account,
   no email and no visitor id — browsing stays as account-free as everything else. The
   browser reports its timezone at subscribe time, so Hyderabad and New Jersey each hear at
-  their own breakfast. iPhones only receive Web Push once the site is added to the Home
+  their own breakfast. **All languages** is one of the choices, and it is stored as a
+  sentinel rather than as today's list of codes — someone who asks for everything means
+  everything, including a language added next year. iPhones only receive Web Push once the site is added to the Home
   Screen, so the button feature-detects itself away there rather than promising something
   that cannot work. Design and rules in `PUSH-PLAN.md`.
   On a first visit a card asks once, a few seconds in — **our card, never the browser's
@@ -127,6 +146,37 @@ link opens where the sender was.
   unlisted URL**: the endpoint verifies the Google token against `OWNER_EMAIL` and fails
   closed, so an unset variable locks everyone out rather than letting everyone in.
   Counts only — no visitor email is ever returned.
+
+## Look and feel
+
+- ⭐ **Top Picks** — the week's four most-voted titles lead each Movies tab: one large
+  card with poster, synopsis and chips, three smaller ones beside it. On desktop that's
+  a four-column grid; **below 1024px it becomes a carousel** — one whole card at a time,
+  snapped to centre, swipeable, with arrows over either edge and auto-advance every two
+  seconds. The autoplay pauses for six seconds whenever you touch it, stops while the tab
+  is in the background, and is off entirely under `prefers-reduced-motion`. Each pick
+  after the first carries a badge naming why it's there — **Most watched** on OTT,
+  **Trending** in theatres, **Most awaited** on Coming Soon. Never a seat-availability
+  claim like "fast filling": the ranking is TMDB vote counts and there is no booking data
+  behind the site at all.
+- 🎨 **One icon system, one colour each.** Every section icon — the navbar's four, the
+  page tabs, the bells, the theme toggle, the mini player — is a glyph in a rounded
+  gradient tile, all built from one shared block. Each surface owns exactly **one**
+  gradient and no two share: Movies is violet, Cricket green, Reviews orange, the Adda
+  amber, and so on down a registry kept in `CLAUDE.md` so the next addition picks a new
+  pair rather than borrowing one. Two colour stops means a section; three means it
+  belongs to the whole site (the brand mark, the mini player). **Unselected is a style,
+  not an opacity** — a tile keeps its hue as tinted glass and lights the full gradient
+  when it becomes current, because dimming a live control makes it look disabled.
+- 📱 **Bottom navigation on phones and tablets.** Below 1024px, Movies / Cricket /
+  Reviews / Adda leave the header and become a fixed bar along the bottom of the screen,
+  icon over label — where a thumb rests, and where every app puts them. The header keeps
+  the brand and the controls on one line. It is the same `<nav>` in the same place in the
+  DOM, so crawlers and screen readers see no difference; only where it is painted changes.
+- 🔖 **One brand mark everywhere.** The gold serif **WA** on black is the favicon, the
+  home-screen icon, what Google shows in search results, and the mark in the header —
+  redrawn in CSS rather than re-styled per surface, because a logo that changes with its
+  background is not a logo.
 
 ## Tech stack
 
@@ -225,7 +275,7 @@ Cricket needs no key.
 | ------ | ----------------------- | ----------- |
 | GET    | `/api/releases`         | `?window=released\|ott\|upcoming` `&week=0..12` `&language=te` `&search=` `&contentType=movie\|series` `&source=ott` (upcoming OTT view) |
 | POST   | `/api/releases/refresh` | Wake the release agent for an immediate sweep |
-| GET    | `/api/title/:id`        | One release by id (any pool) + status (`streaming`, `upcoming-ott`, `in-theatres`, `upcoming-theatre`) + same-language related titles — feeds `/movie/:id/:slug` |
+| GET    | `/api/title/:id`        | One release by id (any pool) + status (`streaming`, `upcoming-ott`, `in-theatres`, `upcoming-theatre`) + related titles in the same language **and the same status** — feeds `/movie/:id/:slug` |
 | GET    | `/api/ott/:slug`        | One platform's titles — `{ platform, streaming[], upcoming[], indexable }`, newest first. Feeds `/ott/:slug`; an unknown slug is a 404, not an empty page |
 | GET    | `/api/cricket`          | `?window=recent\|upcoming` `&week=0..12` `&type=international\|league\|all` `&search=` |
 | POST   | `/api/cricket/refresh`  | Wake the cricket agent for an immediate sweep |
@@ -279,13 +329,15 @@ frontend/
     pages/                 # Releases, Cricket, Reviews, MovieDetail, PlatformHub (/ott/:slug),
                            #   Adda, About, Privacy, Stats,
                            #   ReviewDetail + ArticleDetail (one piece per page),
+                           #   AllArticles (/articles — every article, public + indexable),
                            #   MyReviews + MyArticles (your own work, searchable and sortable)
     components/            # Navbar, Footer, ReleaseCard, ReleaseModal, ShareSheet, GoogleButton,
                            #   NotifyBell / NotifyCard / NotifySheet / NotifyPrompt, BackToTop,
                            #   PipShow (mini player), WeekTimeline (week chips), PlatformLinks,
                            #   ArticleIndex (the rail), ReviewBits (shared review pieces),
                            #   Prose (paragraphs + link-to-platform-button), LikeButton,
-                           #   OfficialStamp, ArticleImagePicker, FilmWatchPicker, Skeletons
+                           #   OfficialStamp, ArticleImagePicker, FilmWatchPicker, Skeletons,
+                           #   FirstCheer (the publish confirmation + first-time confetti)
     filmLinks.ts           # which URL a platform badge points at; finds films named in prose
     platforms.ts           # the /ott hub list — mirrors OTT_PLATFORMS in backend queries.ts
     focusTarget.ts         # ?match= / ?post= → scroll that card into view and flash it
@@ -351,7 +403,10 @@ PUSH-PLAN.md               # notification design, send rules and deploy order
   take written weeks ago did not change because the release cache refreshed.
 - **Nothing is reachable only from the sitemap**: `/reviews` links every article in its
   pre-render, each article links its related ones, and each review links the other takes
-  on the same title. A page only the sitemap knows about is an orphan.
+  on the same title. A page only the sitemap knows about is an orphan. **`/articles`
+  closes the one gap that was left**: the rail links only the newest twenty, so an older
+  article lost its only inbound link as soon as twenty newer ones existed — this page
+  lists every one of them, pre-rendered, so nothing becomes an orphan by ageing.
 - **Personal pages are kept out**: `/my-reviews`, `/my-articles` and `/stats` are real
   pages that are empty for anyone but their owner, so the Worker serves them
   `noindex, nofollow` and `buildSitemap` never lists them.

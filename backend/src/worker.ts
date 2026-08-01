@@ -43,6 +43,7 @@ import {
   buildMoviesSeo,
   buildPlatformSeo,
   buildCricketSeo,
+  buildAllArticlesSeo,
   buildBlogSeo,
   buildAboutSeo,
   buildAddaSeo,
@@ -303,6 +304,7 @@ const SEO_PAGES = new Set([
   '/cricket',
   '/cricket/results',
   '/reviews',
+  '/articles',
   '/adda',
   '/about',
   '/privacy',
@@ -318,6 +320,10 @@ async function seoBlockFor(env: Env, pathname: string): Promise<string> {
   if (pathname === '/reviews') {
     const [{ posts }, { articles }] = await Promise.all([loadPosts(env), loadArticles(env)])
     return buildBlogSeo(posts, articles)
+  }
+  if (pathname === '/articles') {
+    const { articles } = await loadArticles(env)
+    return buildAllArticlesSeo(articles)
   }
   if (pathname === '/about') {
     return buildAboutSeo()
@@ -380,6 +386,7 @@ const SPA_ROUTES = new Set([
   '/cricket',
   '/cricket/results',
   '/reviews',
+  '/articles',
   '/about',
   '/adda',
   '/privacy',
@@ -739,7 +746,7 @@ const routes = {
       const data = await loadCache(env, 'releases', EMPTY_RELEASES)
       const found = findTitle(data, id)
       if (!found) return json({ error: 'Title not found' }, 404)
-      return json({ release: found.item, status: found.status, related: relatedTitles(data, found.item) })
+      return json({ release: found.item, status: found.status, related: relatedTitles(data, found.item, 8, found.status) })
     }
 
     if (url.pathname === '/api/cricket' && request.method === 'GET') {

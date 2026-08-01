@@ -177,8 +177,14 @@ export const SKELETON =
   '</div>' +
   // Runs during parse, so the crawler copy is never painted for a human
   '<script>var e=document.getElementById("wa-prerender");if(e)e.style.display="none"</script>'
+/**
+ * The footer of every pre-rendered block. /articles is in here rather than only
+ * on /reviews so a crawler reaches it from any page it happens to land on —
+ * principle 5 again, and the list of articles is the one page that keeps older
+ * pieces from being orphaned as newer ones push them out of the rail.
+ */
 const NAV =
-  '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/reviews">Reviews</a></p>'
+  '<p><a href="/movies">Movies &amp; OTT</a> · <a href="/cricket">Cricket</a> · <a href="/reviews">Reviews</a> · <a href="/articles">All articles</a></p>'
 
 /**
  * Links into the per-platform hubs. /movies carries them so the hubs are two
@@ -231,6 +237,11 @@ export function routeMeta(pathname: string): { title: string; description: strin
       title: 'Movie & Cricket Reviews & Articles by Viewers | WeekAdda',
       description:
         'Honest reviews of this week\u2019s movies, OTT releases and cricket matches — written by the people who watched them, plus articles worth going back to.',
+    },
+    '/articles': {
+      title: 'All Articles — Movies & Cricket Writing | WeekAdda',
+      description:
+        'Every article on WeekAdda: old films revisited, matches worth remembering, top tens and the arguments behind them — written by viewers, not critics.',
     },
     '/about': {
       title: 'About WeekAdda — Founded by Hemanth Mareedu',
@@ -752,7 +763,9 @@ export function buildTitlePage(
   const kind = r.contentType === 'series' ? 'web series' : 'movie'
   const platforms = r.platforms?.length ? r.platforms.join(', ') : ''
   const date = day(r.releaseDate)
-  const related = relatedTitles(data, r)
+  // Same half of the site as the title itself — the pre-render must list what
+  // the page will actually render, or the markup is unsupported by the page
+  const related = relatedTitles(data, r, 8, found.status)
 
   // The one-line answer to the query that lands people here
   const answer =
@@ -910,6 +923,7 @@ export function buildSitemap(
     '/cricket',
     '/cricket/results',
     '/reviews',
+    '/articles',
     '/adda',
     '/about',
     '/privacy',
@@ -1260,6 +1274,55 @@ export function buildPrivacySeo(): string {
 }
 
 // ---------------- /reviews ----------------
+
+/**
+ * /articles — every article, listed.
+ *
+ * The rail on /reviews links only the newest twenty, so before this page an
+ * older article's only inbound link disappeared as soon as twenty newer ones
+ * existed. This is the durable one: every article is linked here, so none of
+ * them can become an orphan by ageing.
+ */
+export function buildAllArticlesSeo(articles: Article[]): string {
+  // Summary-page ItemList: `position` + `url` and nothing else, which is the
+  // shape Google documents for a list that points at full pages. Nesting a
+  // partial Article in each item would ship a second, thinner copy of every
+  // piece — the same mistake `superEvent` made on the cricket fixtures, where
+  // ten events were read as twenty items. The article's own page carries the
+  // real Article markup; this only says which pages the list points at.
+  const ld =
+    articles.length === 0
+      ? ''
+      : jsonLd({
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          name: 'WeekAdda articles',
+          itemListElement: articles.slice(0, 100).map((a, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            url: `https://weekadda.com${articleUrl(a)}`,
+          })),
+        })
+  return (
+    WRAP_OPEN +
+    ld +
+    '<h1>All Articles — Movies &amp; Cricket</h1>' +
+    '<p>Writing that is not tied to a release date: old films revisited, matches worth remembering, top tens and the arguments behind them — by the people who watched them.</p>' +
+    (articles.length > 0
+      ? section(
+          `${articles.length} article${articles.length === 1 ? '' : 's'}`,
+          articles.map(
+            (a) =>
+              `<a href="${articleUrl(a)}">${esc(a.title)}</a> — ${esc(
+                articleTopicLabel(a.topic)
+              )}, by ${esc(a.author)}`
+          )
+        )
+      : '<p>No articles published yet.</p>') +
+    NAV +
+    '</div>'
+  )
+}
 
 export function buildBlogSeo(posts: BlogPost[], articles: Article[] = []): string {
   return (

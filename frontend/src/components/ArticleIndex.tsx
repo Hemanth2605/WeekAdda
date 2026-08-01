@@ -64,9 +64,15 @@ export default function ArticleIndex({
         <h2>{heading}</h2>
         {mineCount > 0 ? (
           // A link out, not a filter in place: a rail this narrow cannot sort,
-          // search or hold a hundred titles, and that is what a writer with a
-          // body of work actually needs
-          <Link className="blog-index-mine" to="/my-articles" title="Everything you have written">
+          // search or hold a hundred titles. It lands on /articles with the
+          // "Yours" chip already on (owner, Aug 2026) rather than on the
+          // separate /my-articles page — same list, but one screen where the
+          // filter can be switched off to see everyone else's beside it.
+          <Link
+            className="blog-index-mine"
+            to="/articles?mine=1"
+            title="Everything you have written"
+          >
             Yours {mineCount} →
           </Link>
         ) : (
@@ -102,22 +108,18 @@ export default function ArticleIndex({
                   {a.topic === 'movie' ? <Film size={11} /> : <Trophy size={11} />}{' '}
                   {TOPIC_LABEL[a.topic]} ·{' '}
                   {/* A site piece is bylined by the site and nothing else — no
-                      writer's name behind it, no "You". Everyone else is
-                      credited by name, with "You" so they can find their own. */}
-                  {a.official ? (
-                    <OfficialStamp compact />
-                  ) : (
-                    <>
-                      {a.author}
-                      {mineIds?.has(a.id) && <span className="blog-you">You</span>}
-                    </>
-                  )}
+                      writer's name behind it. "You" is not a byline: only the
+                      account that wrote it can see the badge, so it can show on
+                      a stamped piece without attributing it to a person.
+                      Everyone else is credited by name, "You" beside it. */}
+                  {a.official ? <OfficialStamp compact /> : a.author}
+                  {mineIds?.has(a.id) && <span className="blog-you">You</span>}
                   {/* Read-only here — liking happens on the article, where the
                       reader has actually read the thing */}
                   {(likes?.[a.id]?.count ?? 0) > 0 && (
                     <em className="blog-index-likes">
                       {' '}
-                      · <Heart size={10} fill="currentColor" /> {likes![a.id].count}
+                      · <Heart size={11} fill="currentColor" /> {likes![a.id].count}
                     </em>
                   )}
                 </span>
@@ -132,6 +134,14 @@ export default function ArticleIndex({
           </li>
         ))}
       </ol>
+      {/* The way out of the rail. A column this narrow can carry the newest
+          handful and nothing more, so everything else lives on /articles —
+          and unlike "Yours N" above, this one is for everybody's writing. */}
+      {articles.length > 0 && (
+        <Link className="blog-index-all" to="/articles">
+          Show all articles <ArrowRight size={13} />
+        </Link>
+      )}
     </aside>
   )
 }

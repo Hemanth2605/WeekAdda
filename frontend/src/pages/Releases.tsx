@@ -279,10 +279,39 @@ export default function Releases() {
       .slice(0, 4)
   }, [releases, isWeekView, showRows])
 
-  // On phones the spotlight is a snap carousel — auto-advance it every 4s,
-  // pausing for a while whenever the visitor touches it themselves
+  /**
+   * The badge on each pick after the first.
+   *
+   * Picks are ranked by TMDB vote count, so the honest claim is about how much
+   * attention a title is getting — not about seats. "Fast filling" is a booking
+   * term, and we hold no booking data at all: printing it would be inventing a
+   * fact about a cinema we have never talked to. These say the same thing the
+   * section subtitle already says, in two words.
+   */
+  const heroTag =
+    windowTab === 'ott' ? 'Most watched' : windowTab === 'upcoming' ? 'Most awaited' : 'Trending'
+
+  // Below 1024px the spotlight is a snap carousel — swipeable, with arrows, and
+  // advancing on its own every 2s. Tablet gets it too: the four-column grid
+  // squeezed each card to a strip there, and one card at a time is the whole
+  // point of a "top pick". Auto-advance pauses for a while whenever the visitor
+  // moves it themselves, so it never fights the hand that is using it.
   const heroRef = useRef<HTMLElement | null>(null)
   const heroTouchedAt = useRef(0)
+
+  /** One card left or right; wraps at either end so the row has no dead stop. */
+  const stepHero = (dir: 1 | -1) => {
+    const el = heroRef.current
+    const first = el?.children[0] as HTMLElement | undefined
+    const second = el?.children[1] as HTMLElement | undefined
+    if (!el || !first || !second) return
+    heroTouchedAt.current = Date.now()
+    const step = second.offsetLeft - first.offsetLeft
+    const index = Math.round(el.scrollLeft / step)
+    const last = el.children.length - 1
+    const next = dir === 1 ? (index >= last ? 0 : index + 1) : index <= 0 ? last : index - 1
+    el.scrollTo({ left: next * step, behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const el = heroRef.current
@@ -296,16 +325,16 @@ export default function Releases() {
     el.addEventListener('pointerdown', markTouch)
 
     const timer = setInterval(() => {
-      if (!window.matchMedia('(max-width: 640px)').matches) return
+      if (!window.matchMedia('(max-width: 1024px)').matches) return
+      // Nothing moves while the tab is in the background — it would arrive back
+      // on a card nobody chose, several picks from where it was left
+      if (document.hidden) return
       if (Date.now() - heroTouchedAt.current < 6000) return
-      const first = el.children[0] as HTMLElement | undefined
-      const second = el.children[1] as HTMLElement | undefined
-      if (!first || !second) return
-      const step = second.offsetLeft - first.offsetLeft
-      const index = Math.round(el.scrollLeft / step)
-      const next = index >= el.children.length - 1 ? 0 : index + 1
-      el.scrollTo({ left: next * step, behavior: 'smooth' })
-    }, 4000)
+      stepHero(1)
+      // stepHero stamps the touch clock; undo that, or the timer would consider
+      // its own move a visitor's and pause for six seconds after every step
+      heroTouchedAt.current = 0
+    }, 2000)
 
     return () => {
       clearInterval(timer)
@@ -377,13 +406,22 @@ export default function Releases() {
 
       <div className="opp-tabs">
         <Link to={TAB_PATH.ott} className={windowTab === 'ott' ? 'active' : ''}>
-          <MonitorPlay size={15} /> OTT India
+          <span className="tab-ico ico-ott">
+            <MonitorPlay size={15} />
+          </span>
+          OTT India
         </Link>
         <Link to={TAB_PATH.released} className={windowTab === 'released' ? 'active' : ''}>
-          <Sparkles size={15} /> In Theatres
+          <span className="tab-ico ico-theatre">
+            <Sparkles size={15} />
+          </span>
+          In Theatres
         </Link>
         <Link to={TAB_PATH.upcoming} className={windowTab === 'upcoming' ? 'active' : ''}>
-          <CalendarClock size={15} /> Coming Soon
+          <span className="tab-ico ico-soon">
+            <CalendarClock size={15} />
+          </span>
+          Coming Soon
         </Link>
       </div>
 
@@ -479,6 +517,28 @@ export default function Releases() {
         </div>
       )}
       {!loading && heroPicks.length >= 3 && (
+        <div className="hero-wrap">
+          {/* Shown only where the section is a carousel — on the desktop grid
+              every pick is already on screen and there is nothing to step
+              through. Hidden from screen readers: the cards are all in the DOM
+              and reachable by tab, so these are a pointer convenience, not a
+              second way to navigate. */}
+          <button
+            className="hero-arrow prev"
+            onClick={() => stepHero(-1)}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <button
+            className="hero-arrow next"
+            onClick={() => stepHero(1)}
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            <ChevronRight size={20} />
+          </button>
         <section className="hero-spotlight" aria-label="Top picks" ref={heroRef}>
           {heroPicks.map((r, i) => (
             <article
@@ -521,6 +581,7 @@ export default function Releases() {
               ) : (
                 <>
                   <img className="hero-fill" src={r.poster!} alt={r.title} loading="lazy" />
+                  <span className="hero-tag">{heroTag}</span>
                   <div className="hero-overlay">
                     <h4>{r.title}</h4>
                     <span>
@@ -533,6 +594,7 @@ export default function Releases() {
             </article>
           ))}
         </section>
+        </div>
       )}
 
       <div className="toolbar">

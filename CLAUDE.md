@@ -111,8 +111,11 @@ cd frontend && npm run build
     the request body, and declinable by the owner (`official: false`) so a
     personal piece is not forced out as the masthead. The byline itself is
     reserved: `resolveAuthor` in `queries.ts` refuses "WeekAdda" from anyone
-    else, on reviews too. A stamped article shows the stamp **alone** — no
-    writer name behind it, no "You" badge.
+    else, on reviews too. A stamped article shows the stamp **instead of a
+    byline** — no writer name behind it. The "You" badge is the exception
+    (owner, Aug 2026): it is not a byline, since only the account that wrote a
+    piece can see it, and without it the owner's own articles are the one set
+    they cannot pick out of a list.
 - **Editing and deleting your own** (July 2026, articles *and* reviews):
   `PATCH`/`DELETE` on `/api/articles/:id` and `/api/blog/:id`. Rules that are
   enforced, not merely intended: only the verified writer (`canEditArticle` /
@@ -314,10 +317,16 @@ cd frontend && npm run build
   was deliberately removed — don't add ratings anywhere else unless asked. **Article
   hearts are the one sanctioned exception** (owner-requested, 31 July 2026), and they
   are a like rather than a rating on purpose.
-- **Your own work gets a page, not a filter** (owner decision, 31 July 2026): the rail's
-  "Yours N" and the feed's "My reviews" both **navigate** to `/my-articles` and
-  `/my-reviews`. The in-place filters they replaced were removed rather than kept
-  alongside — two doors to the same room is worse than either one.
+- **Your own work gets a page, not a filter** (owner decision, 31 July 2026): the
+  feed's "My reviews" **navigates** to `/my-reviews`. The in-place filter it
+  replaced was removed rather than kept alongside — two doors to the same room is
+  worse than either one. **Articles moved back to a filter** (owner, Aug 2026)
+  once `/articles` existed: the rail's "Yours N" now lands on `/articles?mine=1`
+  with the Yours chip on. That is not the old in-place filter — it is a full
+  page with search and sort, and the chip can be switched off to see everyone
+  else's beside your own, which a separate page cannot do. `mine` lives in the
+  URL so the view is shareable and the back button works. `/my-articles` still
+  exists and still works; nothing in the app links to it any more.
 - **Titles are written the way people search** (31 July 2026). The title is the
   `<title>`, the `<h1>`, the `og:title` and the URL slug, so it is the single biggest
   lever on whether a piece is ever found. "Ten Telugu films of the last decade" was
@@ -401,6 +410,60 @@ cd frontend && npm run build
   On phones `.toolbar .genre-row` scrolls horizontally instead of wrapping —
   fourteen language chips wrapped to four rows and pushed the first poster off
   the screen. Nothing is dropped or reordered, the row just swipes.
+- **Badges never claim something we cannot know** (owner rule, Aug 2026). The Top
+  Picks spotlight (`heroPicks` in `Releases.tsx`) ranks by TMDB **vote count**, so
+  its badge says how much attention a title has — `Most watched` on OTT,
+  `Trending` in theatres, `Most awaited` on Coming Soon (`heroTag`). **Do not add
+  "Fast filling" or any seat/availability wording**: that is a booking claim, we
+  hold no booking data, and on the OTT tab there are no seats to fill. Earning it
+  would need a real availability source, not a rename.
+- **Top Picks is a carousel below 1024px** (owner, Aug 2026): one whole card,
+  snapped centre, arrows over either edge (`.hero-arrow`) plus auto-advance every
+  2s. Three guards make the autoplay bearable and all three are load-bearing —
+  it pauses 6s after any touch/arrow, stops on `document.hidden`, and is off
+  under `prefers-reduced-motion`. `stepHero` stamps the touch clock, so the timer
+  must clear that stamp after calling it or it reads its own move as the
+  visitor's and stalls after one step. Cards are `calc(100% - 48px)` so no slice
+  of the next one shows — at tablet width a slice is 200px and reads as a second,
+  broken card.
+- **Icons are gradient tiles, and a gradient is used once** (owner decision,
+  1 Aug 2026). The site used to be gold on everything; icons now sit in
+  gradient tiles built by one shared block in `index.css` (`.tab-ico`,
+  `.nav-ico`, `.notify-bell`, `.theme-toggle`, `.notify-icon`,
+  `.notify-card-icon`, `.notify-prompt-icon`, `.reel-ico`). A tile draws its
+  two colours from `--ico-a`/`--ico-b`, its shadow from `--ico-glow`, and its
+  unselected glyph from `--ico-soft` (dark) / `--ico-deep` (light).
+  **The registry — do not reuse one of these for a new button:**
+
+  | Palette | Owner |
+  | --- | --- |
+  | violet → magenta (`.ico-movies`) | Movies, in the navbar |
+  | magenta → crimson (`.ico-ott`) | the OTT India tab |
+  | orange → rose (`.ico-theatre`) | In Theatres tab, Reviews nav |
+  | teal → blue (`.ico-soon`) | Coming Soon tab, Cricket Fixtures tab |
+  | green → cyan (`.ico-results`) | Cricket nav, Results tab, `.match-go` |
+  | amber → pink (`.ico-adda`) | Adda nav |
+  | amber → coral | all four bells (navbar, in-feed card, landing prompt, sheet) |
+  | gold → orange / blue → navy | the theme toggle, sun and moon |
+  | seven-stop rainbow | the brand mark — one colour per day of the week |
+  | cyan → blue → navy | the mini-player launcher |
+  | violet → pink → amber | the "All languages" chip |
+  | crimson (`.date-cal-month`) | the date tile on release + fixture cards |
+  | green → cyan (flat) | the same-day "New" flip, `.date-cal.back` |
+
+  Rules that made those choices, and that a new surface has to obey:
+  **two stops means a section, three means site-wide** (brand, mini player);
+  a **section palette may never be worn by something that is not that
+  section** — the mini player wore Movies' violet and read as a second Movies
+  button, which is what split `.ico-movies` from `.ico-ott` in the first
+  place; **unselected is a style, not an opacity** — dimming a live control
+  reads as disabled, so a tile keeps its hue as tinted glass (the gradient
+  under `--ico-scrim`) and lights the full gradient via `::before`; and the
+  **light-theme rules must restate every lit state**, since
+  `:root[data-theme='light'] .nav-ico` (0,4,0) outscores
+  `.nav-link.active .nav-ico` (0,3,0). Gold is still the site's ambient accent
+  — borders, text, `.share-wa`, `.india-cta` — and stays that way; these tiles
+  are the exception, not a replacement.
 
 ## Gotchas
 

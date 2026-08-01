@@ -193,7 +193,7 @@ export default function MyReviews() {
                     ))}
                   </span>
                 ) : (
-                  <span className="my-article-thumb fallback">
+                  <span className={`my-article-thumb fallback ${p.tag?.kind ?? 'movie'}`}>
                     {p.tag?.kind === 'movie' ? <Film size={20} /> : <Trophy size={20} />}
                   </span>
                 )}

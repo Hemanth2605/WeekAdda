@@ -32,7 +32,7 @@ app.get('/api/title/:id', (req, res) => {
   const data = getReleaseData()
   const found = findTitle(data, req.params.id)
   if (!found) return res.status(404).json({ error: 'Title not found' })
-  res.json({ release: found.item, status: found.status, related: relatedTitles(data, found.item) })
+  res.json({ release: found.item, status: found.status, related: relatedTitles(data, found.item, 8, found.status) })
 })
 // Platform hubs: /ott/<slug> in the app, this behind it. Mirrors the Worker.
 app.get('/api/ott/:slug', (req, res) => {

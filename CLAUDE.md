@@ -497,6 +497,16 @@ cd frontend && npm run build
 
 ## Gotchas
 
+- **A Worker route nested under another route's prefix guard is dead code, and
+  local dev will never tell you.** The `/api/logs*` branches were written inside
+  `if (url.pathname.startsWith('/api/adda'))` — to reuse its `verifyMe` — so in
+  production every log request fell past them to the Worker's final 404 and the
+  whole feature answered "Not found", while working perfectly locally because
+  local dev runs **Express**, which never loads `worker.ts`. The guard now names
+  both prefixes. When adding a Worker route, check which enclosing `if` you are
+  inside, and probe the deployed URL (`curl https://weekadda.com/api/<new>` →
+  expect its own 401/400, **not** `{"error":"Not found"}`) rather than trusting
+  the local app.
 - **An id-shaped URL with nothing behind it must 404.** `/movie/`, `/review/` and
   `/article/` all matched their route regex, found no record, and fell through to
   `return asset` — the 200 shell. That is a soft 404: Google indexes the empty page

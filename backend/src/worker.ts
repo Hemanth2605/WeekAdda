@@ -777,7 +777,12 @@ const routes = {
       return json(queryCricket(data, query, { syncing: false }))
     }
 
-    if (url.pathname.startsWith('/api/adda')) {
+    // Both prefixes, because the watch-log branches live in here for `verifyMe`.
+    // Naming only /api/adda made every /api/logs request fall past this block to
+    // the Worker's final 404 — the log answered "Not found" to everything in
+    // production while working perfectly in local dev, which runs Express and
+    // never sees this file.
+    if (url.pathname.startsWith('/api/adda') || url.pathname.startsWith('/api/logs')) {
       const verifyMe = async () => {
         if (!env.GOOGLE_CLIENT_ID) return null
         const authz = request.headers.get('Authorization') ?? ''

@@ -6210,6 +6210,16 @@ a.genre-chip.mine {
 .adda-contact svg {
   color: var(--gold);
 }
+/* An email address is one unbreakable token, and the only place on the site
+   where a stranger's text has no spaces in it to wrap at. The card declares no
+   overflow, so a long one did not clip — it pushed past the card and gave the
+   whole page a sideways scroll on a phone. Both reveals need this: the contact
+   panel a responder sees, and the list of responders the poster sees. */
+.adda-contact a,
+.adda-interest-list a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .adda-contact a {
   display: inline-flex;
   align-items: center;

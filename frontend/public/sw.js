@@ -10,6 +10,22 @@
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
+/*
+ * Present so the browser can see one, and doing nothing on purpose.
+ *
+ * Chrome has wanted a fetch handler before it will treat a site as installable
+ * rather than as a home-screen shortcut — the difference between opening in its
+ * own window and opening in a browser tab with a URL bar. This satisfies that
+ * without becoming the caching worker the file above says it must not be: it
+ * never calls event.respondWith(), so every request goes to the network exactly
+ * as it would with no service worker at all.
+ *
+ * Do not grow this into a cache. Serving pages from here would put a second
+ * cache in front of the Cloudflare edge, and the stale HTML that follows is the
+ * bug class this whole file was written to stay out of.
+ */
+self.addEventListener('fetch', () => {})
+
 self.addEventListener('push', (event) => {
   let data = {}
   try {

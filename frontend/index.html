@@ -125,6 +125,40 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!--
+      Installed to a Home Screen this has to stop looking like a bookmark.
+      The manifest is what Android reads: a real name under the icon, our own
+      background behind the splash, and `display: standalone` so it opens
+      without a URL bar.
+
+      Named .json rather than .webmanifest on purpose — every static host serves
+      .json as application/json, which browsers accept for a manifest, whereas
+      .webmanifest depends on the host knowing that extension. Not worth a
+      silently ignored manifest to win a file suffix.
+    -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!--
+      Safari reads almost none of the manifest. These are what an iPhone or iPad
+      actually uses: the first drops the browser chrome, and the last is the
+      name under the icon — without it iOS falls back to the <title>, which is
+      written for search results and far too long to sit under an app icon.
+      This is also the state where Safari finally exposes PushManager, so the
+      notification bell appears once the site is installed.
+
+      The status bar is `black`, not `black-translucent`. Translucent is the
+      more app-like of the two, but it lets the page run *under* the status bar,
+      and nothing here pads for that — `safe-area-inset-top` appears nowhere in
+      index.css, while the bottom bar uses `-bottom` six times. The navbar would
+      sit behind the clock on the installed app's first screen. `black` starts
+      the page below the bar and reads as one surface against our near-black
+      background. Worth revisiting together with a top inset, not before.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="WeekAdda" />
     <script>
       // Apply the saved theme before first paint; dark is the default
       try {

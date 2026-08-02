@@ -354,6 +354,8 @@ function Composer({
   // Owner only. Defaults on, so the site's own pieces keep the byline they
   // have always had; unticking it publishes under the writer's own name.
   const [asSite, setAsSite] = useState(true)
+  // The form's own shell, so opening it can bring it into view — see below
+  const shellRef = useRef<HTMLElement>(null)
 
   /**
    * A fresh open starts blank.
@@ -391,6 +393,35 @@ function Composer({
     // Asked again on every fresh open: it is a decision about this piece, not
     // a preference to remember
     if (open) setPrivacy(editingPost ? 'public' : null)
+  }, [open, startMode])
+
+  /**
+   * Opening the composer must put it in front of the writer.
+   *
+   * The form renders at the top of the page, above the filter row and the whole
+   * feed — but below 900px the article rail stacks *under* that feed, so "Write
+   * an article" down there opened a form a screenful or more above the viewport
+   * and read as a dead link. Nothing else corrects for it: the rail links to
+   * /reviews?compose=article, which on /reviews changes only the search params,
+   * and App's ScrollToTop is keyed on pathname.
+   *
+   * Keyed on `startMode` as well as `open`, so asking for the article side while
+   * the review side is already open scrolls too. That prop moves only when a way
+   * *in* names a side — flipping the switch by hand sets `mode`, not this — so
+   * the effect cannot fire at someone mid-compose.
+   *
+   * Only when it is not already sitting there: opening from the hero's "Write a
+   * review", which on a desktop is directly above the form, must not jolt a page
+   * showing the very thing it would scroll to.
+   */
+  useEffect(() => {
+    const el = shellRef.current
+    if (!open || !el) return
+    const { top } = el.getBoundingClientRect()
+    // Clear of the sticky navbar (the same 80px the rail sticks at) and inside
+    // the viewport: the writer can already see where to start typing.
+    if (top >= 80 && top < window.innerHeight) return
+    el.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [open, startMode])
 
   // Load an article being edited into the fields. Keyed on its id, so typing
@@ -540,7 +571,7 @@ function Composer({
   if (!open) return null
 
   return (
-    <section className="blog-composer">
+    <section className="blog-composer" ref={shellRef}>
       <div className="blog-composer-head">
         <h2>
           {/* Same tile as the Reviews icon in the navbar, lit — the form and the

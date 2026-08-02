@@ -1,23 +1,35 @@
 /*
  * Finds responsive rules that never apply.
  *
- * A media query carries no specificity of its own, so `@media (max-width:720px)
- * { .x { padding-left: 20px } }` loses to a plain `.x { padding: … 42px … }`
- * written further down the file. Nothing warns about it: the stylesheet is
- * valid, the rule is right there in the source, and it is wrong only on a phone
- * — which is where nobody is looking. It has bitten this codebase four times
- * (the log ticket's stub padding, .blog-wrap, .spotlight-head,
- * .blog-input.author), so it is checked rather than remembered.
+ * A media query carries no specificity of its own, so a rule inside one loses
+ * to any same-specificity rule that comes later — and is wrong only at widths
+ * nobody develops at. There are two ways to lose, and this checks both:
+ *
+ *   1. to a LATER BASE RULE. `@media (max-width:720px) { .x { padding-left:
+ *      20px } }` loses to a plain `.x { padding: … 42px … }` written further
+ *      down. Bit .log-ticket-stub, .blog-wrap, .spotlight-head and
+ *      .blog-input.author, where it was a live bug at phone widths.
+ *
+ *   2. to a LATER, BROADER MEDIA BLOCK. `@media (max-width:560px)` declared
+ *      above `@media (max-width:1024px)` both match on a phone, and the 1024
+ *      one wins. Bit the navbar and the floating buttons — there the newer
+ *      1024px rules were the correct ones, so nothing looked wrong; the older
+ *      phone rules were simply dead, claiming a layout that never happens.
  *
  * It reads the BUILT stylesheet on purpose. Source order is not the truth:
  * these files are concatenated and minified, and in every case so far the
  * source looked perfectly reasonable. Run `npm run build` first.
  *
  * Two things stop it crying wolf:
- *   - a base rule that sets the SAME value changes nothing, so it is ignored
- *     (this is why .theme-toggle, which restates 36px/36px/12px, is silent);
+ *   - a rule that sets the SAME value changes nothing, so it is ignored (this
+ *     is why .theme-toggle, which restates 36px/36px/12px, is silent, and why
+ *     the navbar's identical `gap` was never reported);
  *   - shorthands are expanded, because `padding:` silently wipes an earlier
  *     `padding-left:` and comparing property names alone finds nothing.
+ *
+ * A finding is not always a bug — sometimes, as with the navbar, the later
+ * rule is right and the earlier one should simply go. Either way the loser is
+ * dead code that lies about what the page does.
  *
  * Exits 1 when it finds something, so it can gate a build.
  */
@@ -72,6 +84,21 @@ function declarations(body) {
     const prop = part.slice(0, i).trim().toLowerCase()
     if (!/^[a-z-]+$/.test(prop)) continue // skips `--custom` and junk
     out.set(prop, part.slice(i + 1).trim().replace(/\s+/g, ' '))
+  }
+  return out
+}
+
+/** Every rule inside a media block, as selector -> declarations (last wins). */
+function rulesIn(body) {
+  const out = new Map()
+  const r = /([^{}]+)\{([^{}]*)\}/g
+  let x
+  while ((x = r.exec(body))) {
+    for (const sel of x[1].split(',')) {
+      const s = sel.trim()
+      if (!s) continue
+      out.set(s, new Map([...(out.get(s) ?? []), ...declarations(x[2])]))
+    }
   }
   return out
 }
@@ -147,17 +174,58 @@ for (const block of media) {
   }
 }
 
+/*
+ * (2) A narrower max-width block declared above a broader one. Both match on a
+ * phone, equal specificity, so the broader one — written later — wins. Blocks
+ * carrying a min-width are bands rather than nesting, and are left alone.
+ */
+const width = (cond) => {
+  if (/min-width/.test(cond)) return null
+  const m = cond.match(/max-width:\s*(\d+)px/)
+  return m ? +m[1] : null
+}
+const banded = media
+  .map((b) => ({ ...b, max: width(b.cond), rules: rulesIn(b.body) }))
+  .filter((b) => b.max !== null)
+
+const stale = []
+for (let i = 0; i < banded.length; i++) {
+  for (let j = i + 1; j < banded.length; j++) {
+    if (!(banded[i].max < banded[j].max)) continue // only narrow-before-broad
+    for (const [sel, props] of banded[i].rules) {
+      const later = banded[j].rules.get(sel)
+      if (!later) continue
+      for (const [p, v] of props) {
+        const lv = later.get(p)
+        if (lv !== undefined && lv !== v) {
+          stale.push({ sel, prop: p, at: banded[i].max, wanted: v, by: banded[j].max, got: lv })
+        }
+      }
+    }
+  }
+}
+
 console.log(`css-shadow: ${path.basename(file)}`)
-if (findings.length === 0) {
-  console.log('  no responsive rules are overridden by a later base rule.')
+if (findings.length === 0 && stale.length === 0) {
+  console.log('  no responsive rules are overridden by a later rule.')
   process.exit(0)
 }
-console.log(`\n  ${findings.length} rule(s) never apply — a later base rule of equal specificity wins:\n`)
-for (const f of findings) {
-  console.log(`  ${f.sel}   ${f.cond}`)
-  for (const l of f.lost) console.log(`      ${l.prop}: ${l.wanted}   overridden by   ${l.got}`)
-  console.log('')
+if (findings.length) {
+  console.log(`\n  ${findings.length} rule(s) beaten by a later BASE rule:\n`)
+  for (const f of findings) {
+    console.log(`  ${f.sel}   ${f.cond}`)
+    for (const l of f.lost) console.log(`      ${l.prop}: ${l.wanted}   overridden by   ${l.got}`)
+    console.log('')
+  }
 }
-console.log('  Fix by moving the declaration below the rule it must beat, not by')
-console.log('  reordering the source — check the built file again afterwards.')
+if (stale.length) {
+  console.log(`\n  ${stale.length} rule(s) beaten by a later, BROADER media block:\n`)
+  for (const s of stale) {
+    console.log(`  ${s.sel}   {${s.prop}}`)
+    console.log(`      max-width:${s.at}px wants ${s.wanted}`)
+    console.log(`      but max-width:${s.by}px, written later, wins with ${s.got}\n`)
+  }
+}
+console.log('  Move the declaration below the rule it must beat, or delete it if the')
+console.log('  later one is the right answer — then check the built file again.')
 process.exit(1)

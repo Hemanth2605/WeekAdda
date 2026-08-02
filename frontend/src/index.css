@@ -910,7 +910,9 @@ input {
   .reel-btn {
     padding: 8px;
     right: 16px;
-    bottom: 18px;
+    /* No `bottom` here: the bottom-nav block at max-width:1024px is written
+       further down and lifts this clear of the bar, which is the right answer
+       on every phone. A value here would be dead. */
   }
 }
 
@@ -951,7 +953,7 @@ input {
 @media (max-width: 560px) {
   .back-top {
     right: 16px;
-    bottom: 72px;
+    /* `bottom` belongs to the bottom-nav block below — see .reel-btn above */
     width: 40px;
     height: 40px;
   }
@@ -1924,12 +1926,13 @@ input {
 
 /* ---------------- responsive ---------------- */
 @media (max-width: 720px) {
-  .navbar { padding: 12px 16px; gap: 10px; }
+  /* .navbar, .nav-links and .nav-link are sized by the bottom-nav block at
+     max-width:1024px, which is written further down and therefore wins at every
+     width this block covers. Their old header-row values lived here and had
+     stopped applying the day the bar moved to the bottom. */
   .nav-tagline { display: none; }
   .nav-brand { gap: 7px; }
   .brand-word { font-size: 18px; }
-  .nav-links { gap: 2px; }
-  .nav-link { padding: 8px 10px; font-size: 12.5px; gap: 6px; }
   .theme-toggle { width: 36px; height: 36px; border-radius: 12px; }
   .feature-grid { padding: 20px 20px 50px; }
   .site-footer { padding: 28px 20px 34px; }
@@ -2619,7 +2622,7 @@ input {
   .notify-prompt {
     left: 10px;
     right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    /* `bottom` belongs to the bottom-nav block below — see .reel-btn */
     width: auto;
     max-width: none;
     padding: 15px 38px 15px 15px;

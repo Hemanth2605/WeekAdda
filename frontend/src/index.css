@@ -2184,15 +2184,26 @@ input {
   .hero-card.big {
     flex: 0 0 calc(100% - 48px);
     width: calc(100% - 48px);
-    min-height: 300px;
+    /* Shorter than the desktop card, not taller. Going full width already makes
+       this the biggest thing on the page; when it also grew to 300px against
+       the desktop grid's 250px, a tablet got a card bigger than a 27" monitor
+       shows, which is not what a smaller screen is asking for. */
+    min-height: 240px;
     scroll-snap-align: center;
   }
-  /* The poster is the point of the lead card, so it gets the height back that
-     the desktop grid could not spare */
   .hero-poster {
     height: 100%;
-    max-height: 260px;
+    max-height: 200px;
     width: auto;
+  }
+  /* Scaled to match: the card is one of four on a desktop and one of one here,
+     so the type does not need the size it takes in a column */
+  .hero-big-inner {
+    gap: 18px;
+    padding: 18px 20px;
+  }
+  .hero-text h3 {
+    font-size: 21px;
   }
   /* Over the cards rather than beside them: a tablet has no spare gutter, and
      the row would lose 100px of card to hold two buttons. */
@@ -2267,6 +2278,39 @@ input {
   .hero-chip {
     font-size: 10.5px;
     padding: 4px 10px;
+  }
+}
+
+/* Tablets only: hold the carousel itself to a card's width and centre it.
+   The card is still calc(100% - 48px) of the scrollport and still snaps one
+   at a time — it is the scrollport that shrinks, not the card inside it. That
+   distinction is the whole point: narrowing the *card* within a full-width
+   scrollport is what leaves a ~200px slice of the next one showing, reading as
+   a second broken card, which is why this layout stretched the card in the
+   first place. Capping the wrapper gets a smaller card with the same 10px
+   hint of the next one, and no rule bent.
+
+   The cap goes on .hero-wrap rather than .hero-spotlight because the arrows are
+   absolutely positioned against the wrapper at left/right: 6px; narrowing only
+   the scroller would leave them stranded out in the gutter.
+
+   Bounded below at 641px so phones keep their own block above, which is already
+   full-bleed and wants to stay that way. */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .hero-wrap {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  .hero-card,
+  .hero-card.big {
+    min-height: 180px;
+  }
+  /* The poster is what actually sets the height here — 130 plus 18 of padding
+     top and bottom is 166, inside the 180 floor with room to spare. Lowering
+     min-height alone would do nothing while the poster is the tallest thing in
+     the row, so the two move together. */
+  .hero-poster {
+    max-height: 130px;
   }
 }
 

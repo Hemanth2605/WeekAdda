@@ -36,8 +36,61 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return bytes
 }
 
+/**
+ * A registration whose worker is actually *active*.
+ *
+ * `register()` resolves as soon as the registration object exists — its worker
+ * is typically still `installing`, and `pushManager.subscribe()` on one of
+ * those throws "Subscription failed - no active Service Worker". This file is
+ * the only place that registers the worker and it does so at click time, so
+ * the *first* subscribe on any browser lost that race every time; the second
+ * click worked, because by then the worker had activated on its own. `sw.js`
+ * calls skipWaiting/claim, which makes activation prompt but not instant —
+ * something still has to wait for it.
+ *
+ * The worker's own state is watched rather than going straight to
+ * `navigator.serviceWorker.ready`, because `ready` never settles when an
+ * install fails: `redundant` is reported as a failure instead of hanging the
+ * button forever. The timeout is the last resort for a browser that does
+ * neither.
+ */
+const WORKER_START_TIMEOUT = 10_000
+
 async function registration(): Promise<ServiceWorkerRegistration> {
-  return navigator.serviceWorker.register('/sw.js')
+  const reg = await navigator.serviceWorker.register('/sw.js')
+  if (reg.active) return reg
+
+  const pending = reg.installing ?? reg.waiting
+  if (pending) {
+    await new Promise<void>((resolve, reject) => {
+      const settle = () => {
+        if (pending.state === 'activated') {
+          pending.removeEventListener('statechange', settle)
+          resolve()
+        } else if (pending.state === 'redundant') {
+          pending.removeEventListener('statechange', settle)
+          reject(new Error('The notifications helper could not start in this browser'))
+        }
+      }
+      pending.addEventListener('statechange', settle)
+      settle() // it may have activated between the register and this listener
+    })
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('The notifications helper could not start in this browser')),
+          WORKER_START_TIMEOUT
+        )
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 /** The current subscription, if this browser already has one. */

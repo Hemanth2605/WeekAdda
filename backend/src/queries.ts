@@ -169,6 +169,18 @@ export function queryReleases(
   let releases: Release[] = data.releases
   let weekInfo: WeekInfo | null = null
 
+  /**
+   * A search is a question about the catalogue, not about the week in front of
+   * you. Someone typing a title wants to know whether we have it at all, and
+   * week-paging the answer meant the honest reply "not this week" arrived
+   * looking exactly like "we don't have it" — with thirteen weeks of cache
+   * sitting right there. So a search reaches across every week we hold.
+   *
+   * The week is still reported back, because the timeline and its label are
+   * still on screen; it just stops narrowing the rows while a search is live.
+   */
+  const searching = typeof q.search === 'string' && q.search.trim().length > 0
+
   if (q.window === 'upcoming') {
     if (q.source === 'ott') {
       releases = data.ottUpcoming.filter(
@@ -185,7 +197,7 @@ export function queryReleases(
     weekInfo = { index: week, from: isoDaysAgo(week * 7 + 6), to: isoDaysAgo(week * 7), maxWeeks: MAX_WEEKS }
     releases = data.ott.filter(
       (r) =>
-        r.week === week &&
+        (searching || r.week === week) &&
         (contentType === 'movie' || contentType === 'series' ? r.contentType === contentType : true)
     )
   } else {
@@ -195,7 +207,11 @@ export function queryReleases(
     const to = isoDaysAgo(week * 7)
     const from = isoDaysAgo(week * 7 + 6)
     weekInfo = { index: week, from, to, maxWeeks: MAX_WEEKS }
-    releases = releases.filter((r) => r.releaseDate >= from && r.releaseDate <= to)
+    // A search still stops at today: anything later belongs to Coming Soon, and
+    // this tab says "In Theatres". Only the *lower* bound is what a search drops.
+    releases = searching
+      ? releases.filter((r) => r.releaseDate <= today)
+      : releases.filter((r) => r.releaseDate >= from && r.releaseDate <= to)
   }
 
   // Filter on every language a film released in, not just the one it was shot

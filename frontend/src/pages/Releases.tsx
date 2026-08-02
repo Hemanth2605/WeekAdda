@@ -482,12 +482,23 @@ export default function Releases() {
             <ChevronLeft size={19} />
           </button>
 
+          {/* A search reaches across every week we hold, so while one is live
+              this must stop saying otherwise — a film from nine weeks ago
+              listed under "This Week" with that week's dates beside it is the
+              page contradicting itself. The arrows either side stay usable, so
+              clearing the box puts you back on the week they point at. */}
           <div className="week-label">
-            <h3>{weekTitle(week)}</h3>
-            {weekInfo && (
+            <h3>{search.trim() ? 'All weeks' : weekTitle(week)}</h3>
+            {search.trim() ? (
               <span>
-                <CalendarDays size={13} /> {shortDate(weekInfo.from)} — {shortDate(weekInfo.to)}
+                <Search size={13} /> Results for “{search.trim()}”
               </span>
+            ) : (
+              weekInfo && (
+                <span>
+                  <CalendarDays size={13} /> {shortDate(weekInfo.from)} — {shortDate(weekInfo.to)}
+                </span>
+              )
             )}
           </div>
 
@@ -691,11 +702,19 @@ export default function Releases() {
           <Film size={54} />
           <h3>Nothing on the reel</h3>
           <p>
-            {isWeekView
-              ? `No releases found for ${weekTitle(week).toLowerCase()}${
+            {/* "Try another week" was the advice even when the search had
+                already been through all of them */}
+            {search.trim()
+              ? `Nothing matches “${search.trim()}”${
                   language !== 'all' ? ' in this language' : ''
-                }. Try another week or language.`
-              : 'No upcoming films match. Try another language or clear your search.'}
+                } in any week we hold. Try a different spelling${
+                  language !== 'all' ? ', or all languages' : ''
+                }.`
+              : isWeekView
+                ? `No releases found for ${weekTitle(week).toLowerCase()}${
+                    language !== 'all' ? ' in this language' : ''
+                  }. Try another week or language.`
+                : 'No upcoming films match. Try another language or clear your search.'}
           </p>
         </div>
       ) : showRows ? (

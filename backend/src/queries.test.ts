@@ -226,6 +226,55 @@ describe('queryReleases', () => {
     const series = queryReleases(data, { window: 'ott', contentType: 'series' }, extras).releases
     expect(series.map((r) => r.id)).toEqual(['show'])
   })
+
+  // A search asks whether we have a film at all. Week-paging the answer made
+  // "not this week" indistinguishable from "not here", with thirteen weeks of
+  // cache sitting behind it.
+  it('searches every week in theatres, not just the week being viewed', () => {
+    const data = cache({
+      releases: [
+        release({ id: 'this-week', title: 'Kantara Chapter 2', releaseDate: iso(-1) }),
+        release({ id: 'nine-weeks-ago', title: 'Kantara Legend', releaseDate: iso(-63) }),
+      ],
+    })
+    const found = queryReleases(data, { window: 'released', week: 0, search: 'kantara' }, extras)
+    expect(found.releases.map((r) => r.id).sort()).toEqual(['nine-weeks-ago', 'this-week'])
+    // The week is still reported, because the timeline is still on screen
+    expect(found.week?.index).toBe(0)
+  })
+
+  it('searches every week on the OTT tab too', () => {
+    const data = cache({
+      ott: [
+        ott({ id: 'wk0', title: 'Objection My Lord', week: 0 }),
+        ott({ id: 'wk7', title: 'Objection Overruled', week: 7 }),
+      ],
+    })
+    const out = queryReleases(data, { window: 'ott', week: 0, search: 'objection' }, extras).releases
+    expect(out.map((r) => r.id).sort()).toEqual(['wk0', 'wk7'])
+  })
+
+  it('still keeps unreleased films out of a theatres search', () => {
+    const data = cache({
+      releases: [
+        release({ id: 'out', title: 'Peddi', releaseDate: iso(-20) }),
+        release({ id: 'not-yet', title: 'Peddi Part Two', releaseDate: iso(9) }),
+      ],
+    })
+    const out = queryReleases(data, { window: 'released', search: 'peddi' }, extras).releases
+    expect(out.map((r) => r.id)).toEqual(['out'])
+  })
+
+  it('narrows to the viewed week again once the search is cleared', () => {
+    const data = cache({
+      releases: [
+        release({ id: 'this-week', releaseDate: iso(-1) }),
+        release({ id: 'long-ago', releaseDate: iso(-63) }),
+      ],
+    })
+    const out = queryReleases(data, { window: 'released', week: 0, search: '  ' }, extras).releases
+    expect(out.map((r) => r.id)).toEqual(['this-week'])
+  })
 })
 
 // ---------------------------------------------------------------- cricket

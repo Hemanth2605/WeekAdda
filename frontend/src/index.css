@@ -2410,6 +2410,16 @@ input {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.02);
 }
+/* Everything in this card is typed by a visitor — the title, the review, and
+   the name they chose — and the card does not clip, so an unbroken run of
+   characters would not be trimmed here but would push the page sideways.
+   `pre-wrap` on the body keeps the writer's own line breaks; it wraps at
+   spaces but never inside a word, which is not enough on its own. */
+.movie-review h3,
+.movie-review p,
+.movie-review-by {
+  overflow-wrap: anywhere;
+}
 .movie-review h3 {
   margin: 0 0 8px;
   font-size: 15.5px;

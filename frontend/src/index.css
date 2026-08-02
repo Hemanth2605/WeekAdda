@@ -7760,10 +7760,19 @@ a.genre-chip.mine {
 }
 /* What actually landed, so the confirmation is checkable rather than merely
    reassuring */
+/* Title on its own line, the when-and-where under it.
+   This was one flex row with the meta pinned `flex-shrink: 0` and pushed right,
+   which only holds while the meta is short: "12 Aug 2026 · PVR Nexus Forum ·
+   Hyderabad" refuses to give up any width, and since the card is never wider
+   than 360px — on a desktop as much as a phone — the title was left a sliver
+   and `overflow-wrap: anywhere` broke it a character at a time down the card.
+   A two-row grid gives the title the whole width instead of a contest for it. */
 .logdone-what {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 3px;
   width: 100%;
   padding: 11px 13px;
   border-radius: 12px;
@@ -7773,21 +7782,24 @@ a.genre-chip.mine {
 :root[data-theme='light'] .logdone-what {
   background: rgba(0, 0, 0, 0.03);
 }
+/* Spans both rows, so it marks the whole entry rather than just the title */
 .logdone-what .log-entry-ico {
+  grid-row: span 2;
   width: 28px;
   height: 28px;
   border-radius: 9px;
 }
 .logdone-what b {
+  min-width: 0; /* or a long title will not shrink below its longest word */
   font-size: 13.5px;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 .logdone-what small {
-  margin-left: auto;
-  flex-shrink: 0;
+  min-width: 0;
   font-size: 11.5px;
   color: var(--text-dim);
+  overflow-wrap: anywhere;
 }
 .logdone-actions {
   display: flex;

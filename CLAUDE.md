@@ -22,6 +22,9 @@ cd backend && npm test
 
 # Production frontend build
 cd frontend && npm run build
+
+# Responsive rules that never apply (reads the BUILT css — build first)
+cd frontend && npm run check:css
 ```
 
 ## Architecture in one minute
@@ -519,6 +522,16 @@ cd frontend && npm run build
   so on hover the icon vanished into its own background. Fixed by *raising*
   specificity (`.write:hover`), not by reordering: ordering fixes hold until
   someone moves a block.
+  **A media query is the nastiest version of this**, because it adds no
+  specificity at all: a phone rule loses to any same-specificity base rule
+  written below it, and is wrong only at widths nobody develops at. It has bitten
+  four rules (`.log-ticket-stub`, `.blog-wrap`, `.spotlight-head`,
+  `.blog-input.author`) — twice hidden by a shorthand, since a later `padding:`
+  wipes an earlier `padding-left:` and comparing property names finds nothing.
+  `npm run check:css` (`frontend/scripts/check-css-shadow.js`) catches it, and
+  reads the **built** stylesheet because source order is not the truth — in every
+  case so far the source looked fine. Phone rules that must come last live in one
+  block at the end of `index.css`.
 - **A flex child will not shrink below its longest word.** The review page's title
   ran straight out of the card because `.blog-card-meta` had no `min-width: 0`.
   Any long string in a flex row needs that plus `overflow-wrap: anywhere`.

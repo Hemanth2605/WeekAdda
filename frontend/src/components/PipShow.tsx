@@ -445,7 +445,10 @@ export default function PipShow({
     canvas.width = 360
     canvas.height = 600
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    // Throw rather than return: everything in here reports failure through the
+    // caller, and a bare `return` was one of two ways this could give up
+    // without saying anything at all
+    if (!ctx) throw new Error('no 2d context')
 
     const paintMessage = (text: string) => {
       ctx.fillStyle = '#0d1017'
@@ -458,6 +461,17 @@ export default function PipShow({
     }
     paintMessage('WeekAdda')
 
+    /*
+     * The other silent way out. Safari has been late and patchy on
+     * HTMLCanvasElement.captureStream, and calling a method that is not there
+     * throws a TypeError from this line — above the try below, so it sailed
+     * past every piece of reporting and reached the caller as nothing at all.
+     * That is the shape of "the button does nothing": not a refusal, an
+     * exception thrown before anything was watching.
+     */
+    if (typeof canvas.captureStream !== 'function') {
+      throw new Error('canvas.captureStream is unavailable')
+    }
     const stream = canvas.captureStream()
     const video = document.createElement('video') as HTMLVideoElement & {
       webkitSetPresentationMode?: (mode: string) => void
@@ -547,13 +561,11 @@ export default function PipShow({
       } else {
         throw new Error('no PiP')
       }
-    } catch {
+    } catch (err) {
+      // Tear the video down, then let the caller do the telling — there is one
+      // place that reports, so there is no path that can forget to
       cleanup()
-      // Say so. Failing silently is what made this look like a broken button
-      // rather than a browser that will not do it.
-      setUnavailable(true)
-      window.setTimeout(() => setUnavailable(false), 4000)
-      return
+      throw err
     }
     cleanupRef.current = cleanup
     setActive(true)
@@ -801,7 +813,12 @@ export default function PipShow({
       if (hasDocPip) await openDocPip()
       else await openVideoPip()
     } catch {
+      // The single place a failure is reported, whatever went wrong and however
+      // early. A button that does nothing at all is the one outcome that leaves
+      // someone tapping it twice and concluding the site is broken.
       setActive(false)
+      setUnavailable(true)
+      window.setTimeout(() => setUnavailable(false), 4000)
     } finally {
       openingRef.current = false
     }

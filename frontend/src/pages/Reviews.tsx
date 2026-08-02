@@ -383,6 +383,18 @@ function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  /**
+   * Opening scrolls the form under the reader. The ways in are scattered —
+   * the hero button up top, but also the rail's "Write an article", which on
+   * phones sits at the very bottom of /reviews. That click stays on the same
+   * pathname, so App's ScrollToTop never fires, and the form mounting a full
+   * page above you looks exactly like the click doing nothing.
+   */
+  const sectionRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (open) sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [open])
+
   // "Write an article" must open the article side of the switch. Keyed on the
   // mode itself, not just on `open`, so it cannot re-apply and yank someone
   // back after they have switched by hand.
@@ -540,7 +552,7 @@ function Composer({
   if (!open) return null
 
   return (
-    <section className="blog-composer">
+    <section className="blog-composer" ref={sectionRef}>
       <div className="blog-composer-head">
         <h2>
           {/* Same tile as the Reviews icon in the navbar, lit — the form and the

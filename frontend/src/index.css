@@ -3156,6 +3156,9 @@ input {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  /* Opening scrolls this into view; without the margin, "start" tucks the
+     heading under the sticky navbar */
+  scroll-margin-top: 78px;
 }
 .blog-composer-head {
   display: flex;

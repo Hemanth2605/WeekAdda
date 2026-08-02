@@ -7,6 +7,8 @@
  * and nothing else changes. See PUSH-PLAN.md.
  */
 
+import { isApplePortable, isStandalone } from './device'
+
 const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? ''
 
 /**
@@ -20,25 +22,6 @@ export const pushSupported =
   'PushManager' in window &&
   'Notification' in window &&
   Boolean(VAPID_PUBLIC_KEY)
-
-/**
- * An iPhone or iPad, including the ones that deny it.
- *
- * iPadOS 13 and later report themselves as a Mac — same platform string, same
- * user agent — so the only thing separating an iPad from a MacBook is that one
- * of them has a touchscreen. Hence the maxTouchPoints half; it is not a
- * flourish, it is the whole test on an iPad.
- */
-export const isApplePortable =
-  typeof navigator !== 'undefined' &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
-
-/** Already launched from the Home Screen rather than sitting in a Safari tab. */
-export const isStandalone =
-  typeof window !== 'undefined' &&
-  (window.matchMedia?.('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true)
 
 /**
  * The one case where notifications are unavailable but the visitor can do

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PictureInPicture2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PictureInPicture2, X } from 'lucide-react'
+import { isApplePortable } from '../device'
 
 /**
  * The site-wide floating mini player: a picture-in-picture slideshow of
@@ -168,6 +169,18 @@ export default function PipShow({
   const [active, setActive] = useState(false)
   /** Set when the browser turned PiP down, so the button can say so briefly. */
   const [unavailable, setUnavailable] = useState(false)
+  /**
+   * The in-page player: which slide it is on, or null when it is closed.
+   *
+   * iPadOS will not put a canvas stream into a floating window — it accepts the
+   * request and then never reports the video as playable — so on an Apple
+   * portable there is no point asking. Everywhere else this is the safety net:
+   * if picture-in-picture fails for any reason, the show still goes on, in the
+   * page rather than above it.
+   */
+  const [panelAt, setPanelAt] = useState<number | null>(null)
+  /** Bumped by a manual move, to restart the dwell rather than cut it short. */
+  const [panelNudge, setPanelNudge] = useState(0)
   const openingRef = useRef(false)
   const cleanupRef = useRef<(() => void) | null>(null)
   // Latest props for the open PiP window (its closures outlive this render),
@@ -192,7 +205,27 @@ export default function PipShow({
     pipUpdateRef.current?.()
   }, [slides, ctxKey])
 
-  if (!hasAnyPip || slides.length === 0) return null
+  // The in-page player's own clock. Separate from the PiP one because only one
+  // of the two is ever running, and this one lives and dies with React state.
+  useEffect(() => {
+    if (panelAt === null || slides.length < 2) return
+    const t = window.setInterval(
+      () => setPanelAt((i) => ((i ?? 0) + 1) % slides.length),
+      rotateMs
+    )
+    return () => window.clearInterval(t)
+  }, [panelAt === null, slides.length, rotateMs, panelNudge])
+
+  // A week change or tab switch reloads the slides under it; start again rather
+  // than leave it pointing past the end of a shorter list
+  useEffect(() => {
+    setPanelAt((i) => (i === null ? null : 0))
+  }, [ctxKey])
+
+  // The button is offered whenever there is something to play. It used to need
+  // a working picture-in-picture API; the in-page player is the floor now, so
+  // "this browser has no PiP" is no longer a reason to withhold the feature.
+  if (slides.length === 0) return null
 
   async function openDocPip() {
     const pipWin: globalThis.Window = await (
@@ -829,43 +862,136 @@ export default function PipShow({
   }
 
   async function toggle() {
+    if (panelAt !== null) return setPanelAt(null)
     if (cleanupRef.current) {
       cleanupRef.current()
       return
     }
     if (openingRef.current) return
+
+    /*
+     * An Apple portable does not get asked. iPadOS accepts the request and then
+     * never reports the canvas stream as playable, so every route through the
+     * PiP code ends in a timeout — two and a half seconds of a button that
+     * looks broken, to arrive somewhere we already know it arrives. Straight to
+     * the in-page player instead.
+     */
+    if (isApplePortable || !hasAnyPip) {
+      setPanelAt(0)
+      return
+    }
+
     openingRef.current = true
     try {
       if (hasDocPip) await openDocPip()
       else await openVideoPip()
     } catch {
-      // The single place a failure is reported, whatever went wrong and however
-      // early. A button that does nothing at all is the one outcome that leaves
-      // someone tapping it twice and concluding the site is broken.
+      // Not a dead end any more. Whatever the browser refused, the show can
+      // still play in the page — which is a better answer than telling someone
+      // their browser cannot do the thing they just asked for.
       setActive(false)
-      setUnavailable(true)
-      window.setTimeout(() => setUnavailable(false), 4000)
+      setPanelAt(0)
     } finally {
       openingRef.current = false
     }
   }
 
+  const open = panelAt !== null || active
+  const slide = panelAt === null ? null : slides[Math.min(panelAt, slides.length - 1)]
+  /** Move by hand: change slide, and restart the dwell so it is not cut short. */
+  const stepPanel = (d: number) => {
+    setPanelAt((i) => (((i ?? 0) + d + slides.length) % slides.length))
+    setPanelNudge((n) => n + 1)
+  }
+
   return (
-    <button
-      className="reel-btn"
-      onClick={toggle}
-      title={
-        unavailable
-          ? 'This browser turned the floating window down'
-          : "What's on this page plays one by one in a small floating window — click anything there to open it"
-      }
-    >
-      <span className="reel-ico">
-        <PictureInPicture2 size={15} />
-      </span>
-      <span className="reel-label">
-        {unavailable ? 'Not supported here' : active ? 'Close mini player' : 'Mini player'}
-      </span>
-    </button>
+    <>
+      <button
+        className="reel-btn"
+        onClick={toggle}
+        title={
+          unavailable
+            ? 'This browser turned the floating window down'
+            : "What's on this page plays one by one — click anything there to open it"
+        }
+      >
+        <span className="reel-ico">
+          <PictureInPicture2 size={15} />
+        </span>
+        <span className="reel-label">
+          {unavailable ? 'Not supported here' : open ? 'Close mini player' : 'Mini player'}
+        </span>
+      </button>
+
+      {/* The in-page player. Same slides and same pace as the floating one; it
+          simply lives on the page, because the browsers that land here will not
+          give us a window. A card, not an overlay — it must never sit between a
+          reader and what they came for. */}
+      {slide && (
+        <aside className="reel-panel" aria-label={`Mini player — ${context.tab}`}>
+          <header className="reel-panel-top">
+            <span className="reel-panel-ctx">
+              <b>{context.tab}</b>
+              <small>{context.detail}</small>
+            </span>
+            <button
+              className="reel-panel-x"
+              onClick={() => setPanelAt(null)}
+              aria-label="Close mini player"
+            >
+              <X size={15} />
+            </button>
+          </header>
+
+          <button
+            className={`reel-panel-slide${slide.image ? ' poster' : ''}`}
+            onClick={() => {
+              // Navigate first, close second — the same order the floating
+              // window uses, for the same reason: closing steals focus
+              navigate(slide.href)
+              setPanelAt(null)
+            }}
+          >
+            {slide.image ? (
+              <img src={slide.image} alt="" loading="lazy" />
+            ) : (
+              <span className="reel-panel-card">
+                {slide.badges && slide.badges.length > 0 && (
+                  <span className="reel-panel-badges">
+                    {slide.badges.map((b, i) => (
+                      <img key={i} src={b} alt="" loading="lazy" />
+                    ))}
+                  </span>
+                )}
+                {slide.kicker && <em>{slide.kicker}</em>}
+                <b>{slide.title}</b>
+                {slide.sub && <i>{slide.sub}</i>}
+                {slide.lines?.slice(0, 3).map((l, i) => (
+                  <small key={i}>{l}</small>
+                ))}
+              </span>
+            )}
+            {slide.image && (
+              <span className="reel-panel-cap">
+                <b>{slide.title}</b>
+                {slide.sub && <i>{slide.sub}</i>}
+              </span>
+            )}
+          </button>
+
+          <footer className="reel-panel-foot">
+            <button onClick={() => stepPanel(-1)} aria-label="Previous">
+              <ChevronLeft size={15} />
+            </button>
+            <span className="reel-panel-count">
+              {(panelAt ?? 0) + 1} / {slides.length} {noun}
+            </span>
+            <button onClick={() => stepPanel(1)} aria-label="Next">
+              <ChevronRight size={15} />
+            </button>
+          </footer>
+        </aside>
+      )}
+    </>
   )
 }

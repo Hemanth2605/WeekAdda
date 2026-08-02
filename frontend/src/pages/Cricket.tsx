@@ -80,6 +80,27 @@ function weekTitle(index: number) {
   return `${index} Weeks Ago`
 }
 
+/**
+ * A score into the figure and the parenthetical beside it — "177 (19.4/20 ov,
+ * target 214)" becomes "177" and "(19.4/20 ov, target 214)".
+ *
+ * They are shown on two lines because on one they were shown on neither: the
+ * card gives the score 130px, and 48% of the scores in the cache are longer
+ * than that, so the parenthetical was ellipsised away. That is the half naming
+ * the target, which on a chase is the number the whole card is about.
+ *
+ * Split on the first bracket rather than parsed: ESPN's format varies either
+ * side of it (`549/9d & 251/9d`, `19.4/20 ov`), and nothing here needs to
+ * understand it — only to know where one part ends and the other begins.
+ */
+function splitScore(score: string | undefined): [string, string | null] {
+  const s = (score ?? '').trim()
+  if (!s) return ['—', null]
+  const i = s.indexOf('(')
+  if (i < 0) return [s, null]
+  return [s.slice(0, i).trim(), s.slice(i).trim()]
+}
+
 function resultLine(m: CricketMatch): string {
   const winner = m.teams.find((t) => t.winner)
   if (winner) return `${winner.name} won`
@@ -535,17 +556,23 @@ export default function Cricket() {
                     )}
                     {m.label && <span className="match-tag">{m.label}</span>}
                     <div className="match-teams">
-                      {m.teams.map((t, ti) => (
-                        <div key={ti} className={`match-team${t.winner ? ' winner' : ''}`}>
-                          {countryFlag(t.name) ?? t.logo ? (
-                            <img src={countryFlag(t.name) ?? t.logo!} alt="" loading="lazy" />
-                          ) : (
-                            <span className="team-dot" />
-                          )}
-                          <span className="team-name">{t.name}</span>
-                          <span className="team-score">{t.score || '—'}</span>
-                        </div>
-                      ))}
+                      {m.teams.map((t, ti) => {
+                        const [figure, detail] = splitScore(t.score)
+                        return (
+                          <div key={ti} className={`match-team${t.winner ? ' winner' : ''}`}>
+                            {countryFlag(t.name) ?? t.logo ? (
+                              <img src={countryFlag(t.name) ?? t.logo!} alt="" loading="lazy" />
+                            ) : (
+                              <span className="team-dot" />
+                            )}
+                            <span className="team-name">{t.name}</span>
+                            <span className="team-score">
+                              <b>{figure}</b>
+                              {detail && <small>{detail}</small>}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                     <div className="match-footer">
                       <span className="match-result">

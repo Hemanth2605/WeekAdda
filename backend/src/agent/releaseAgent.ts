@@ -5,6 +5,7 @@ import { sweepWikipedia } from './wikipediaSource'
 import { sweepWikipediaOtt } from './wikipediaOttSource'
 import { sweepWatchmode } from './watchmodeSource'
 import { panIndiaLanguages } from '../data/panIndia'
+import { ottPremiere } from '../data/ottPremieres'
 import { sweepPanIndia, PanIndiaMatch } from './panIndiaSource'
 import { LANGUAGES, MAX_WEEKS, Release, OttRelease, ReleaseCache } from '../queries'
 
@@ -14,7 +15,8 @@ export { LANGUAGES, MAX_WEEKS }
 export type { Release, OttRelease, ReleaseCache }
 
 // Bump when adding/removing sources so stale caches re-sync on boot
-const SOURCES_VERSION = 10
+// 11: series by original language (network-gated), curated OTT premieres
+const SOURCES_VERSION = 11
 
 // TMDB watch-provider ids for the Indian streaming platforms we track
 export const OTT_PROVIDERS = [
@@ -368,9 +370,108 @@ async function fetchOttSeriesWeek(
 }
 
 /**
+ * Web series carried by nobody's provider list.
+ *
+ * The provider-gated series queries above can only return what JustWatch has
+ * linked, and for regional series it very often has linked nothing: "Objection,
+ * My Lord!" (Telugu, ZEE5, 31 July 2026) sits on TMDB with a poster and a date
+ * and an empty `watch/providers` for India, so every provider query missed it
+ * and the tab showed three Telugu series across thirteen weeks.
+ *
+ * Asking by *network* is the query that sees it. A network is the commissioner
+ * TMDB records on the show itself, filled in even when JustWatch has mapped no
+ * provider — and it is a different numbering from the watch-provider ids above:
+ * ZEE5 is provider 232 and network 2590.
+ *
+ * Asking by network rather than by original language also keeps this cheap and
+ * keeps it honest. Cheap, because the platform is the thing being asked for, so
+ * it comes back with the answer — a language query would have to read every
+ * candidate's record one call at a time to find out whose show it is. Honest,
+ * because `discover/tv` by language is not an OTT question at all: it answers
+ * with broadcast television, which is most of what airs in Hindi, and a daily
+ * soap on Zee TV is not an OTT arrival.
+ *
+ * Sun NXT has no TMDB network — it commissions almost nothing, and what it
+ * carries still reaches us through the provider queries. A platform with no
+ * network id simply keeps the coverage it already had.
+ */
+const OTT_NETWORKS = [
+  { id: 213, label: 'Netflix' },
+  { id: 1024, label: 'Amazon Prime Video' },
+  { id: 3919, label: 'JioHotstar' },
+  { id: 2646, label: 'Sony LIV' },
+  { id: 2590, label: 'ZEE5' },
+  { id: 3758, label: 'Aha' },
+  { id: 2552, label: 'Apple TV' },
+]
+
+/**
+ * Pages of one network's window we will read, 20 titles each. Three is well
+ * clear of what any of these commissions in ninety days; the cap exists so a
+ * mis-typed date range can never walk a network's whole back catalogue, and it
+ * says so in the log rather than silently returning a partial answer.
+ */
+const SERIES_PAGE_CAP = 3
+
+/**
+ * One network's premieres across a whole date window, oldest page last.
+ *
+ * The window is swept in one query rather than week by week — thirteen weekly
+ * calls per network would be thirteen times the requests for the same titles,
+ * and the weekly bucket is a function of the date we already have.
+ */
+async function fetchSeriesByNetwork(
+  apiKey: string,
+  network: { id: number; label: string },
+  from: string,
+  to: string,
+  weekFor: (date: string) => number
+): Promise<OttRelease[]> {
+  const out: OttRelease[] = []
+  for (let page = 1; page <= SERIES_PAGE_CAP; page++) {
+    const url =
+      `${TMDB}/discover/tv?api_key=${apiKey}` +
+      `&with_networks=${network.id}` +
+      `&first_air_date.gte=${from}&first_air_date.lte=${to}` +
+      `&sort_by=first_air_date.desc&include_adult=false&page=${page}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`TMDB ${res.status} for ${network.label} series ${from}..${to}`)
+    const body = (await res.json()) as { results: TmdbTv[]; total_pages?: number }
+
+    for (const t of (body.results ?? []).filter((t) => t.first_air_date)) {
+      out.push({
+        id: `ott-tv-${t.id}`,
+        title: t.name || t.original_name,
+        originalTitle: t.original_name,
+        language: t.original_language,
+        languageLabel: labelForLanguage(t.original_language),
+        releaseDate: t.first_air_date,
+        overview: t.overview || 'No synopsis available yet.',
+        poster: t.poster_path ? `https://image.tmdb.org/t/p/w342${t.poster_path}` : null,
+        rating: Math.round((t.vote_average ?? 0) * 10) / 10,
+        votes: t.vote_count ?? 0,
+        platforms: [network.label],
+        week: weekFor(t.first_air_date),
+        contentType: 'series' as const,
+      })
+    }
+
+    const total = body.total_pages ?? 1
+    if (page >= total) break
+    if (page === SERIES_PAGE_CAP) {
+      console.log(
+        `🤖 Release agent: ${network.label} series capped at ${SERIES_PAGE_CAP} pages of ${total}`
+      )
+    }
+  }
+  return out
+}
+
+/**
  * Upcoming OTT arrivals for the next FUTURE_DAYS:
- * 1. per provider — titles TMDB has already tagged to a platform, and
- * 2. a generic India digital-release query for films whose platform is not yet announced.
+ * 1. per provider — titles TMDB has already tagged to a platform,
+ * 2. a generic India digital-release query for films whose platform is not yet announced, and
+ * 3. Indian series by language, for the ones no provider list carries.
  */
 async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
   const from = isoDate(1)
@@ -472,6 +573,17 @@ async function sweepOttUpcoming(apiKey: string): Promise<OttRelease[]> {
       }
     })().catch(() => {})
   )
+
+  // Series no provider list carries — see fetchSeriesByNetwork
+  for (const network of OTT_NETWORKS) {
+    tasks.push(
+      (async () => {
+        for (const item of await fetchSeriesByNetwork(apiKey, network, from, to, () => -1)) {
+          add(item)
+        }
+      })().catch(() => {})
+    )
+  }
 
   await Promise.all(tasks)
   return [...merged.values()]
@@ -751,6 +863,108 @@ function applyPanIndia(items: Release[], detected: Map<string, PanIndiaMatch>): 
   return stamped
 }
 
+/**
+ * One arrival, one row — even when two sources transliterate it differently.
+ *
+ * `ottTitles` already stops a source re-adding a title another source found,
+ * but it compares normalized spellings, and Indian titles reach us romanized by
+ * different hands: TMDB's "Bãhubali: The Torchbearer" against Wikipedia's
+ * "Baahubali: The Torchbearer", the same series on the same day on the same
+ * platform, keyed as `bahubali…` and `baahubali…` and therefore listed twice.
+ * Doubled vowels are the whole of that difference, so the key collapses any run
+ * of a repeated character.
+ *
+ * That is a loose comparison, deliberately fenced in: it only merges rows that
+ * also share a release date *and* a language, and two genuinely different
+ * titles a collapse apart releasing in the same language on the same day is not
+ * a thing that happens. The survivor is whichever row can actually be rendered
+ * — a poster first, then the vote count — and it takes the union of the
+ * platforms, since each source may know a service the other missed.
+ */
+function dedupeOtt(items: OttRelease[]): OttRelease[] {
+  const collapse = (s: string) => s.replace(/(.)\1+/g, '$1')
+  const best = new Map<string, OttRelease>()
+  const order: string[] = []
+
+  for (const item of items) {
+    const key = `${collapse(normalizeKey(item.title))}|${item.releaseDate}|${item.language}`
+    const held = best.get(key)
+    if (!held) {
+      best.set(key, item)
+      order.push(key)
+      continue
+    }
+    const winner = (held.poster ? 1 : 0) - (item.poster ? 1 : 0) || held.votes - item.votes
+    const keep = winner >= 0 ? held : item
+    const lose = winner >= 0 ? item : held
+    for (const p of lose.platforms) if (!keep.platforms.includes(p)) keep.platforms.push(p)
+    best.set(key, keep)
+  }
+  return order.map((k) => best.get(k)!)
+}
+
+/**
+ * Fold the curated premieres (data/ottPremieres.ts) into the OTT lists.
+ *
+ * Built from the film's own theatrical row rather than from the curated line,
+ * so the title, language, synopsis and artwork are the ones the film already
+ * carries here — the line supplies only the two facts no source has, the date
+ * and the platform. Its id is the film's TMDB id under the `ott-` prefix, the
+ * same id the sweeps would have used, which is what lets the two agree instead
+ * of double-listing the film the day TMDB catches up.
+ *
+ * A premiere already found by a sweep is never overwritten: TMDB recording a
+ * date means the fact has arrived properly, and a hand-typed line should not
+ * argue with it. The one thing the line may still add is a platform, when the
+ * sweep found the date but nobody named the service.
+ */
+function applyOttPremieres(
+  theatrical: Release[],
+  ott: OttRelease[],
+  upcoming: OttRelease[]
+): number {
+  const today = isoDate(0)
+  const oldest = isoDate(-PAST_DAYS)
+  let added = 0
+
+  for (const film of theatrical) {
+    const m = /^tmdb-(\d+)$/.exec(film.id)
+    if (!m) continue
+    const premiere = ottPremiere(film.title, film.originalTitle, film.releaseDate)
+    if (!premiere) continue
+
+    const id = `ott-${m[1]}`
+    const found = ott.find((o) => o.id === id) ?? upcoming.find((o) => o.id === id)
+    if (found) {
+      if (found.platforms.length === 0) found.platforms = [premiere.platform]
+      continue
+    }
+
+    const entry: OttRelease = {
+      ...film,
+      id,
+      releaseDate: premiere.date,
+      platforms: [premiere.platform],
+      week: -1,
+      contentType: 'movie',
+    }
+
+    if (premiere.date > today) {
+      upcoming.push(entry)
+      added++
+    } else if (premiere.date >= oldest) {
+      // Already streaming: the weekly bucket it landed in, counted the same way
+      // the sweeps count theirs
+      const days = Math.round((Date.parse(today) - Date.parse(premiere.date)) / 86400000)
+      entry.week = Math.min(Math.floor(days / 7), MAX_WEEKS - 1)
+      ott.push(entry)
+      added++
+    }
+    // Older than the window we keep: the line has simply outlived its use
+  }
+  return added
+}
+
 /** Sweep all providers × all weekly buckets, merging platforms per film. */
 async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
   const perProvider = await Promise.allSettled([
@@ -783,6 +997,21 @@ async function sweepOtt(apiKey: string): Promise<OttRelease[]> {
       }
       return out
     })(),
+    // Series no provider list carries. The whole thirteen weeks in one query
+    // per network, with the weekly bucket read back off each date.
+    ...OTT_NETWORKS.map(async (network) => {
+      const today = Date.parse(isoDate(0))
+      const weekFor = (date: string) => {
+        const days = Math.round((today - Date.parse(date)) / 86400000)
+        return Math.min(Math.max(Math.floor(days / 7), 0), MAX_WEEKS - 1)
+      }
+      try {
+        return await fetchSeriesByNetwork(apiKey, network, isoDate(-PAST_DAYS), isoDate(0), weekFor)
+      } catch {
+        // A network we cannot reach is not fatal to the sweep
+        return []
+      }
+    }),
   ])
 
   const merged = new Map<string, OttRelease>()
@@ -903,6 +1132,12 @@ export async function syncReleases(): Promise<ReleaseCache> {
       console.warn('⚠️  Watchmode sweep failed (continuing without it):', err)
     }
 
+    // Announced premieres no source records — see data/ottPremieres.ts. Folded
+    // in before the enrichment below so a pinned title is marked pan-India and
+    // weighed by the direct-to-OTT rule exactly like a swept one.
+    const pinned = applyOttPremieres(allReleases, ott, ottUpcoming)
+    if (pinned) console.log(`🤖 Release agent: pinned ${pinned} announced OTT premiere(s)`)
+
     // Free pass first: a title in its own script needs no lookup
     const byScript = relabelFromScript(ott) + relabelFromScript(ottUpcoming)
 
@@ -969,8 +1204,8 @@ export async function syncReleases(): Promise<ReleaseCache> {
       rangeDays: PAST_DAYS,
       sourcesVersion: SOURCES_VERSION,
       releases: theatrical,
-      ott: ott.filter((r) => !drop.has(r.id)),
-      ottUpcoming: ottUpcoming.filter((r) => !drop.has(r.id)),
+      ott: dedupeOtt(ott.filter((r) => !drop.has(r.id))),
+      ottUpcoming: dedupeOtt(ottUpcoming.filter((r) => !drop.has(r.id))),
     }
     fs.mkdirSync(CACHE_DIR, { recursive: true })
     fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2))

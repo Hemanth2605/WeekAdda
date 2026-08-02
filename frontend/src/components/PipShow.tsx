@@ -48,6 +48,25 @@ export interface WeekJump {
 
 const hasDocPip = typeof window !== 'undefined' && 'documentPictureInPicture' in window
 
+/**
+ * Nothing in the opening sequence may wait forever.
+ *
+ * A promise that never settles is worse than one that rejects: the catch never
+ * runs, so nothing is reported, and `opening` never clears — which makes every
+ * later tap return early too. One hang and the button is dead for the rest of
+ * the visit, silently. That is what an iPad was doing: waiting on a
+ * `loadedmetadata` that a canvas-captured stream in Safari never fires.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>
+  return Promise.race([
+    p.finally(() => clearTimeout(timer)),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms}ms`)), ms)
+    }),
+  ])
+}
+
 function hasVideoPip(): boolean {
   if (typeof document === 'undefined') return false
   if (document.pictureInPictureEnabled) return true
@@ -553,11 +572,18 @@ export default function PipShow({
         })
         if (!entered) throw new Error('picture-in-picture refused')
       } else if (video.requestPictureInPicture) {
-        await video.play()
+        // Every one of these is bounded. Safari ships requestPictureInPicture
+        // in recent versions, so an iPad takes this branch — and then hangs on
+        // a canvas stream that never reports metadata.
+        await withTimeout(video.play(), 2500, 'play()')
         if (video.readyState < 1) {
-          await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }))
+          await withTimeout(
+            new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true })),
+            2500,
+            'loadedmetadata'
+          )
         }
-        await video.requestPictureInPicture()
+        await withTimeout(video.requestPictureInPicture(), 3000, 'requestPictureInPicture()')
       } else {
         throw new Error('no PiP')
       }

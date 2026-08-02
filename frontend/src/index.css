@@ -1933,10 +1933,13 @@ input {
   .theme-toggle { width: 36px; height: 36px; border-radius: 12px; }
   .feature-grid { padding: 20px 20px 50px; }
   .site-footer { padding: 28px 20px 34px; }
-  .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .time-band, .spotlight-head, .week-nav { padding-left: 20px; padding-right: 20px; }
-  .blog-wrap { padding-left: 20px; padding-right: 20px; }
+  .opp-header, .opp-tabs, .toolbar, .section-head, .lang-head, .time-band, .week-nav { padding-left: 20px; padding-right: 20px; }
   .blog-composer-foot { flex-wrap: wrap; }
-  .blog-input.author { max-width: none; flex: 1 1 100%; }
+  /* .spotlight-head, .blog-wrap and .blog-input.author are NOT here: their base
+     rules are declared below this block, and a media query adds no specificity,
+     so a later `padding:` shorthand quietly wiped the phone padding set here.
+     They live in the phone overrides at the end of this file, after the rules
+     they have to beat. */
   /* Full-width swipe row on phones; chips grown to thumb-sized (~44px)
      targets, and the big week heading stepped down so the row breathes */
   .week-timeline { flex-basis: 100%; order: 9; margin-left: 0; padding: 4px 16px; }
@@ -8097,6 +8100,10 @@ a.genre-chip.mine {
   gap: 5px;
   font-size: 11.5px;
   color: var(--text-dim);
+  /* The venue is typed by hand and sits in a row already narrowed by the day
+     mark and two buttons; wrapping between the parts is not enough if one of
+     them is itself longer than what is left */
+  overflow-wrap: anywhere;
 }
 /* Says there is more behind the line, which is the reason to click it */
 .log-dot-has-note {
@@ -8527,4 +8534,33 @@ span.year-cal {
 }
 span.year-cal:not(:disabled):hover {
   transform: none;
+}
+
+/* ---------------- phone overrides that have to come last ----------------
+   A media query carries no specificity of its own, so one of these declared
+   up with the rest of the responsive rules loses to any same-specificity base
+   rule written further down the file — silently, and only on phones, which is
+   where nobody is looking. Each of these was doing exactly that: a later
+   `padding:` shorthand wipes an earlier `padding-left:`, and a later
+   `max-width:` beats an earlier one outright.
+
+   Anything added here must genuinely need to be last. The test is not whether
+   it looks right in the source — it is whether the *built* stylesheet puts it
+   after the rule it overrides. */
+@media (max-width: 720px) {
+  /* was losing to `padding: 6px 42px 70px` — 42px of side padding on a phone */
+  .blog-wrap {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  /* was losing to `padding: 18px 42px 12px` */
+  .spotlight-head {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  /* was losing to `max-width: 220px`, so it never went full width */
+  .blog-input.author {
+    max-width: none;
+    flex: 1 1 100%;
+  }
 }

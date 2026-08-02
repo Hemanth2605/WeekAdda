@@ -113,20 +113,77 @@ function loadGis(): Promise<void> {
 }
 
 /**
+ * Thrown when the visitor came back to the page and Google had told us
+ * nothing. Distinct from `popup_closed`, which Google reports itself and which
+ * means the visitor deliberately dismissed the picker: this one means we never
+ * heard, which on an installed iOS app is the normal outcome and worth
+ * explaining rather than swallowing.
+ */
+export const SIGNIN_UNREACHABLE = 'signin_unreachable'
+
+/**
  * Open Google's account-picker popup (token flow, so we can use our own
  * styled button) and sign the whole app in. Must be called from a click
  * handler so the popup isn't blocked. Rejects with 'popup_closed' when the
- * user dismisses the popup.
+ * user dismisses the popup, or SIGNIN_UNREACHABLE when it never reported back.
  */
 export async function signInWithGoogle(): Promise<GoogleUser> {
   if (!authEnabled) throw new Error('Google sign-in is not configured')
   await loadGis()
   return new Promise((resolve, reject) => {
+    /*
+     * Google settles this by calling one of its two callbacks. Installed on an
+     * iOS Home Screen it calls neither: the popup opens in Safari, a separate
+     * context with no opener back to the app, so whatever the visitor does
+     * there — sign in, give up, close it — nothing is ever reported here. The
+     * promise hangs, the button stays "Signing in…", and only killing the app
+     * clears it.
+     *
+     * So coming back to the app is treated as an answer in itself. If we are
+     * visible again and still hold no token, the popup went somewhere we cannot
+     * hear from. The grace period is for the ordinary case, where a desktop
+     * popup closing and its callback arriving are the same moment and the
+     * callback must be allowed to win.
+     */
+    let settled = false
+    let grace: ReturnType<typeof setTimeout> | undefined
+
+    const stop = () => {
+      settled = true
+      clearTimeout(grace)
+      clearTimeout(ceiling)
+      document.removeEventListener('visibilitychange', onBack)
+      window.removeEventListener('focus', onBack)
+    }
+    const done = (user: GoogleUser) => {
+      if (settled) return
+      stop()
+      resolve(user)
+    }
+    const fail = (err: Error) => {
+      if (settled) return
+      stop()
+      reject(err)
+    }
+
+    function onBack() {
+      if (settled || document.visibilityState !== 'visible') return
+      clearTimeout(grace)
+      grace = setTimeout(() => fail(new Error(SIGNIN_UNREACHABLE)), 1500)
+    }
+
+    // Last resort, for a browser that reports neither a callback nor a return.
+    // Long enough to read a consent screen; short enough to not be forever.
+    const ceiling = setTimeout(() => fail(new Error('popup_closed')), 3 * 60 * 1000)
+
+    document.addEventListener('visibilitychange', onBack)
+    window.addEventListener('focus', onBack)
+
     const client = window.google!.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: 'openid email profile',
       callback: async (res) => {
-        if (!res.access_token) return reject(new Error(res.error || 'Sign-in failed'))
+        if (!res.access_token) return fail(new Error(res.error || 'Sign-in failed'))
         try {
           const ui = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
             headers: { Authorization: `Bearer ${res.access_token}` },
@@ -145,12 +202,12 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
             // best-effort
           }
           setCurrentUser(user)
-          resolve(user)
+          done(user)
         } catch (err) {
-          reject(err instanceof Error ? err : new Error('Sign-in failed'))
+          fail(err instanceof Error ? err : new Error('Sign-in failed'))
         }
       },
-      error_callback: (err) => reject(new Error(err?.type || 'popup_closed')),
+      error_callback: (err) => fail(new Error(err?.type || 'popup_closed')),
     })
     client.requestAccessToken()
   })

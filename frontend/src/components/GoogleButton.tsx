@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { signInWithGoogle } from '../auth'
+import { SIGNIN_UNREACHABLE, signInWithGoogle } from '../auth'
+import { isApplePortable, isStandalone } from '../device'
 
 /** Official multicolor Google "G" — the one part that must stay original. */
 function GoogleG({ size = 18 }: { size?: number }) {
@@ -40,9 +41,18 @@ export default function GoogleButton({ small, onError }: Props) {
     signInWithGoogle()
       .catch((err: Error) => {
         // Dismissing the popup isn't an error worth reporting
-        if (err.message !== 'popup_closed' && err.message !== 'popup_closed_by_user') {
-          onError?.('Could not sign in with Google — please try again')
-        }
+        if (err.message === 'popup_closed' || err.message === 'popup_closed_by_user') return
+        /*
+         * Google never reported back. In an installed iOS app that is not a
+         * fault to apologise for, it is the expected outcome — the picker opens
+         * in Safari, which cannot talk to the app it was launched from — and
+         * the visitor needs the way round it, not "please try again".
+         */
+        onError?.(
+          err.message === SIGNIN_UNREACHABLE && isStandalone && isApplePortable
+            ? 'Sign-in cannot finish inside the installed app. Open weekadda.com in Safari to sign in — you stay signed in when you come back here.'
+            : 'Could not sign in with Google — please try again'
+        )
       })
       .finally(() => setBusy(false))
   }

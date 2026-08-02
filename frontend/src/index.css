@@ -8174,6 +8174,11 @@ a.genre-chip.mine {
   align-items: center;
   flex-wrap: wrap;
   gap: 7px;
+  /* A cinema's full name is typed by hand and can be one long word; the chip
+     sizes to its content, so without these it grew past the card and was
+     clipped by the ticket's own overflow rather than wrapping */
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 7px 14px;
   border-radius: 999px;
   background: rgba(8, 8, 12, 0.34);
@@ -8216,59 +8221,6 @@ a.genre-chip.mine {
 .log-ticket-tear span:last-child {
   right: -13px;
 }
-.log-ticket-stub {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  padding: 24px 26px 26px;
-}
-.log-ticket-body {
-  min-width: 0;
-  flex: 1;
-}
-/* Under the year, in the date column — the third line of one block rather
-   than a label sitting beside it */
-.log-ticket-day {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--gold);
-  opacity: 0.85;
-}
-/* The note is the reason to open this page, so it is set as prose rather than
-   as another field with a label on it */
-.log-ticket-note {
-  margin-top: 2px;
-  font-family: var(--font-display);
-  font-size: 16.5px;
-  line-height: 1.7;
-  color: var(--text);
-  white-space: pre-wrap;
-}
-.log-ticket-empty {
-  margin-top: 2px;
-  font-size: 13.5px;
-  color: var(--text-dim);
-  opacity: 0.8;
-}
-@media (max-width: 560px) {
-  .log-ticket-top {
-    padding: 20px 18px 18px;
-  }
-  .log-ticket-stub {
-    gap: 14px;
-    padding: 18px;
-  }
-  .log-ticket-date {
-    min-width: 58px;
-    padding: 10px 8px;
-  }
-  .log-ticket-date b {
-    font-size: 25px;
-  }
-}
-
 /* The edit form in place of the ticket. Boxed rather than bare, so the page
    still reads as being about one entry while it is being changed. */
 .log-edit-panel {
@@ -8327,17 +8279,10 @@ a.genre-chip.mine {
   .log-ticket-top {
     padding: 20px 18px 18px;
   }
-  .log-ticket-stub {
-    gap: 14px;
-    padding: 18px;
-  }
-  .log-ticket-date {
-    min-width: 58px;
-    padding: 10px 8px;
-  }
-  .log-ticket-date b {
-    font-size: 25px;
-  }
+  /* .log-ticket-stub's phone padding is NOT here: its base rule is declared
+     further down, and a media query carries no extra specificity, so the wider
+     padding simply won at every width. It lives with the other late overrides
+     below, after the rule it is meant to beat. */
 }
 
 /* The edit form in place of the ticket. Boxed rather than bare, so the page
@@ -8392,32 +8337,6 @@ a.genre-chip.mine {
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 18px;
-}
-
-/* The stub's date: the same tile again, with the year under it — a tile has no
-   room for four more digits and the ticket already has the space */
-.log-ticket-date {
-  flex-shrink: 0;
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-}
-.log-ticket-date .date-cal {
-  width: 52px;
-}
-.log-ticket-date .date-cal-month {
-  font-size: 9.5px;
-  padding: 4px 0 3px;
-}
-.log-ticket-date .date-cal-day {
-  font-family: var(--font-display);
-  font-size: 22px;
-  padding: 6px 0 8px;
-}
-.log-ticket-date small {
-  font-size: 11px;
-  color: var(--text-dim);
-  line-height: 1;
 }
 
 /* ---------------- the stub ----------------
@@ -8480,7 +8399,11 @@ a.genre-chip.mine {
   font-size: 17px;
   line-height: 1.75;
   color: var(--text);
+  /* Keeps the writer's own line breaks; wraps at spaces but never inside a
+     word, so a pasted link in a note ran off the side of a phone. The card
+     clips rather than scrolls, so it went out of sight instead of being ugly. */
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .log-ticket-note::before {
   content: '“';
@@ -8505,6 +8428,9 @@ a.genre-chip.mine {
   border-top-color: rgba(0, 0, 0, 0.09);
 }
 @media (max-width: 560px) {
+  .log-ticket-stub {
+    padding: 18px;
+  }
   .log-ticket-when b {
     font-size: 44px;
   }

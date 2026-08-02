@@ -147,6 +147,8 @@ export default function PipShow({
 }) {
   const navigate = useNavigate()
   const [active, setActive] = useState(false)
+  /** Set when the browser turned PiP down, so the button can say so briefly. */
+  const [unavailable, setUnavailable] = useState(false)
   const openingRef = useRef(false)
   const cleanupRef = useRef<(() => void) | null>(null)
   // Latest props for the open PiP window (its closures outlive this render),
@@ -500,20 +502,57 @@ export default function PipShow({
       video.remove()
     }
 
+    /*
+     * The two APIs want opposite things, so they no longer share a path.
+     *
+     * Chromium's requestPictureInPicture() rejects on a video with no metadata,
+     * so it has to wait for some. WebKit's webkitSetPresentationMode() must be
+     * called inside the click that asked for it, and `await video.play()` spends
+     * that gesture — after which Safari refuses, silently. Sharing one sequence
+     * meant whichever browser was second in the `if` got the wrong one, and on
+     * an iPad that read as a button that does nothing at all.
+     *
+     * WebKit also reports refusal by doing nothing rather than by throwing, so
+     * entering is confirmed rather than assumed; a mini player that never opened
+     * must not leave the button saying "Close mini player".
+     */
+    const webkitPip =
+      !video.requestPictureInPicture && typeof video.webkitSetPresentationMode === 'function'
     try {
-      await video.play()
-      if (video.readyState < 1) {
-        await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }))
-      }
-      if (video.requestPictureInPicture) {
+      if (webkitPip) {
+        // Deliberately not awaited: playback can catch up, the gesture cannot
+        video.play().catch(() => {})
+        video.webkitSetPresentationMode!('picture-in-picture')
+        const entered = await new Promise<boolean>((resolve) => {
+          const settle = () => {
+            if (video.webkitPresentationMode === 'picture-in-picture') {
+              video.removeEventListener('webkitpresentationmodechanged', settle)
+              window.clearTimeout(timeout)
+              resolve(true)
+            }
+          }
+          const timeout = window.setTimeout(() => {
+            video.removeEventListener('webkitpresentationmodechanged', settle)
+            resolve(video.webkitPresentationMode === 'picture-in-picture')
+          }, 1500)
+          video.addEventListener('webkitpresentationmodechanged', settle)
+        })
+        if (!entered) throw new Error('picture-in-picture refused')
+      } else if (video.requestPictureInPicture) {
+        await video.play()
+        if (video.readyState < 1) {
+          await new Promise((r) => video.addEventListener('loadedmetadata', r, { once: true }))
+        }
         await video.requestPictureInPicture()
-      } else if (video.webkitSetPresentationMode) {
-        video.webkitSetPresentationMode('picture-in-picture')
       } else {
         throw new Error('no PiP')
       }
     } catch {
       cleanup()
+      // Say so. Failing silently is what made this look like a broken button
+      // rather than a browser that will not do it.
+      setUnavailable(true)
+      window.setTimeout(() => setUnavailable(false), 4000)
       return
     }
     cleanupRef.current = cleanup
@@ -772,12 +811,18 @@ export default function PipShow({
     <button
       className="reel-btn"
       onClick={toggle}
-      title="What's on this page plays one by one in a small floating window — click anything there to open it"
+      title={
+        unavailable
+          ? 'This browser turned the floating window down'
+          : "What's on this page plays one by one in a small floating window — click anything there to open it"
+      }
     >
       <span className="reel-ico">
         <PictureInPicture2 size={15} />
       </span>
-      <span className="reel-label">{active ? 'Close mini player' : 'Mini player'}</span>
+      <span className="reel-label">
+        {unavailable ? 'Not supported here' : active ? 'Close mini player' : 'Mini player'}
+      </span>
     </button>
   )
 }

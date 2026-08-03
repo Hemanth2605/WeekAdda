@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { Component, ComponentType, ReactNode, lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Releases from './pages/Releases'
 import Navbar from './components/Navbar'
@@ -18,20 +18,68 @@ import BackToTop from './components/BackToTop'
  * heavier pages, the owner dashboard and the two personal pages were all being
  * downloaded by every first-time visitor who never opened them.
  */
-const MovieDetail = lazy(() => import('./pages/MovieDetail'))
-const PlatformHub = lazy(() => import('./pages/PlatformHub'))
-const About = lazy(() => import('./pages/About'))
-const Adda = lazy(() => import('./pages/Adda'))
-const Privacy = lazy(() => import('./pages/Privacy'))
-const Cricket = lazy(() => import('./pages/Cricket'))
-const Reviews = lazy(() => import('./pages/Reviews'))
-const ReviewDetail = lazy(() => import('./pages/ReviewDetail'))
-const ArticleDetail = lazy(() => import('./pages/ArticleDetail'))
-const AllArticles = lazy(() => import('./pages/AllArticles'))
-const LogEntry = lazy(() => import('./pages/LogEntry'))
-const MyArticles = lazy(() => import('./pages/MyArticles'))
-const MyReviews = lazy(() => import('./pages/MyReviews'))
-const Stats = lazy(() => import('./pages/Stats'))
+/**
+ * A lazy route that survives a deploy.
+ *
+ * Chunk filenames carry a content hash, so every deploy renames them. A browser
+ * holding the previous index.html — an open tab, a page restored from bfcache,
+ * an installed app resumed from the switcher — asks for names that are no
+ * longer there. The import rejects, Suspense has no error boundary above it,
+ * and React unmounts the entire tree: a blank page, not a broken route. It only
+ * happens to people who were already here, which is why it looks intermittent.
+ *
+ * One reload fixes it, because the reload fetches a current index.html with the
+ * current names. The flag makes it exactly one — a reload loop would be a worse
+ * failure than the one being fixed — and a load that succeeds clears it, so the
+ * next deploy is allowed its own retry.
+ */
+const RELOAD_KEY = 'weekadda-chunk-reload'
+
+function route<T extends { default: ComponentType<Record<string, never>> }>(
+  load: () => Promise<T>
+) {
+  return lazy<T['default']>(() =>
+    load()
+      .then((mod) => {
+        try {
+          sessionStorage.removeItem(RELOAD_KEY)
+        } catch {
+          // private mode; the retry simply will not be remembered
+        }
+        return mod
+      })
+      .catch((err) => {
+        let reloadedAlready = false
+        try {
+          reloadedAlready = sessionStorage.getItem(RELOAD_KEY) === '1'
+          sessionStorage.setItem(RELOAD_KEY, '1')
+        } catch {
+          // cannot remember, so do not reload — better a caught error than a loop
+          reloadedAlready = true
+        }
+        if (reloadedAlready) throw err
+        window.location.reload()
+        // The page is on its way out; never settle, so nothing renders in the
+        // meantime and Suspense simply keeps showing the fallback
+        return new Promise<T>(() => {})
+      })
+  )
+}
+
+const MovieDetail = route(() => import('./pages/MovieDetail'))
+const PlatformHub = route(() => import('./pages/PlatformHub'))
+const About = route(() => import('./pages/About'))
+const Adda = route(() => import('./pages/Adda'))
+const Privacy = route(() => import('./pages/Privacy'))
+const Cricket = route(() => import('./pages/Cricket'))
+const Reviews = route(() => import('./pages/Reviews'))
+const ReviewDetail = route(() => import('./pages/ReviewDetail'))
+const ArticleDetail = route(() => import('./pages/ArticleDetail'))
+const AllArticles = route(() => import('./pages/AllArticles'))
+const LogEntry = route(() => import('./pages/LogEntry'))
+const MyArticles = route(() => import('./pages/MyArticles'))
+const MyReviews = route(() => import('./pages/MyReviews'))
+const Stats = route(() => import('./pages/Stats'))
 
 /**
  * Shown only while a route's chunk is in flight — usually a few hundred
@@ -52,6 +100,43 @@ function RouteFallback() {
   )
 }
 
+/**
+ * The last thing between a thrown error and a blank page.
+ *
+ * Without one, any error while rendering unmounts the whole tree — navbar,
+ * footer and all — and leaves white. That is the worst possible failure for a
+ * visitor: nothing to read, nothing to press, no way to tell a broken site from
+ * a broken connection. The reload button matters as much as the message; it is
+ * what someone will look for, and it is usually enough.
+ *
+ * Deliberately not a route-level boundary. An error in the navbar or a sheet is
+ * just as capable of blanking the page as one in a route, and this catches
+ * those too.
+ */
+class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <main className="empty-state">
+        <h3>Something went wrong on this page</h3>
+        <p>
+          Reloading usually fixes it — the site updates often, and a page left open
+          across an update can end up asking for something that has moved.
+        </p>
+        <button className="share-wa" onClick={() => window.location.reload()}>
+          Reload the page
+        </button>
+      </main>
+    )
+  }
+}
+
 /** Start every page from the top when the route changes (SPA keeps scroll otherwise). */
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -63,7 +148,7 @@ function ScrollToTop() {
 
 export default function App() {
   return (
-    <>
+    <Boundary>
       <ScrollToTop />
       <Navbar />
       <ShareSheet />
@@ -125,6 +210,6 @@ export default function App() {
       </Suspense>
       <BackToTop />
       <Footer />
-    </>
+    </Boundary>
   )
 }

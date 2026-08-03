@@ -56,12 +56,18 @@ export default function GoogleButton({ small, onError }: Props) {
 
   const click = () => {
     if (busy) return
-    // Where a popup cannot report back, leave the page instead of opening one.
-    // Nothing after this runs — the browser is already on its way to Google.
-    if (signInNeedsRedirect) {
-      setBusy(true)
-      return startRedirectSignIn()
-    }
+    /*
+     * Where a popup cannot report back, leave the page instead of opening one.
+     *
+     * Deliberately without setting `busy`. On a normal browser the page is
+     * gone a moment later and nothing here is ever seen again — but an
+     * installed iOS app does not necessarily go anywhere: iOS hands an
+     * off-origin navigation to a separate Safari view and leaves this page
+     * mounted behind it. Marking the button busy for a departure that may not
+     * happen is how it came to sit on "Signing in…" after someone opened the
+     * picker, thought better of it, and came back.
+     */
+    if (signInNeedsRedirect) return startRedirectSignIn()
     setBusy(true)
     signInWithGoogle()
       .catch((err: Error) => {

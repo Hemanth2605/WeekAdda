@@ -222,10 +222,20 @@ export default function PipShow({
     setPanelAt((i) => (i === null ? null : 0))
   }, [ctxKey])
 
-  // The button is offered whenever there is something to play. It used to need
-  // a working picture-in-picture API; the in-page player is the floor now, so
-  // "this browser has no PiP" is no longer a reason to withhold the feature.
-  if (slides.length === 0) return null
+  /*
+   * Offered only where the show can actually float above the page.
+   *
+   * An iPad can be given the slides in the page, and briefly was — but an
+   * in-page card is not what this button means. The mini player exists to keep
+   * playing while you are somewhere else; one that sits in the page you are
+   * already looking at is a different thing wearing the same name, so iOS gets
+   * no button rather than a lesser one (owner, Aug 2026).
+   *
+   * The in-page panel stays as a runtime fallback only: if a browser claims
+   * picture-in-picture and then refuses, degrading to the page beats a button
+   * that failed in front of someone who just pressed it.
+   */
+  if (!hasAnyPip || isApplePortable || slides.length === 0) return null
 
   async function openDocPip() {
     const pipWin: globalThis.Window = await (
@@ -868,19 +878,6 @@ export default function PipShow({
       return
     }
     if (openingRef.current) return
-
-    /*
-     * An Apple portable does not get asked. iPadOS accepts the request and then
-     * never reports the canvas stream as playable, so every route through the
-     * PiP code ends in a timeout — two and a half seconds of a button that
-     * looks broken, to arrive somewhere we already know it arrives. Straight to
-     * the in-page player instead.
-     */
-    if (isApplePortable || !hasAnyPip) {
-      setPanelAt(0)
-      return
-    }
-
     openingRef.current = true
     try {
       if (hasDocPip) await openDocPip()

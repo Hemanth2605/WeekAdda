@@ -41,6 +41,25 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/**
+ * Who a review is by, for a crawler.
+ *
+ * A stamped review is by the site, not by whoever was signed in when it was
+ * written — and the page shows the stamp instead of a name, so this has to say
+ * the same. What the pre-render shows must render for people too; a byline here
+ * that the reader never sees is exactly the mismatch that rule exists to stop.
+ */
+function reviewBy(p: { author: string; official?: boolean }): string {
+  return p.official ? 'WeekAdda' : p.author
+}
+
+/** The same answer in JSON-LD terms: a site piece is an Organization. */
+function reviewAuthorLd(p: { author: string; official?: boolean }) {
+  return p.official
+    ? { '@type': 'Organization', name: 'WeekAdda', url: 'https://weekadda.com' }
+    : { '@type': 'Person', name: p.author }
+}
+
 function day(iso: string): string {
   return new Date(iso.slice(0, 10) + 'T00:00:00Z').toLocaleDateString('en-IN', {
     day: 'numeric',
@@ -597,7 +616,7 @@ function buildReviewedTitlePage(
         .slice(0, 20)
         .map(
           (p) =>
-            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(p.author)}</em>`
+            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(reviewBy(p))}</em>`
         )
     ) +
     '<p><a href="/reviews">More reviews on WeekAdda</a></p>' +
@@ -612,7 +631,7 @@ function buildReviewedTitlePage(
         name: p.title,
         reviewBody: excerpt(p.body),
         datePublished: p.ts,
-        author: { '@type': 'Person', name: p.author },
+        author: reviewAuthorLd(p),
       })),
     }) +
     '</div>'
@@ -832,7 +851,7 @@ export function buildTitlePage(
             name: p.title,
             reviewBody: excerpt(p.body),
             datePublished: p.ts,
-            author: { '@type': 'Person', name: p.author },
+            author: reviewAuthorLd(p),
           })),
         }
       : {}),
@@ -860,7 +879,7 @@ export function buildTitlePage(
         .slice(0, 10)
         .map(
           (p) =>
-            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(p.author)}</em>`
+            `<strong>${esc(p.title)}</strong> — ${esc(excerpt(p.body))} <em>— ${esc(reviewBy(p))}</em>`
         )
     ) +
     section(
@@ -1337,7 +1356,7 @@ export function buildBlogSeo(posts: BlogPost[], articles: Article[] = []): strin
       'Latest reviews',
       posts
         .slice(0, 20)
-        .map((p) => `${esc(p.title)} — a review of ${esc(p.tag.label)}, by ${esc(p.author)}`)
+        .map((p) => `${esc(p.title)} — a review of ${esc(p.tag.label)}, by ${esc(reviewBy(p))}`)
     ) +
     // The panel beside the feed, and the only crawlable way into the articles:
     // without these links every article page is an orphan.
@@ -1598,7 +1617,7 @@ export function buildReviewPage(
               (p) =>
                 `<a href="${reviewUrl(p)}">${esc(p.title)}</a> — ${esc(
                   p.tag?.label ?? ''
-                )}, by ${esc(p.author)}`
+                )}, by ${esc(reviewBy(p))}`
             )
           )
         : ''

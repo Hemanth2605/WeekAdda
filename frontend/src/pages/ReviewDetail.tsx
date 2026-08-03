@@ -25,6 +25,7 @@ import Breadcrumbs from '../components/Breadcrumbs'
 import ArticleIndex from '../components/ArticleIndex'
 import { ArticlePageSkeleton } from '../components/Skeletons'
 import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
+import OfficialStamp from '../components/OfficialStamp'
 
 /**
  * One review, in full, on its own URL — what the index panel on /reviews links
@@ -185,7 +186,8 @@ export default function ReviewDetail() {
             <TagLine tag={post.tag} />
             <h1>{post.title}</h1>
             <span className="blog-card-byline">
-              {post.author} {mine && <span className="blog-you">You</span>} ·{' '}
+              {post.official ? <OfficialStamp /> : post.author}{' '}
+              {mine && <span className="blog-you">You</span>} ·{' '}
               <CalendarDays size={12} /> {timeAgo(post.ts)}
             </span>
           </div>
@@ -263,7 +265,8 @@ export default function ReviewDetail() {
                     <span className="review-related-text">
                       <b>{p.title}</b>
                       <small>
-                        {p.tag?.label} · {p.author}
+                        {p.tag?.label} ·{' '}
+                        {p.official ? <OfficialStamp compact /> : p.author}
                       </small>
                     </span>
                   </Link>

@@ -19,6 +19,7 @@ import { watchUrl, bookingUrls } from '../watchLinks'
 import { platformClass, shareRelease } from '../share'
 import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
 import { platformByName } from '../platforms'
+import OfficialStamp from '../components/OfficialStamp'
 import Breadcrumbs from '../components/Breadcrumbs'
 
 type TitleStatus = 'streaming' | 'upcoming-ott' | 'in-theatres' | 'upcoming-theatre'
@@ -277,7 +278,9 @@ export default function MovieDetail() {
               <article key={p.id} className="movie-review">
                 <h3>{p.title}</h3>
                 <p>{p.body}</p>
-                <span className="movie-review-by">— {p.author}</span>
+                <span className="movie-review-by">
+                  {p.official ? <OfficialStamp compact /> : <>— {p.author}</>}
+                </span>
               </article>
             ))}
             <Link to="/reviews" className="movie-review-all">

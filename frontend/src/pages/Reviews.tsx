@@ -63,6 +63,7 @@ import WatchLogForm from '../components/WatchLogForm'
 import ArticleImagePicker, { DEFAULT_POSITION } from '../components/ArticleImagePicker'
 import Prose from '../components/Prose'
 import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
+import OfficialStamp from '../components/OfficialStamp'
 
 // Tiny letter tiles drifting down behind the page — pure decoration
 const RAIN_GLYPHS = 'సినిమాక్రికెట్వారంఅడ్డాCINEMAOTTCRICKETREVIEW★🎬🏏'
@@ -1059,7 +1060,8 @@ function PostModal({
             <TagLine tag={post.tag} />
             <h2>{post.title}</h2>
             <span className="blog-card-byline">
-              {post.author} {own && <span className="blog-you">You</span>} ·{' '}
+              {post.official ? <OfficialStamp compact /> : post.author}{' '}
+              {own && <span className="blog-you">You</span>} ·{' '}
               <CalendarDays size={12} /> {timeAgo(post.ts)}
             </span>
           </div>
@@ -1155,7 +1157,8 @@ function PostCard({
           <TagLine tag={post.tag} />
           <h2>{post.title}</h2>
           <span className="blog-card-byline">
-            {post.author} {mine && <span className="blog-you">You</span>} ·{' '}
+            {post.official ? <OfficialStamp compact /> : post.author}{' '}
+            {mine && <span className="blog-you">You</span>} ·{' '}
             <CalendarDays size={12} /> {timeAgo(post.ts)}
           </span>
         </div>

@@ -263,7 +263,7 @@ const addaContact = (l: AddaListing) => ({
 async function loadPosts(env: Env): Promise<{ posts: BlogPost[] }> {
   const hit = memory.get('blog-list')
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value as { posts: BlogPost[] }
-  const res = await sb(env, 'posts?select=id,ts,author,title,body,tag&order=ts.desc&limit=200')
+  const res = await sb(env, 'posts?select=id,ts,author,title,body,tag,official&order=ts.desc&limit=200')
   const posts = res.ok ? ((await res.json()) as BlogPost[]) : []
   const value = { posts }
   memory.set('blog-list', { at: Date.now(), value })
@@ -303,7 +303,7 @@ async function loadPost(env: Env, id: string): Promise<BlogPost | null> {
   if (cached) return cached
   const res = await sb(
     env,
-    `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,title,body,tag&limit=1`
+    `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,title,body,tag,official&limit=1`
   )
   const rows = res.ok ? ((await res.json()) as BlogPost[]) : []
   return rows[0] ?? null
@@ -1225,7 +1225,7 @@ const routes = {
       if (!profile) return json({ error: 'Please sign in with Google' }, 401)
       const res = await sb(
         env,
-        `posts?author_email=eq.${encodeURIComponent(profile.email)}&select=id,ts,author,title,body,tag&order=ts.desc&limit=200`
+        `posts?author_email=eq.${encodeURIComponent(profile.email)}&select=id,ts,author,title,body,tag,official&order=ts.desc&limit=200`
       )
       const posts = res.ok ? ((await res.json()) as BlogPost[]) : []
       return json({ posts })
@@ -1565,7 +1565,7 @@ const routes = {
       // author_email is never in the cached list, so it is read fresh here
       const res = await sb(
         env,
-        `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,author_email,title,body,tag&limit=1`
+        `posts?id=eq.${encodeURIComponent(id)}&select=id,ts,author,author_email,title,body,tag,official&limit=1`
       )
       const rows = res.ok ? ((await res.json()) as Array<BlogPost & { author_email?: string }>) : []
       const row = rows[0]

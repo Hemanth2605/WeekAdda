@@ -1292,6 +1292,15 @@ export interface BlogPost {
   title: string
   body: string
   tag: BlogTag
+  /**
+   * The ✓ WeekAdda stamp, exactly as an article carries it: set server-side
+   * from the verified email, never from the request body, and declinable with
+   * `official: false` so a personal review is not forced out as the masthead.
+   *
+   * A stamped review shows the stamp *instead of* a byline — the site said it,
+   * and there is no writer name behind that.
+   */
+  official?: boolean
 }
 
 /** Public shape of a post: everything except the writer's email. */
@@ -1356,9 +1365,10 @@ export function buildPost(
   const title = String(raw.title ?? '').trim().slice(0, 120)
   const body = String(raw.body ?? '').trim().slice(0, 5000)
   // Display name stays self-chosen; a signed-in user's Google name is the
-  // fallback before Anonymous. Reviews carry no official stamp, but the site's
-  // byline is still reserved here — otherwise it could be worn on a review.
-  const author = resolveAuthor(raw.author, verified, isOwnerEmail(verified?.email, ownerEmail))
+  // fallback before Anonymous. The site's byline is reserved either way —
+  // resolveAuthor refuses it from anyone the owner check did not clear.
+  const official = isOwnerEmail(verified?.email, ownerEmail) && raw.official !== false
+  const author = resolveAuthor(raw.author, verified, official)
   const kind = tagRaw.kind
   const label = String(tagRaw.label ?? '').trim().slice(0, 160)
   if (!title || !body || !label) return null
@@ -1383,6 +1393,7 @@ export function buildPost(
             .map((l) => l.slice(0, 400))
         : [],
     },
+    ...(official ? { official: true } : {}),
   }
 }
 
@@ -1638,6 +1649,10 @@ export function applyPostEdit(existing: BlogPost, input: unknown): BlogPost | nu
     title: rebuilt.title,
     body: rebuilt.body,
     tag: rebuilt.tag,
+    // Identity, not content: the stamp comes from the stored review and cannot
+    // be granted or dropped by an edit, exactly as on an article. `buildPost`
+    // above was handed no verified profile, so it could not have set one.
+    ...(existing.official ? { official: true } : {}),
   }
 }
 

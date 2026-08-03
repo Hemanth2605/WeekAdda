@@ -40,11 +40,19 @@ create table if not exists posts (
                               -- never returned by the public API)
   title text not null,
   body text not null,
-  tag jsonb not null          -- { kind, id, label, sub, poster }
+  tag jsonb not null,         -- { kind, id, label, sub, poster }
+  official boolean not null default false  -- published by the site itself;
+                              -- shown as the ✓ stamp instead of a byline
 );
 
 -- Migration for databases created before Google sign-in (July 2026):
 alter table posts add column if not exists author_email text;
+
+-- The ✓ WeekAdda stamp on a review (Aug 2026), the same one articles carry.
+-- Set server-side from the verified email and never from the request body, so
+-- the column is only ever written by code that has already checked who is
+-- asking. Default false: every existing review keeps its own byline.
+alter table posts add column if not exists official boolean not null default false;
 
 -- Articles (July 2026): the writing with no release to hang on — the 1983
 -- final, a top-ten list, an old film revisited. Deliberately its own table

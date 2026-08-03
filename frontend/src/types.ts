@@ -77,6 +77,13 @@ export interface BlogPost {
   title: string
   body: string
   tag: BlogTag
+  /**
+   * The ✓ WeekAdda stamp, as on an article. Server-set from the verified email,
+   * never from what was typed — so it is read here rather than the author name,
+   * which is evidence of nothing. Absent on every review written before this
+   * existed, hence optional.
+   */
+  official?: boolean
 }
 
 /**

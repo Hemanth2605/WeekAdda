@@ -30,6 +30,24 @@ declare global {
 }
 
 const CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
+
+/**
+ * The session, in **sessionStorage** — and it should stay there.
+ *
+ * localStorage is the obvious "stay signed in" change and it is the wrong one
+ * here. Google's access token lasts 3600 seconds and `isFresh` enforces it, so
+ * moving it would buy surviving a restart within the same hour and nothing
+ * after; the visitor is signed out at the end of that hour either way. The
+ * price is a bearer token left on disk, readable by any script that ever gets
+ * onto the page, for as long as the browser keeps it.
+ *
+ * Real persistence is not a storage choice. It needs a refresh token, which
+ * must be held server-side, with this page carrying an httpOnly cookie it
+ * cannot read. That is a worthwhile change and a large one — every endpoint
+ * that reads `Authorization: Bearer` today would move to the cookie. Until
+ * then, an hour of signed-in time in the tab you signed in from is the honest
+ * offer, and it is the safer one.
+ */
 const STORE_KEY = 'weekadda-google'
 
 export const authEnabled = Boolean(CLIENT_ID)
@@ -87,6 +105,8 @@ export function refreshUser(): GoogleUser | null {
 }
 
 export function signOut() {
+  const token = currentUser?.token
+
   try {
     sessionStorage.removeItem(STORE_KEY)
   } catch {
@@ -94,6 +114,29 @@ export function signOut() {
   }
   window.google?.accounts.id.disableAutoSelect()
   setCurrentUser(null)
+
+  /*
+   * Tell Google as well, not just ourselves.
+   *
+   * Forgetting the token locally left it valid at Google for the rest of its
+   * hour — so a copy taken from storage before signing out still worked, and
+   * "sign out" quietly meant "sign out of this tab". Revoking ends it at the
+   * source, which is what the word promises.
+   *
+   * Best-effort and never awaited: signing out must not depend on the network,
+   * and `keepalive` lets it finish even if this page is closing behind it.
+   */
+  if (!token) return
+  try {
+    fetch('https://oauth2.googleapis.com/revoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token }),
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    // a browser without keepalive, or offline — local sign-out already happened
+  }
 }
 
 let gisLoading: Promise<void> | null = null

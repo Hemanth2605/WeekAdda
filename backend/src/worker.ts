@@ -80,6 +80,18 @@ interface Env {
   /** Google OAuth client id; when set, publishing a blog post requires sign-in */
   GOOGLE_CLIENT_ID?: string
   /**
+   * Google OAuth client **secret** — a secret, not a var, and the only reason
+   * the redirect sign-in exists. Google requires it to exchange an
+   * authorization code for a token on a Web client, which is precisely why
+   * that exchange cannot happen in the browser.
+   *
+   * Unset means the redirect flow is simply not offered and sign-in stays on
+   * the popup everywhere, exactly as before — the same keyless fallback the
+   * rest of this file uses. Set it with:
+   *   npx wrangler secret put GOOGLE_CLIENT_SECRET
+   */
+  GOOGLE_CLIENT_SECRET?: string
+  /**
    * Owner account(s) for the private /stats dashboard, comma-separated.
    * A secret (`wrangler secret put OWNER_EMAIL`), not a var — unlike the client
    * id this is a personal address and the repo is public. Unset = closed.
@@ -416,7 +428,19 @@ const SPA_ROUTES = new Set([
  * including a crawler. Both are absent from SEO_PAGES and buildSitemap too —
  * this header is what covers crawlers that ignore robots.txt.
  */
-const NOINDEX_PAGES = new Set(['/stats', '/my-articles', '/my-reviews'])
+const NOINDEX_PAGES = new Set(['/stats', '/my-articles', '/my-reviews', '/auth/google'])
+
+/**
+ * Where Google sends a redirect sign-in back to. A real route, not a page: it
+ * has to answer 200 with the shell so the app can boot, read the code out of
+ * the query and move the visitor on. Left out of the known routes it would
+ * have been served as a soft 404, which is what an unrecognised path gets —
+ * so the one URL a sign-in comes home to would have answered "not found".
+ *
+ * Never indexed, and there is nothing to index: by the time anything renders
+ * the app has already replaced the URL with wherever the visitor started.
+ */
+const AUTH_RETURN = '/auth/google'
 
 /** Title pages carry an id and an optional slug: /movie/:id[/:slug]. */
 const MOVIE_ROUTE = /^\/movie\/[^/]+(\/[^/]*)?$/
@@ -445,6 +469,7 @@ const LOG_ROUTE = /^\/log\/[^/]+\/?$/
 
 function isKnownRoute(pathname: string): boolean {
   return (
+    pathname === AUTH_RETURN ||
     SPA_ROUTES.has(pathname) ||
     LOG_ROUTE.test(pathname) ||
     MOVIE_ROUTE.test(pathname) ||
@@ -754,6 +779,80 @@ const routes = {
       return json(
         queryReleases(data, query, { syncing: false, liveConfigured: data.source === 'tmdb' })
       )
+    }
+
+    /**
+     * Exchange an authorization code for an access token.
+     *
+     * The popup sign-in used everywhere else cannot work inside an installed
+     * iOS app: the picker opens in Safari, a separate context with no opener to
+     * report back to, so the app is never told anything. A top-level redirect
+     * stays inside the app — but it comes back with a *code*, and Google will
+     * only trade a code for a token when the client secret comes with it. That
+     * secret cannot live in a bundle, so the trade happens here.
+     *
+     * Nothing is stored: the token goes straight back to the page that asked,
+     * which keeps it exactly where the popup flow already keeps it. This route
+     * adds a way to obtain a session, not a new place one lives.
+     */
+    if (url.pathname === '/api/auth/google' && request.method === 'POST') {
+      if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+        return json({ error: 'Redirect sign-in is not configured' }, 501)
+      }
+      let body: { code?: string; redirectUri?: string } = {}
+      try {
+        body = (await request.json()) as typeof body
+      } catch {
+        return json({ error: 'Bad request' }, 400)
+      }
+      if (!body.code || !body.redirectUri) return json({ error: 'Bad request' }, 400)
+
+      // The redirect_uri must be one of ours, and must match the one the code
+      // was issued against. Taking it from the body without checking would let
+      // anyone spend our secret against a URI of their choosing.
+      let redirectUri: URL
+      try {
+        redirectUri = new URL(body.redirectUri)
+      } catch {
+        return json({ error: 'Bad request' }, 400)
+      }
+      if (redirectUri.origin !== url.origin || redirectUri.pathname !== '/auth/google') {
+        return json({ error: 'Bad request' }, 400)
+      }
+
+      try {
+        const res = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            code: body.code,
+            client_id: env.GOOGLE_CLIENT_ID,
+            client_secret: env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: redirectUri.toString(),
+            grant_type: 'authorization_code',
+          }),
+        })
+        const data = (await res.json()) as {
+          access_token?: string
+          expires_in?: number
+          error_description?: string
+        }
+        if (!res.ok || !data.access_token) {
+          return json({ error: data.error_description || 'Sign-in failed' }, 400)
+        }
+        // Never cached, anywhere: this is a credential in transit
+        return new Response(
+          JSON.stringify({ accessToken: data.access_token, expiresIn: data.expires_in ?? 3600 }),
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'private, no-store',
+            },
+          }
+        )
+      } catch {
+        return json({ error: 'Sign-in failed' }, 502)
+      }
     }
 
     if (url.pathname.startsWith('/api/ott/') && request.method === 'GET') {

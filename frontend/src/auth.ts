@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { isApplePortable, isStandalone } from './device'
 
 /**
  * Google sign-in for publishing blog posts (Google Identity Services).
@@ -122,6 +123,160 @@ function loadGis(): Promise<void> {
 export const SIGNIN_UNREACHABLE = 'signin_unreachable'
 
 /**
+ * Turn a raw access token into the signed-in user, and remember them.
+ *
+ * Both sign-in routes end here — the popup's callback and the redirect's
+ * return — so there is one definition of what being signed in means, and no
+ * chance of the two drifting into storing subtly different things.
+ */
+async function adoptToken(accessToken: string, expiresIn: number): Promise<GoogleUser> {
+  const ui = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const profile = ui.ok ? await ui.json() : {}
+  const user: GoogleUser = {
+    token: accessToken,
+    name: profile.name ?? '',
+    email: profile.email ?? '',
+    picture: profile.picture ?? '',
+    exp: Math.floor(Date.now() / 1000) + Number(expiresIn || 3600),
+  }
+  try {
+    sessionStorage.setItem(STORE_KEY, JSON.stringify(user))
+  } catch {
+    // best-effort
+  }
+  setCurrentUser(user)
+  return user
+}
+
+// ---------------------------------------------------------------- redirect flow
+
+const REDIRECT_PATH = '/auth/google'
+const STATE_KEY = 'weekadda-oauth-state'
+/** Where the visitor was when they signed in, so they land back on it. */
+const RETURN_KEY = 'weekadda-oauth-return'
+/** Set when a return came home empty, so the page can say so once. */
+const FAILED_KEY = 'weekadda-oauth-failed'
+
+/**
+ * Whether the last redirect sign-in came back without a session — read once and
+ * cleared, so it is reported by whichever button mounts first and not again.
+ *
+ * Without this a failed exchange is indistinguishable from never having tried:
+ * the visitor leaves for Google, comes back, and is simply still signed out.
+ * That is the same silence that made the popup look like a broken button, and
+ * it is worth a sentence.
+ */
+export function takeRedirectSignInError(): boolean {
+  try {
+    const failed = sessionStorage.getItem(FAILED_KEY) === '1'
+    if (failed) sessionStorage.removeItem(FAILED_KEY)
+    return failed
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Sign in by leaving the page rather than by opening one.
+ *
+ * A popup cannot report back to an installed iOS app — it opens in Safari, a
+ * separate context with no opener — so the app is never told anything and the
+ * button waits forever. A top-level redirect has no such problem: it is the
+ * same window throughout, and it comes home to our own origin.
+ *
+ * Used only where the popup cannot work. Desktop and Android keep the popup:
+ * it is proven, it does not throw the page away mid-visit, and a second auth
+ * path exists here because one platform needs it, not because it is better.
+ */
+export const signInNeedsRedirect = isStandalone && isApplePortable
+
+/** Cryptographically random, so a returning code can be tied to our own start. */
+function newState(): string {
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+}
+
+/** Leave for Google. Nothing after this runs — the page is on its way out. */
+export function startRedirectSignIn(): void {
+  const state = newState()
+  try {
+    sessionStorage.setItem(STATE_KEY, state)
+    sessionStorage.setItem(RETURN_KEY, location.pathname + location.search)
+  } catch {
+    // A browser refusing storage cannot complete this flow; the state check
+    // below will fail closed rather than accept an unverifiable code
+  }
+  const auth = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+  auth.searchParams.set('client_id', CLIENT_ID)
+  auth.searchParams.set('redirect_uri', location.origin + REDIRECT_PATH)
+  auth.searchParams.set('response_type', 'code')
+  auth.searchParams.set('scope', 'openid email profile')
+  auth.searchParams.set('state', state)
+  // Without this Google returns no refresh-free consent for a returning user
+  auth.searchParams.set('prompt', 'select_account')
+  location.assign(auth.toString())
+}
+
+/**
+ * Called once on boot at /auth/google. Trades the code for a token through the
+ * Worker — the exchange needs the client secret, which is why it cannot happen
+ * here — and returns where the visitor was when they left.
+ *
+ * Returns null when this is not a sign-in return, so boot can ignore it.
+ */
+export async function completeRedirectSignIn(): Promise<string | null> {
+  if (location.pathname !== REDIRECT_PATH) return null
+  const params = new URLSearchParams(location.search)
+  const code = params.get('code')
+  const state = params.get('state')
+
+  let expected: string | null = null
+  let back = '/'
+  try {
+    expected = sessionStorage.getItem(STATE_KEY)
+    back = sessionStorage.getItem(RETURN_KEY) || '/'
+    sessionStorage.removeItem(STATE_KEY)
+    sessionStorage.removeItem(RETURN_KEY)
+  } catch {
+    // handled by the mismatch below
+  }
+
+  const failed = () => {
+    try {
+      sessionStorage.setItem(FAILED_KEY, '1')
+    } catch {
+      // then it goes unreported; the button is still there to try again
+    }
+    return back
+  }
+
+  // A code we did not ask for is not a sign-in, it is someone else's. Fail
+  // closed and simply go home rather than spend the exchange on it. Not
+  // reported: nobody here started a sign-in, so there is nothing to explain.
+  if (!code || !state || !expected || state !== expected) return back
+
+  try {
+    const res = await fetch('/api/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirectUri: location.origin + REDIRECT_PATH }),
+    })
+    if (!res.ok) return failed()
+    const { accessToken, expiresIn } = (await res.json()) as {
+      accessToken: string
+      expiresIn: number
+    }
+    await adoptToken(accessToken, expiresIn)
+  } catch {
+    return failed()
+  }
+  return back
+}
+
+/**
  * Open Google's account-picker popup (token flow, so we can use our own
  * styled button) and sign the whole app in. Must be called from a click
  * handler so the popup isn't blocked. Rejects with 'popup_closed' when the
@@ -185,24 +340,7 @@ export async function signInWithGoogle(): Promise<GoogleUser> {
       callback: async (res) => {
         if (!res.access_token) return fail(new Error(res.error || 'Sign-in failed'))
         try {
-          const ui = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-            headers: { Authorization: `Bearer ${res.access_token}` },
-          })
-          const profile = ui.ok ? await ui.json() : {}
-          const user: GoogleUser = {
-            token: res.access_token,
-            name: profile.name ?? '',
-            email: profile.email ?? '',
-            picture: profile.picture ?? '',
-            exp: Math.floor(Date.now() / 1000) + Number(res.expires_in ?? 3600),
-          }
-          try {
-            sessionStorage.setItem(STORE_KEY, JSON.stringify(user))
-          } catch {
-            // best-effort
-          }
-          setCurrentUser(user)
-          done(user)
+          done(await adoptToken(res.access_token, Number(res.expires_in ?? 3600)))
         } catch (err) {
           fail(err instanceof Error ? err : new Error('Sign-in failed'))
         }

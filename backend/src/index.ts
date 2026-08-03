@@ -10,6 +10,7 @@ import articleRoutes from './routes/articles'
 import addaRoutes from './routes/adda'
 import logRoutes from './routes/logs'
 import pushRoutes from './routes/push'
+import authRoutes from './routes/auth'
 import { syncReleases, syncIfStale, getReleaseData } from './agent/releaseAgent'
 import { findTitle, relatedTitles, queryPlatform } from './queries'
 import { syncCricket, syncCricketIfStale } from './agent/cricketAgent'
@@ -49,6 +50,7 @@ app.use('/api/articles', articleRoutes)
 app.use('/api/adda', addaRoutes)
 app.use('/api/logs', logRoutes)
 app.use('/api/push', pushRoutes)
+app.use('/api/auth', authRoutes)
 
 // The daily agents: every morning at 04:00 — movies then cricket. Matches the
 // production sweep (.github/workflows/sweep.yml), which runs at 4 AM IST.

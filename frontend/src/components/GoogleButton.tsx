@@ -1,6 +1,11 @@
-import { useState } from 'react'
-import { SIGNIN_UNREACHABLE, signInWithGoogle } from '../auth'
-import { isApplePortable, isStandalone } from '../device'
+import { useEffect, useState } from 'react'
+import {
+  SIGNIN_UNREACHABLE,
+  signInNeedsRedirect,
+  signInWithGoogle,
+  startRedirectSignIn,
+  takeRedirectSignInError,
+} from '../auth'
 
 /** Official multicolor Google "G" — the one part that must stay original. */
 function GoogleG({ size = 18 }: { size?: number }) {
@@ -35,8 +40,28 @@ interface Props {
 export default function GoogleButton({ small, onError }: Props) {
   const [busy, setBusy] = useState(false)
 
+  /*
+   * A redirect sign-in that came home empty. The visitor left for Google, came
+   * back, and is still signed out — which without a word looks exactly like
+   * never having tried. Read once and cleared, so it is said by whichever
+   * button mounts first and not repeated by the others on the page.
+   */
+  useEffect(() => {
+    if (takeRedirectSignInError()) {
+      onError?.('Sign-in did not complete. Please try again.')
+    }
+    // once, on mount — the flag is consumed by the read
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const click = () => {
     if (busy) return
+    // Where a popup cannot report back, leave the page instead of opening one.
+    // Nothing after this runs — the browser is already on its way to Google.
+    if (signInNeedsRedirect) {
+      setBusy(true)
+      return startRedirectSignIn()
+    }
     setBusy(true)
     signInWithGoogle()
       .catch((err: Error) => {
@@ -48,9 +73,15 @@ export default function GoogleButton({ small, onError }: Props) {
          * in Safari, which cannot talk to the app it was launched from — and
          * the visitor needs the way round it, not "please try again".
          */
+        /*
+         * No special case for the installed app any more: it takes the redirect
+         * above and never reaches here, so a message about it would be for a
+         * situation that can no longer arise. A failed *redirect* is reported
+         * on the way back in instead — see the effect below.
+         */
         onError?.(
-          err.message === SIGNIN_UNREACHABLE && isStandalone && isApplePortable
-            ? 'Sign-in cannot finish inside the installed app. Open weekadda.com in Safari to sign in — you stay signed in when you come back here.'
+          err.message === SIGNIN_UNREACHABLE
+            ? 'Sign-in did not complete — the Google window closed without answering.'
             : 'Could not sign in with Google — please try again'
         )
       })

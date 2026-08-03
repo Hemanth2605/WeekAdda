@@ -42,6 +42,27 @@ cd frontend && npm run check:css
   `cricketAgent.ts` (ESPN public scoreboard JSON, accumulating cache;
   `CRICKET_CACHE_VERSION` plays the same role). Locally node-cron runs them at 4 AM (`backend/src/index.ts`);
   each keeps a POST `/refresh` route for dev convenience (no UI button).
+- **Series are swept by TMDB *network*, not by watch provider** (Aug 2026).
+  JustWatch links very few regional series, so a provider-gated `discover/tv`
+  could not see them: "Objection, My Lord!" (Telugu, ZEE5) sat on TMDB with a
+  poster and a date and an empty India `watch/providers`, and the tab showed
+  three Telugu series in thirteen weeks. `OTT_NETWORKS` in `releaseAgent.ts`
+  holds the **network** ids — a different numbering from the provider ids (ZEE5
+  is provider 232 and network 2590) — and `fetchSeriesByNetwork` asks for the
+  whole window in one query per network, reading the weekly bucket back off each
+  date. Asking by network rather than by language is what keeps it honest *and*
+  cheap: `discover/tv` by language answers with broadcast television, and would
+  need a record read per candidate to find out whose show it is. Eighteen calls
+  a sweep, measured. Sun NXT has no TMDB network and keeps its provider-only
+  coverage.
+- **`data/ottPremieres.ts` pins premieres no source records.** A film opens in
+  cinemas, the streaming date is announced weeks later, and TMDB is never told —
+  "Lenin" had one India release date (theatrical) and no provider, so neither
+  the per-provider nor the generic digital query could find it, and Wikipedia
+  lists only originals. Hand-maintained like `panIndia.ts`, built from the film's
+  own theatrical row under the id a sweep would have used, so the two agree the
+  day TMDB catches up. `dedupeOtt` then collapses transliteration variants
+  ("Bãhubali" / "Baahubali") that share a date and a language.
 - **Per-platform hubs** (`/ott/<slug>`, July 2026 — SEO-PLAN Tier 2): eight pages,
   one per streaming service, for the queries `/movies` cannot win ("new movies on
   netflix india"). `OTT_PLATFORMS` + `queryPlatform` + `PLATFORM_MIN_TITLES` in
@@ -53,6 +74,14 @@ cd frontend && npm run check:css
   standing question. A hub under 3 titles still serves but gets
   `X-Robots-Tag: noindex, follow` and is left out of `buildSitemap`; keep those
   two gates agreeing. Adding a platform means editing **both** platform lists.
+- **A search reaches across every week, not the one on screen** (Aug 2026).
+  `queryReleases` used to narrow to the selected week *before* running the
+  search, so typing a title got "nothing found" with thirteen weeks of it in the
+  cache — the honest answer "not this week" arriving in the exact shape of "we
+  do not have it". Theatres and OTT both search the whole window now; the
+  theatres tab still stops at today, since anything later belongs to Coming Soon.
+  `Releases.tsx` shows **"All weeks"** while a search is live rather than the
+  week label, and the empty state stops advising another week.
 - **Query logic is shared**: `backend/src/queries.ts` holds all filter/sort/stats logic
   and the cache types, used by both the Express routes and the Worker. Change behaviour
   there, never in just one of the two.
@@ -75,6 +104,16 @@ cd frontend && npm run check:css
   production Supabase `posts` / `post_ratings` tables. `StarRow`/`TagLine`/`timeAgo`
   live in `components/ReviewBits.tsx` so the feed and the per-review page cannot
   drift into rendering the same review differently.
+  **A review carries the ✓ WeekAdda stamp on the same terms an article does**
+  (Aug 2026): `posts.official`, set in `buildPost` from `isOwnerEmail` and never
+  from the request body, declinable with `official: false`, and untouchable by
+  an edit — `applyPostEdit` rebuilds every field but identity. Shown wherever a
+  byline is (feed card, modal, its own page, related reviews, reviews on a title
+  page), **instead of** the name; the "You" badge still shows, being not a byline
+  but something only the account that wrote it can see. `reviewBy` and
+  `reviewAuthorLd` in `seo.ts` carry it into the pre-render, where a stamped
+  review is an **Organization** in JSON-LD rather than a Person — what the
+  crawler reads has to match what the page shows.
 - **Articles** (`/article/:id/:slug`, `ArticleDetail.tsx`, July 2026): the second
   kind of writing — the 1983 final, a top-ten list, an old film revisited.
   **Not a variant of a review**: an article has no `tag`, so it gets its own
@@ -105,6 +144,18 @@ cd frontend && npm run check:css
     Badges render *beside the film where the prose names it* (first mention, on
     a word boundary — or "83" matches inside "1983"); only films the prose never
     names fall through to a "Where to watch" block.
+  - **Save to read later** (`saved_articles`, Aug 2026): a bookmark, and only
+    the id — the article comes from the ordinary listing, because a saved *copy*
+    would go stale the moment its author fixed a typo. **On the account, not the
+    browser** (owner's call): a list whose whole purpose is "later, when I have
+    time" is no use if later happens on the other device, so saving needs a
+    sign-in. `saved.ts` is the only thing that talks to storage, which is what
+    made moving it off localStorage a one-file change. `GET /api/articles/saved`
+    + `POST /api/articles/:id/save`, **declared above `/:id`** or "saved" is read
+    as an article id. Never offered on your own writing — which is also why the
+    "Yours" and "Saved" chips on `/articles` are **alternatives, not stacking
+    filters**: their overlap is empty by construction, so combining them could
+    only ever produce a blank page.
   - **A heart, not a rating** (`article_likes`): one per account, toggled, no
     liking your own, celebrated with a burst on the **first** like only. This is
     the one sanctioned exception to the no-ratings-elsewhere rule below —
@@ -194,6 +245,29 @@ cd frontend && npm run check:css
   strip them). Needs `GOOGLE_CLIENT_ID` (Worker var in wrangler.jsonc + backend/.env)
   and `VITE_GOOGLE_CLIENT_ID` (frontend/.env, baked in at build). While unset,
   anonymous posting still works — keep that keyless fallback.
+- **Installed iOS apps sign in by redirect, not by popup** (Aug 2026). Inside a
+  Home Screen web app the picker opens in Safari — a separate context with no
+  opener — so Google calls neither of its callbacks and the button waits
+  forever. `signInNeedsRedirect` (`isStandalone && isApplePortable`, in
+  `device.ts`) sends only those visitors to Google as a **top-level navigation**
+  with a random `state`; desktop and Android keep the proven popup. It returns
+  to `/auth/google`, which is a **known route** in `worker.ts` (an unrecognised
+  path is served as a soft 404, so the one URL a sign-in comes home to would
+  have answered "not found") and is noindexed. `main.tsx` settles the return
+  **before React mounts**, or the first screen renders signed-out and corrects
+  itself. The **authorization-code** flow, not the implicit one — Google treats
+  implicit as legacy — so the code is traded for a token in `POST
+  /api/auth/google` using `GOOGLE_CLIENT_SECRET`, which cannot live in a bundle.
+  Unset ⇒ 501 and the popup everywhere, the usual keyless fallback. If an
+  installed *Android* app ever shows the same stuck button, widening
+  `signInNeedsRedirect` is the one line to change.
+  **Sessions last an hour and live in `sessionStorage`** — deliberately, and
+  `auth.ts` says why above `STORE_KEY`: the access token expires in 3600s
+  regardless, so `localStorage` would buy surviving a restart *within* that hour
+  and cost a bearer token left on disk. Real persistence needs a refresh token
+  held server-side and an httpOnly cookie, which is a rework of every endpoint
+  reading `Authorization: Bearer`. `signOut` now **revokes at Google** as well
+  as forgetting locally, so it means what the word says.
 - **The Adda** (`Adda.tsx`, `backend/src/routes/adda.ts`, Worker `/api/adda*`): a
   community board where anyone posts asks/offers (spare ticket, company for a
   movie/match). Reading is public; posting and clicking "I'm interested" need sign-in.
@@ -273,12 +347,19 @@ cd frontend && npm run check:css
   table. Built frontend ships as Worker static assets with SPA fallback. Worker
   secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`) set via `wrangler secret put`.
 - **Database**: Supabase (Mumbai), schema in `supabase/schema.sql` (`caches`,
-  `clicks`, `posts`, `post_ratings`, `articles`, `article_likes`, `listings`,
-  `listing_interests`, `push_subscriptions`; RLS on, no
+  `clicks`, `posts`, `post_ratings`, `articles`, `article_likes`,
+  `saved_articles`, `listings`, `listing_interests`, `push_subscriptions`,
+  `watch_logs`; RLS on, no
   public policies — service key only). New tables/columns must be added to
   schema.sql AND run manually in the Supabase SQL Editor before the Worker code
   that uses them is deployed (schema.sql ships idempotent `add column if not exists`
   migrations for the auth/ratings/Adda/articles additions).
+  Two from Aug 2026 that had to be run by hand: `posts.official` (the ✓ stamp on
+  a review) and the whole `saved_articles` table. **Seeded rows are a trap**:
+  articles inserted straight into Supabase carry no `author_email`, so
+  `canEditArticle` matches nobody and the owner gets no Edit or Delete on their
+  own site's writing. An id typed by a human (`a-kapil-1983`) rather than
+  generated (`a-msd3mwtl-tnwnj5`) is the tell.
 - **Article covers need a Storage bucket, and SQL cannot make one.** Storage →
   New bucket → `article-images` → **Public** → Create. It has to be public: the
   Worker uploads with the service key, but readers and social-preview crawlers
@@ -300,6 +381,27 @@ cd frontend && npm run check:css
   personal address and the repo is public. Set it once with
   `npx wrangler secret put OWNER_EMAIL` (locally it lives in `backend/.env`).
   Until it's set in production, `/stats` is closed to everyone, including the owner.
+- **`GOOGLE_CLIENT_SECRET` is a Worker secret too** (Aug 2026), and the only
+  reason redirect sign-in exists: Google will trade an authorization code for a
+  token on a Web client only when the secret comes with it, which is precisely
+  why that exchange cannot happen in the browser. `npx wrangler secret put
+  GOOGLE_CLIENT_SECRET`; locally it goes in `backend/.env`. Unset ⇒ 501 and the
+  popup everywhere. The console side needs
+  `https://weekadda.com/auth/google` **and** `http://localhost:5173/auth/google`
+  as Authorized redirect URIs — Google can take minutes to hours to apply that,
+  so a `redirect_uri_mismatch` right after saving is propagation, not a bug.
+  Google now hides client secrets after creation: download the JSON or add a new
+  secret, never expect to copy the old one off the page.
+- **The site is installable** (Aug 2026): `public/manifest.json` +
+  `apple-mobile-web-app-*` tags, so a Home Screen icon opens standalone rather
+  than in a tab. Named `.json` not `.webmanifest` because every host serves
+  `.json` as `application/json`, which browsers accept, while `.webmanifest`
+  depends on the host knowing the extension. The status bar is `black`, **not**
+  `black-translucent`: translucent lets the page run under the status bar and
+  `safe-area-inset-top` appears nowhere in index.css, so the navbar would sit
+  behind the clock. `sw.js` gained an **empty** fetch handler — Chrome has
+  wanted one before treating a site as installable — which never calls
+  `respondWith`, so nothing is cached; do not grow it into a cache.
 - **Deploying app changes is manual** (no git integration):
   `cd frontend && npm run build`, then `cd ../backend && npx wrangler deploy`.
   Pushing to GitHub alone does NOT update the live site.
@@ -393,6 +495,14 @@ cd frontend && npm run check:css
   week jumps); everywhere else a canvas→captureStream video PiP with
   Media-Session prev/next. Button hides when unsupported or nothing to play.
   Reviews/Adda rotate at 3s (reading), Movies/Cricket at 2.5s (`rotateMs`).
+  **Never offered on an iPhone or iPad** (`isApplePortable`, owner Aug 2026):
+  iPadOS accepts a picture-in-picture request for a canvas stream and then
+  never reports the video playable, so every route through that code ends in a
+  timeout. An in-page panel was built as a fallback and **deliberately removed**
+  — the mini player exists to keep playing while you are somewhere else, and a
+  card in the page you are already looking at is a different feature wearing the
+  same name. It floats or it does not happen; a browser that claims support and
+  then refuses says "Not supported here" rather than degrading.
 - **Geo personalization** (`frontend/src/geo.ts`, July 2026): GET `/api/geo`
   returns `{ country, region }` from Cloudflare's `request.cf` (Express answers
   nulls locally; `?force=IN-KA` fakes it). One `useGeo` lookup, cached in
@@ -476,6 +586,7 @@ cd frontend && npm run check:css
   | teal → blue (`.ico-soon`) | Coming Soon tab, Cricket Fixtures tab |
   | green → cyan (`.ico-results`) | Cricket nav, Results tab, `.match-go` |
   | amber → pink (`.ico-adda`) | Adda nav |
+  | violet → sky (`.ico-save`) | Save an article to read later |
   | amber → coral | all four bells (navbar, in-feed card, landing prompt, sheet) |
   | gold → orange / blue → navy | the theme toggle, sun and moon |
   | seven-stop rainbow | the brand mark — one colour per day of the week |
@@ -520,6 +631,18 @@ cd frontend && npm run check:css
   callback still wins the race), and **funnel every exit through one reporting
   path** so no early `return` can leave silently. When something "does nothing",
   suspect an unsettled promise before suspecting the event handler.
+
+- **A deploy blanks the page for anyone already on the site, unless something
+  catches it.** Chunk filenames carry a content hash, so every deploy renames
+  them; a browser holding the previous `index.html` — an open tab, a bfcache
+  restore, an installed app resumed from the switcher — asks for names that are
+  gone. The import rejects, and with no error boundary above `Suspense` React
+  unmounts the **whole tree**: white, no navbar, no footer. It only hits people
+  who were already there, which is what makes it look random. `App.tsx` now
+  routes every lazy import through `route()`, which reloads **once** (guarded in
+  sessionStorage — a reload loop is worse than the bug) because the reload
+  fetches a current `index.html`; and a `Boundary` wraps the whole app, not just
+  the routes, since an error in the navbar blanks the page just as thoroughly.
 
 - **A Worker route nested under another route's prefix guard is dead code, and
   local dev will never tell you.** The `/api/logs*` branches were written inside

@@ -20,7 +20,10 @@ link opens where the sender was.
   scrollable **week timeline** of labelled chips (This Week, Last Week, … up to 13 weeks
   back, oldest on the left), segregated into horizontally-scrolling rows per language —
   always **Telugu, Tamil, English, Hindi, Malayalam, Kannada** first, then the rest —
-  with posters, ratings, and search.
+  with posters, ratings, and search. **Search reaches across every week held**, not
+  just the one on screen — typing a title used to answer "nothing found" with three
+  months of it sitting in the cache. The heading says *All weeks* while a search is
+  live, and the arrows still work, so clearing the box returns you to where you were.
 - 🔜 **Coming Soon** (`/movies/upcoming`) — two views: **In Theatres** (next 90 days) and
   **On OTT** (announced digital premieres for India, platform-tagged where known).
   An upcoming OTT card carries **one badge, not two**: the platform in its brand
@@ -43,7 +46,12 @@ link opens where the sender was.
   rating, and **more releases of the same kind** in the same language — a film in cinemas
   is followed by other films in cinemas, one coming to OTT by others coming to OTT, and
   never by a mixture. Reached from each release's modal ("Full page") and crawled by
-  search engines via the sitemap.
+  search engines via the sitemap. A film that's already out also carries a quiet
+  **"Watched it? Save it to your log"** — in the modal as much as on the page, since
+  a card opens the modal and most readers never go further. It opens the composer
+  already on the private side with the film's name filled in, so the form doesn't ask
+  which film while you're standing on its page. Never shown for something not yet
+  released.
 - ✍️ **Reviews** (`/reviews`) — visitors write their own reviews and **tag the movie or match**
   they're talking about (poster or team flags shown on the card), each with a 5-star
   **rating**. The full take opens in a modal, and every review also has **its own page**
@@ -76,7 +84,14 @@ link opens where the sender was.
   service's own button (Netflix, Prime Video, JioHotstar, Sun NXT, YouTube and more).
   Pieces published from the owner account carry a **✓ WeekAdda** stamp, which reads a
   server-set flag rather than the author name — the byline itself is reserved, so nobody
-  else can wear it.
+  else can wear it. **Reviews carry the same stamp on the same terms.**
+- 🔖 **Save an article to read later** — a bookmark on any article that isn't yours,
+  on its own page and on each card in `/articles`, so you can put something aside
+  *before* opening it. The list lives on your account rather than the browser, so
+  what you save on a phone is waiting on a laptop; that's why saving asks for a
+  sign-in, while reading everything never does. On `/articles`, **Yours** and
+  **Saved** are alternatives rather than filters that stack — you can't save your
+  own writing, so the two together could only ever show nothing.
 - 📚 **Every article in one place** (`/articles`) — the rail beside the reviews feed can
   only carry the newest handful, so this is where the rest live: all articles by everyone,
   with search, a Movies / Cricket filter and Newest / Oldest sorting. Public and
@@ -280,6 +295,7 @@ Then open **http://localhost:5173** — no sign-up, it lands straight on this we
 | `TMDB_API_KEY`      | No       | Real movie/OTT data (sample data without it)       |
 | `WATCHMODE_API_KEY` | No       | OTT catalog additions (source skipped without it)  |
 | `GOOGLE_CLIENT_ID`  | No       | Google sign-in for blog/Adda writes (anonymous without it); frontend needs the same value as `VITE_GOOGLE_CLIENT_ID` in `frontend/.env` |
+| `GOOGLE_CLIENT_SECRET` | No    | Only for redirect sign-in, which installed iOS apps need — a popup there can't report back. Unset means the popup everywhere, unchanged |
 | `OWNER_EMAIL`       | No       | Who may open `/stats` (comma-separated list allowed). Unset = closed to everyone |
 | `VAPID_PUBLIC_KEY`  | No       | Web Push. Also needed by the frontend as `VITE_VAPID_PUBLIC_KEY` — public by design |
 | `VAPID_PRIVATE_KEY` | No       | Signs push messages. **Secret** — a GitHub Actions secret in production, never in the frontend |
@@ -317,6 +333,8 @@ Cricket needs no key.
 | GET    | `/api/articles/mine`    | Your own articles + `owner` — whether this account may publish under the WeekAdda byline |
 | GET    | `/api/articles/likes`   | Per-article like counts `{ count, mine? }`; counts are public, a token adds your own |
 | POST   | `/api/articles/:id/like`| Toggle the heart (Bearer required; one per account, no liking your own) |
+| GET    | `/api/articles/saved`   | Article ids this account has put aside — empty signed out, never cached |
+| POST   | `/api/articles/:id/save`| Save or unsave to read later (Bearer required); answers `{ saved }` |
 | POST   | `/api/articles/image`   | Upload a cover — raw body, own `Content-Type`, JPEG/PNG/WebP/AVIF/GIF, 4 MB cap, sign-in required |
 | GET    | `/api/articles/:id`     | One article + the related rail beside it |
 | PATCH  | `/api/articles/:id`     | Edit your own article. Identity (id, timestamp, author, stamp) is not editable |
@@ -384,7 +402,8 @@ frontend/
   public/flags/            # 69 bundled country flags served from our own domain
 .github/workflows/         # sweep.yml (daily) + notify.yml (9 AM per timezone)
 supabase/schema.sql        # caches, clicks, posts, post_ratings, articles, article_likes,
-                           #   watch_logs, listings, listing_interests, push_subscriptions
+                           #   saved_articles, watch_logs, listings, listing_interests,
+                           #   push_subscriptions
                            #   (+ the article-images and log-images Storage buckets, made
                            #    by hand — article-images public, log-images NOT)
 SEO-PLAN.md                # URL taxonomy roadmap + the four-place route coupling
@@ -523,6 +542,12 @@ free tiers plus the domain:
   redirects the `www` and legacy workers.dev hosts to weekadda.com, and sets security
   headers (`nosniff`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`) on
   every response
+- **Installable**: `public/manifest.json` plus the Apple meta tags, so adding WeekAdda
+  to a Home Screen gives a real app window rather than a browser tab with a URL bar —
+  its own name, its own splash, and long-press shortcuts to OTT, In Theatres and
+  Cricket. On an iPhone or iPad this is also the only state where Safari exposes
+  notifications, so the bell appears once the site is installed; in a normal Safari tab
+  the bell is replaced by a short explainer showing the two taps that get you there.
 - **Geo personalization needs the edge**: `/api/geo` reads `request.cf` (country +
   `regionCode`), which only exists in production — locally it answers `{ null, null }`
   and the default order applies. The **pre-render deliberately keeps the canonical
@@ -533,7 +558,7 @@ free tiers plus the domain:
   keeps serving the previous HTML — including to Googlebot. Hashed JS/CSS filenames are
   immune; it's HTML, which reuses its URL, that goes stale.
 - **Database**: Supabase — schema in `supabase/schema.sql` (`caches`, `clicks`, `posts`,
-  `post_ratings`, `articles`, `article_likes`, `watch_logs`, `listings`,
+  `post_ratings`, `articles`, `article_likes`, `saved_articles`, `watch_logs`, `listings`,
   `listing_interests`, `push_subscriptions`); run new tables/columns in the Supabase SQL
   Editor before deploying Worker code that uses them
 - **Two Storage buckets, and SQL cannot create either.** Storage → New bucket:
@@ -550,7 +575,16 @@ free tiers plus the domain:
 - **`OWNER_EMAIL` is a Worker secret**, not a var — unlike the client id it's a personal
   address and this repo is public: `npx wrangler secret put OWNER_EMAIL`. Until it's
   set, `/stats` is closed to everyone including the owner.
+- **`GOOGLE_CLIENT_SECRET` is a Worker secret** as well, and only exists so an
+  installed iOS app can sign in: a popup there opens in Safari with no way back, so
+  those visitors go to Google as a full-page redirect and return to `/auth/google`,
+  where the code is exchanged server-side. It also needs both redirect URIs registered
+  in the Google console. Unset means the popup everywhere, exactly as before.
 - **Deploy app changes**: `cd frontend && npm run build && cd ../backend && npx wrangler deploy`
+- **Before pushing CSS**: `cd frontend && npm run check:css` — it reads the **built**
+  stylesheet and reports responsive rules that never apply, which source order cannot
+  show you. Both ways of losing are caught: a media rule beaten by a later base rule,
+  and a narrow `max-width` block beaten by a broader one written after it.
 
 ## Roadmap
 

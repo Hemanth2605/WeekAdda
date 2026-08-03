@@ -308,6 +308,7 @@ function Composer({
   onLogged,
   preset,
   startMode,
+  startPrivacy,
   canPublishAsSite,
   editing,
   onEdited,
@@ -324,6 +325,12 @@ function Composer({
   preset?: BlogTag | null
   /** Which side of the switch to open on, when the way in already said. */
   startMode?: 'review' | 'article'
+  /**
+   * Skip the public/private question, when the way in already answered it.
+   * "Save it to your log" on a title page means the log — asking again would
+   * be the form pretending not to have heard.
+   */
+  startPrivacy?: 'public' | 'private'
   /** Owner account: may publish under the WeekAdda byline, or decline it. */
   canPublishAsSite?: boolean
   /** Set when the composer is editing an existing article rather than writing. */
@@ -392,9 +399,10 @@ function Composer({
   useEffect(() => {
     if (open && startMode) setMode(startMode)
     // Asked again on every fresh open: it is a decision about this piece, not
-    // a preference to remember
-    if (open) setPrivacy(editingPost ? 'public' : null)
-  }, [open, startMode])
+    // a preference to remember — unless the way in already answered it, which
+    // "save it to your log" on a title page does.
+    if (open) setPrivacy(editingPost ? 'public' : (startPrivacy ?? null))
+  }, [open, startMode, startPrivacy])
 
   /**
    * Opening the composer must put it in front of the writer.
@@ -689,7 +697,17 @@ function Composer({
       )}
 
       {mode !== 'article' && privacy === 'private' && !editingPost && (
-        <WatchLogForm kind={logKind} onSaved={onLogged} />
+        <WatchLogForm
+          kind={logKind}
+          // The film this was opened from, when it was opened from one — so the
+          // form does not ask which film while standing on its page
+          starter={
+            preset && preset.kind === logKind
+              ? { title: preset.label, titleId: preset.id || undefined }
+              : undefined
+          }
+          onSaved={onLogged}
+        />
       )}
 
       {mode === 'article' ? (
@@ -1229,6 +1247,30 @@ export default function Reviews() {
   const [editing, setEditing] = useState<Article | null>(null)
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null)
   const [composeMode, setComposeMode] = useState<'review' | 'article'>('review')
+  /** Set when the way in already chose public or private; cleared on close. */
+  const [composePrivacy, setComposePrivacy] = useState<'public' | 'private' | undefined>()
+
+  /*
+   * Arriving from "Save it to your log" on a film's page.
+   *
+   * The film travels in router state rather than the URL: it is a whole tag —
+   * id, label, poster — and a query string carrying all that would be a worse
+   * version of what `state` is for. It also means a pasted link is just
+   * /reviews, which is right; this is a handoff between two pages, not a
+   * shareable place.
+   */
+  const handoff = (useLocation().state as { logFilm?: BlogTag } | null)?.logFilm
+  useEffect(() => {
+    if (!handoff) return
+    setPreset(handoff)
+    setComposeMode('review')
+    setComposePrivacy('private')
+    setComposerOpen(true)
+    // Drop it, so a refresh or a Back is a plain visit rather than the form
+    // opening itself again on a film the reader has moved on from
+    window.history.replaceState(null, '', '/reviews')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff])
 
   // Arriving from "Edit" on your own article: fetch it, open the composer on
   // it, and drop the key so a refresh is a plain visit to /reviews. The server
@@ -1473,6 +1515,7 @@ export default function Reviews() {
           onClose={() => {
             setComposerOpen(false)
             setPreset(null)
+            setComposePrivacy(undefined)
             setEditing(null)
             setEditingPost(null)
             // Back where the form was opened from, when that was another page.
@@ -1504,6 +1547,7 @@ export default function Reviews() {
             navigate('/articles?mine=1', { state: { cheer: { kind: 'article', first } } })
           }}
           startMode={composeMode}
+          startPrivacy={composePrivacy}
           canPublishAsSite={isOwner}
           editing={editing}
           onEdited={(article) => {

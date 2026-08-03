@@ -5,6 +5,7 @@ import { Release } from '../types'
 import { titlePath } from '../seo'
 import { coverGradient, formatDate, daysUntil } from './ReleaseCard'
 import { watchUrl, bookingUrls } from '../watchLinks'
+import LogInvite from './LogInvite'
 import { trackClick } from '../api'
 import { platformClass, shareRelease } from '../share'
 import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
@@ -174,6 +175,9 @@ export default function ReleaseModal({ release, onClose }: Props) {
                 Full page <ExternalLink size={13} />
               </Link>
             </div>
+            {/* Here as much as on the title page, and here matters more: a card
+                opens this, and most readers never go further than it */}
+            <LogInvite release={release} onNavigate={onClose} />
           </div>
         </div>
       </div>

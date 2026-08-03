@@ -100,6 +100,24 @@ create table if not exists article_likes (
   primary key (article_id, user_email)
 );
 
+-- Articles put aside to read later (Aug 2026). One row per account per article,
+-- and nothing but the pair: the article itself is fetched normally, so a saved
+-- copy would only go stale the moment its author fixed a typo.
+--
+-- Account-scoped rather than per-browser (owner, Aug 2026) so the list follows
+-- the reader between phone and laptop. That is why saving needs a sign-in at
+-- all — there is nowhere else to put it.
+--
+-- Never served publicly: like article_likes, the email is the key and the API
+-- only ever answers "which of these did *you* save".
+create table if not exists saved_articles (
+  article_id text not null,
+  user_email text not null,   -- verified Google account (never served publicly)
+  ts timestamptz not null default now(),
+  primary key (article_id, user_email)
+);
+alter table saved_articles enable row level security;
+
 -- Blog post ratings: one rating per Google account per post, upserted by the
 -- Worker (sign-in required; authors cannot rate their own posts).
 create table if not exists post_ratings (

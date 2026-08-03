@@ -26,6 +26,7 @@ import { CricketMatch, Release, WatchLog } from '../types'
 export default function WatchLogForm({
   kind,
   editing,
+  starter,
   onSaved,
   onCancel,
 }: {
@@ -38,19 +39,25 @@ export default function WatchLogForm({
   kind: 'movie' | 'match'
   /** An existing entry to change. Absent means this is a new one. */
   editing?: WatchLog
+  /**
+   * A film already decided on, from somewhere that knew it — the "save it to
+   * your log" line on a title page hands over the film whose page it was on.
+   * Only seeds a *new* entry; editing carries its own title and must win.
+   */
+  starter?: { title: string; titleId?: string }
   onSaved: (log: WatchLog) => void
   /** Shown only while editing — creating has no state worth abandoning. */
   onCancel?: () => void
 }) {
   const [where, setWhere] = useState<'out' | 'home'>(editing?.where ?? 'out')
-  const [title, setTitle] = useState(editing?.title ?? '')
-  const [titleId, setTitleId] = useState<string | undefined>(editing?.titleId)
+  const [title, setTitle] = useState(editing?.title ?? starter?.title ?? '')
+  const [titleId, setTitleId] = useState<string | undefined>(editing?.titleId ?? starter?.titleId)
   /**
    * Whether the typed name is settled — either picked from the list or
    * confirmed as free text. Until it is, the options stay open; once it is, a
    * list under the field would be asking a question that has been answered.
    */
-  const [accepted, setAccepted] = useState(Boolean(editing))
+  const [accepted, setAccepted] = useState(Boolean(editing || starter))
 
   const [venue, setVenue] = useState(editing?.venue ?? '')
   const [city, setCity] = useState(editing?.city ?? '')

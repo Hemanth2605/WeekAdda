@@ -4,10 +4,12 @@ import { ArrowLeft, CalendarDays, Film, PenLine, Search, Trophy } from 'lucide-r
 import { fetchArticles, fetchMyArticles } from '../api'
 import { refreshUser, useGoogleUser } from '../auth'
 import OfficialStamp from '../components/OfficialStamp'
+import SaveArticle from '../components/SaveArticle'
 import { timeAgo } from '../components/ReviewBits'
 import { ArticleCardsSkeleton } from '../components/Skeletons'
 import FirstCheer from '../components/FirstCheer'
 import { articlePath, usePageMeta } from '../seo'
+import { useSavedArticles } from '../saved'
 import { Article } from '../types'
 
 type Sort = 'new' | 'old'
@@ -61,6 +63,37 @@ export default function AllArticles() {
     if (on) next.set('mine', '1')
     else next.delete('mine')
     setParams(next, { replace: true })
+    // Alternatives, not filters that stack — see the note by setSavedScope
+    if (on) setSavedOnly(false)
+  }
+
+  /*
+   * The read-later list, and its own filter.
+   *
+   * Kept in component state rather than the URL, unlike ?mine=1 above. Both are
+   * account-scoped now, but ?mine=1 exists because the rail links into it from
+   * another page; nothing links to a saved view, and a shared ?saved=1 would
+   * open the recipient's list rather than the one being pointed at. It is a
+   * note to yourself, so it is not a place worth having a URL.
+   */
+  const savedIds = useSavedArticles()
+  const [savedOnly, setSavedOnly] = useState(false)
+
+  /*
+   * "Yours" and "Saved" are two answers to the same question — *whose* articles
+   * am I looking at — so turning one on turns the other off.
+   *
+   * Stacking them was not merely confusing, it was guaranteed to show nothing:
+   * you cannot save your own article, so the overlap between the two is empty
+   * by construction. Two chips that combine into a certainly-blank page are a
+   * dead end dressed up as a filter.
+   *
+   * The topic chips and the search box above are a different matter and do
+   * still stack, because "which of mine are about cricket" is a real question.
+   */
+  const setSavedScope = (on: boolean) => {
+    setSavedOnly(on)
+    if (on) setMineOnly(false)
   }
 
   usePageMeta(
@@ -92,7 +125,10 @@ export default function AllArticles() {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
     const list = (articles ?? [])
+      // Only ever one of these two — see setSavedScope. Both narrow "whose",
+      // and the topic and search filters below narrow "which" on top of it.
       .filter((a) => !mineActive || mineIds.has(a.id))
+      .filter((a) => !savedOnly || savedIds.includes(a.id))
       .filter((a) => topic === 'all' || a.topic === topic)
       .filter(
         (a) =>
@@ -102,7 +138,7 @@ export default function AllArticles() {
           a.author.toLowerCase().includes(q)
       )
     return [...list].sort((a, b) => (sort === 'old' ? (a.ts > b.ts ? 1 : -1) : a.ts < b.ts ? 1 : -1))
-  }, [articles, topic, query, sort, mineActive, mineIds])
+  }, [articles, topic, query, sort, mineActive, mineIds, savedOnly, savedIds])
 
   const total = articles?.length ?? 0
 
@@ -171,6 +207,21 @@ export default function AllArticles() {
                 aria-pressed={mineOnly}
               >
                 Yours <span className="mine-count">{mineIds.size}</span>
+              </button>
+            )}
+            {/* Where the things put aside actually live. Shown only once
+                something has been saved — a chip that can only ever return
+                nothing is the same mistake "Yours" avoids above. Not in the
+                URL, unlike ?mine=1: this list is on one browser, so a link to
+                it would open someone else's empty page. */}
+            {savedIds.length > 0 && (
+              <button
+                className={`genre-chip saved${savedOnly ? ' active' : ''}`}
+                onClick={() => setSavedScope(!savedOnly)}
+                aria-pressed={savedOnly}
+                title="Articles you put aside to read later"
+              >
+                Saved <span className="mine-count">{savedIds.length}</span>
               </button>
             )}
           </div>
@@ -246,7 +297,11 @@ export default function AllArticles() {
                       and without it the owner's own pieces are the one set of
                       articles they cannot pick out of a list. */}
                   {a.official ? <OfficialStamp compact /> : <> · {a.author}</>}
-                  {mineIds.has(a.id) && <span className="blog-you">You</span>}
+                  {/* Not while the list is already filtered to yours: the badge
+                      exists to pick your own out of everyone else's, and when
+                      there is no one else's it just repeats the chip you pressed
+                      to get here, on every row. */}
+                  {!mineActive && mineIds.has(a.id) && <span className="blog-you">You</span>}
                   {/* No like count here: counts come from a signed-in-only
                       endpoint keyed to the asking account, and this page never
                       asks anyone to sign in */}
@@ -261,6 +316,12 @@ export default function AllArticles() {
                   {a.title}
                 </Link>
                 <p className="my-article-excerpt">{a.body.replace(/\s+/g, ' ').slice(0, 160)}…</p>
+                {/* Put it aside from the list, without opening it first — which
+                    is the whole point of a read-later button: the moment you
+                    decide "not now" is before you have read it, not after.
+                    Never on your own: you are not going to forget the one you
+                    wrote, and "Yours" already gathers those. */}
+                {!mineIds.has(a.id) && <SaveArticle id={a.id} compact />}
               </div>
             </article>
           ))}

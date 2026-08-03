@@ -670,6 +670,8 @@ input {
 .notify-prompt-icon,
 .reel-ico,
 .compose-ico,
+.save-ico,
+.log-invite-ico,
 .log-ico {
   position: relative;
   isolation: isolate;
@@ -694,6 +696,8 @@ input {
 .notify-prompt-icon::before,
 .reel-ico::before,
 .compose-ico::before,
+.save-ico::before,
+.log-invite-ico::before,
 .log-ico::before {
   content: '';
   position: absolute;
@@ -824,6 +828,21 @@ input {
   --ico-glow: rgba(230, 120, 70, 0.42);
   --ico-soft: #ffc98f;
   --ico-deep: #c66a3a;
+}
+/* Read-later. Its own pair, like every other entry here — the registry's rule
+   is that a section's colours never appear on something that is not that
+   section, and a bookmark belongs to no section: it can sit on a cricket
+   article and a film one alike.
+   Violet → sky, which is the one direction still unused. Movies runs violet →
+   magenta (warm, the opposite way), Review purple → indigo (darker, never
+   blue), and Coming Soon teal → blue (green-side). This one starts purple and
+   ends light and cold, so it reads as none of them. */
+.ico-save {
+  --ico-a: #8b5cf6;
+  --ico-b: #38bdf8;
+  --ico-glow: rgba(110, 130, 240, 0.42);
+  --ico-soft: #c9c0ff;
+  --ico-deep: #5b45c9;
 }
 .opp-tabs button:hover,
 .opp-tabs a:hover {
@@ -8622,6 +8641,169 @@ span.year-cal:not(:disabled):hover {
   transform: none;
 }
 
+
+/* ---------------- save an article to read later ----------------
+   No account behind it, so it is styled as a quiet utility rather than as a
+   call to action — nothing is being asked of the reader, they are making a
+   note to themselves. Gold only once it is on, which is the one state worth
+   noticing at a glance in a list of ten. */
+.save-article {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.save-article:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+:root[data-theme='light'] .save-article:hover {
+  border-color: rgba(0, 0, 0, 0.28);
+}
+.save-article.on {
+  color: var(--gold-bright);
+  border-color: var(--gold);
+  background: rgba(232, 179, 75, 0.1);
+}
+.save-article.sm {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 4px 6px 4px 4px;
+  font-size: 11.5px;
+}
+/* The tile itself. Sized to the button rather than the navbar's 30-odd px —
+   this sits inside a pill beside a word, not alone in a bar. */
+.save-ico {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+}
+.save-article.sm .save-ico {
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+}
+.save-article:hover .save-ico::before {
+  opacity: 0.7;
+}
+.save-article.on .save-ico {
+  color: #fff;
+  box-shadow: 0 3px 10px var(--ico-glow);
+}
+.save-article.on .save-ico::before {
+  opacity: 1;
+}
+/* The heart and the bookmark sit together under an article: one is a verdict
+   that needs an account, the other a note that does not.
+   The rule and the spacing move up here from .like-row — nested, that row kept
+   its own top border, which then ran only as far as the heart and left the
+   bookmark hanging off the end of a line that stopped short of it. */
+.article-end-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+:root[data-theme='light'] .article-end-actions {
+  border-top-color: rgba(0, 0, 0, 0.1);
+}
+.article-end-actions .like-row {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+/* No `.genre-chip.saved.active` rule here on purpose. `.genre-chip.active`
+   already fills every chip solid gold, and a rule for this one scored higher
+   (0,3,0 against 0,2,0) so it quietly replaced the fill with a faint tint —
+   the Saved chip ended up looking like a different kind of control from the
+   Yours chip sitting beside it, doing the same job. The count bubble inside it
+   needs the same treatment "Yours" already has, and that is all. */
+.genre-chip.saved.active .mine-count {
+  background: #1a1508;
+  color: var(--gold-bright);
+}
+
+/* ---------------- "save it to your log" on a title page ----------------
+   The one place an account is offered, and it is offered where the thought
+   already is: on the page of a film that has come out, naming that film.
+   Quiet on purpose — a row under the synopsis, not a banner over it. The page
+   is here to answer "when is this out", and this must not push that down. */
+.log-invite {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+:root[data-theme='light'] .log-invite {
+  background: rgba(0, 0, 0, 0.02);
+}
+.log-invite:hover {
+  border-color: var(--gold);
+  background: rgba(232, 179, 75, 0.07);
+}
+.log-invite-ico {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: #fff;
+}
+/* Lit outright rather than tinted. The glass-until-selected rule is for
+   controls with two states; this is a single invitation, and there is no
+   unselected version of it to contrast with. */
+.log-invite-ico::before {
+  opacity: 1;
+}
+.log-invite:hover .log-invite-ico {
+  box-shadow: 0 3px 12px var(--ico-glow);
+}
+.log-invite-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.log-invite-text b {
+  font-size: 13.5px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.log-invite-text small {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.log-invite-go {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-dim);
+  transition: color 0.2s, transform 0.2s;
+}
+.log-invite:hover .log-invite-go {
+  color: var(--gold);
+  transform: translateX(2px);
+}
 
 /* ---------------- "add to Home Screen" explainer (Apple, in a tab) ----------
    Shown in place of the bell on an iPhone or iPad browsing normally, where

@@ -189,6 +189,19 @@ export function fetchArticleLikes(
   })
 }
 
+/** Which articles this account has put aside. Signed out, the list is empty. */
+export function fetchSavedArticles(token: string): Promise<{ ids: string[] }> {
+  return api('/articles/saved', { headers: { Authorization: `Bearer ${token}` } })
+}
+
+/** Save or unsave; the server answers with which it became. */
+export function saveArticle(id: string, token: string): Promise<{ saved: boolean }> {
+  return api(`/articles/${encodeURIComponent(id)}/save`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 /** Toggle the heart. Tapping again removes it; sign-in required. */
 export function likeArticle(
   id: string,

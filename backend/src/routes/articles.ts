@@ -28,11 +28,23 @@ const DATA_DIR = path.join(__dirname, '..', '..', 'cache')
 const ARTICLES_FILE = path.join(DATA_DIR, 'articles.json')
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads')
 const LIKES_FILE = path.join(DATA_DIR, 'article-likes.json')
+/** Read-later rows: { articleId, userEmail, ts } — local twin of saved_articles */
+const SAVED_FILE = path.join(DATA_DIR, 'saved-articles.json')
 const MAX_ARTICLES = 500
 
 function loadLikes(): ArticleLike[] {
   try {
     const rows = JSON.parse(fs.readFileSync(LIKES_FILE, 'utf-8'))
+    return Array.isArray(rows) ? rows : []
+  } catch {
+    return []
+  }
+}
+
+/** Read-later rows, local twin of the saved_articles table. */
+function loadSaved(): Array<{ articleId: string; userEmail: string; ts: string }> {
+  try {
+    const rows = JSON.parse(fs.readFileSync(SAVED_FILE, 'utf-8'))
     return Array.isArray(rows) ? rows : []
   } catch {
     return []
@@ -135,6 +147,47 @@ router.get('/image/:name', (req: Request, res: Response) => {
 router.get('/likes', async (req: Request, res: Response) => {
   const profile = await writer(req)
   res.json({ likes: summarizeLikes(loadLikes(), profile?.email) })
+})
+
+/**
+ * Articles this account has put aside — ids only; the articles themselves come
+ * from the ordinary listing, so nothing here can go stale.
+ *
+ * MUST stay above /:id, or "saved" is read as an article id and 404s — the same
+ * trap the likes route above carries a warning about.
+ *
+ * Signed out it is empty rather than 401: the page asks on every visit, and a
+ * reader who is simply not signed in has not done anything wrong.
+ */
+router.get('/saved', async (req: Request, res: Response) => {
+  const profile = await writer(req)
+  if (!profile) return res.json({ ids: [] })
+  res.json({
+    ids: loadSaved()
+      .filter((s) => s.userEmail === profile.email)
+      .map((s) => s.articleId),
+  })
+})
+
+// Save or unsave. Sign-in required — the list is keyed to the account, which
+// is the whole reason it follows the reader between devices.
+router.post('/:id/save', async (req: Request, res: Response) => {
+  const profile = await writer(req)
+  if (!profile) return res.status(401).json({ error: 'Please sign in with Google to save' })
+  const article = loadArticles().find((a) => a.id === req.params.id)
+  if (!article) return res.status(404).json({ error: 'Article not found' })
+
+  const rows = loadSaved()
+  const already = rows.some((s) => s.articleId === article.id && s.userEmail === profile.email)
+  const next = already
+    ? rows.filter((s) => !(s.articleId === article.id && s.userEmail === profile.email))
+    : [
+        { articleId: article.id, userEmail: profile.email, ts: new Date().toISOString() },
+        ...rows,
+      ]
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.writeFileSync(SAVED_FILE, JSON.stringify(next, null, 2))
+  res.json({ saved: !already })
 })
 
 // One article plus what to show beside it, in a single round trip — the panel

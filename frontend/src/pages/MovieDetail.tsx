@@ -19,6 +19,7 @@ import { watchUrl, bookingUrls } from '../watchLinks'
 import { platformClass, shareRelease } from '../share'
 import { alsoInLabel, languageLabel, releaseLanguagesOf } from '../languages'
 import { platformByName } from '../platforms'
+import LogInvite from '../components/LogInvite'
 import OfficialStamp from '../components/OfficialStamp'
 import Breadcrumbs from '../components/Breadcrumbs'
 
@@ -260,6 +261,11 @@ export default function MovieDetail() {
           <button className="share-wa" onClick={() => shareRelease(r)}>
             <Share2 size={16} /> Share
           </button>
+
+          {/* The same invitation the modal carries, from the same component —
+              two copies of this would drift, and the modal's is the one most
+              people ever see */}
+          <LogInvite release={r} />
         </div>
       </div>
 

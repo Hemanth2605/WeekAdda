@@ -28,6 +28,7 @@ import ArticleIndex from '../components/ArticleIndex'
 import Prose from '../components/Prose'
 import OfficialStamp from '../components/OfficialStamp'
 import LikeButton from '../components/LikeButton'
+import SaveArticle from '../components/SaveArticle'
 import { ArticlePageSkeleton } from '../components/Skeletons'
 import { timeAgo } from '../components/ReviewBits'
 
@@ -268,12 +269,21 @@ export default function ArticleDetail() {
                 ))}
               </section>
             )}
-            <LikeButton
-              articleId={article.id}
-              summary={likes[article.id]}
-              own={mine}
-              onChange={(fresh) => setLikes((all) => ({ ...all, [article.id]: fresh }))}
-            />
+            {/* Beside the heart, and they are different questions: the heart
+                says "this was good" and needs an account so it can be counted
+                once; saving says "not now" and needs nothing, because it is
+                only ever a note to yourself on this device. */}
+            <div className="article-end-actions">
+              <LikeButton
+                articleId={article.id}
+                summary={likes[article.id]}
+                own={mine}
+                onChange={(fresh) => setLikes((all) => ({ ...all, [article.id]: fresh }))}
+              />
+              {/* Not on your own. "Read later" is a note about something you
+                  have not read; you wrote this one. */}
+              {!mine && <SaveArticle id={article.id} />}
+            </div>
             {/* Only on your own piece, and only ever your own — the server
                 checks the verified email again when either one is used */}
             {mine && (

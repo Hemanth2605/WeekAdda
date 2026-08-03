@@ -1422,6 +1422,59 @@ const routes = {
       })
     }
 
+    /**
+     * Articles this account has put aside — ids only. The articles themselves
+     * come from the ordinary listing, so a saved one can never go stale.
+     *
+     * Before the /api/articles/<id> branch below, or "saved" is read as an id.
+     * Empty rather than 401 when signed out: the page asks on every visit, and
+     * not being signed in is not an error.
+     */
+    if (url.pathname === '/api/articles/saved' && request.method === 'GET') {
+      if (!env.GOOGLE_CLIENT_ID) return json({ ids: [] })
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ ids: [] })
+      const res = await sb(
+        env,
+        `saved_articles?user_email=eq.${encodeURIComponent(profile.email)}&select=article_id&order=ts.desc&limit=500`
+      )
+      const rows = res.ok ? ((await res.json()) as Array<{ article_id: string }>) : []
+      // A reading list is nobody's business but its owner's
+      return new Response(JSON.stringify({ ids: rows.map((r) => r.article_id) }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      })
+    }
+
+    // Save or unsave, one per account. Sign-in required — the list is keyed to
+    // the account, which is the whole reason it follows the reader about.
+    if (/^\/api\/articles\/[^/]+\/save$/.test(url.pathname) && request.method === 'POST') {
+      if (!env.GOOGLE_CLIENT_ID) return json({ error: 'Sign-in is not configured' }, 401)
+      const authz = request.headers.get('Authorization') ?? ''
+      const token = authz.startsWith('Bearer ') ? authz.slice(7) : ''
+      const profile = token ? await verifyGoogleToken(token, env.GOOGLE_CLIENT_ID) : null
+      if (!profile) return json({ error: 'Please sign in with Google to save' }, 401)
+      const id = decodeURIComponent(url.pathname.split('/')[3] ?? '')
+      const exists = await sb(env, `articles?id=eq.${encodeURIComponent(id)}&select=id&limit=1`)
+      if (!exists.ok || ((await exists.json()) as unknown[]).length === 0) {
+        return json({ error: 'Article not found' }, 404)
+      }
+      const key = `article_id=eq.${encodeURIComponent(id)}&user_email=eq.${encodeURIComponent(profile.email)}`
+      const mineRes = await sb(env, `saved_articles?${key}&select=article_id`)
+      const already = mineRes.ok && ((await mineRes.json()) as unknown[]).length > 0
+      const wrote = already
+        ? await sb(env, `saved_articles?${key}`, { method: 'DELETE' })
+        : await sb(env, 'saved_articles', {
+            method: 'POST',
+            body: JSON.stringify({ article_id: id, user_email: profile.email }),
+          })
+      if (!wrote.ok) return json({ error: 'Could not save' }, 500)
+      return new Response(JSON.stringify({ saved: !already }), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
+      })
+    }
+
     // Toggle the heart — one per account, tapping again removes it
     if (/^\/api\/articles\/[^/]+\/like$/.test(url.pathname) && request.method === 'POST') {
       if (!env.GOOGLE_CLIENT_ID) return json({ error: 'Sign-in is not configured' }, 401)

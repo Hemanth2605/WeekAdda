@@ -500,6 +500,27 @@ cd frontend && npm run check:css
 
 ## Gotchas
 
+- **An `await` that never settles is worse than one that rejects.** A rejection
+  reaches a `catch` and gets reported; a promise that simply never resolves
+  reports nothing, leaves whatever guard flag was set still set, and kills the
+  control for the rest of the visit. It reads as "the button does nothing",
+  which is indistinguishable from a broken site, and it cost most of a day
+  across three separate features (Aug 2026):
+  - the **mini player** awaited `loadedmetadata` on a canvas `captureStream`,
+    which Safari never fires — and `openingRef` never cleared, so every later
+    tap returned early too;
+  - **sign-in** awaited a Google callback that an installed iOS app never
+    receives, because the popup opens in Safari with no opener to report back
+    through, leaving the button on "Signing in…" until the app was killed;
+  - the same button set `busy` before a navigation that iOS then declined to
+    perform on that page.
+  The rules that came out of it: **bound every wait** (`withTimeout` in
+  `PipShow.tsx` is the pattern), **treat "the visitor came back" as an answer**
+  (`visibilitychange`/`focus` in `auth.ts`, with a grace period so a real
+  callback still wins the race), and **funnel every exit through one reporting
+  path** so no early `return` can leave silently. When something "does nothing",
+  suspect an unsettled promise before suspecting the event handler.
+
 - **A Worker route nested under another route's prefix guard is dead code, and
   local dev will never tell you.** The `/api/logs*` branches were written inside
   `if (url.pathname.startsWith('/api/adda'))` — to reuse its `verifyMe` — so in
@@ -539,6 +560,22 @@ cd frontend && npm run check:css
 - **A flex child will not shrink below its longest word.** The review page's title
   ran straight out of the card because `.blog-card-meta` had no `min-width: 0`.
   Any long string in a flex row needs that plus `overflow-wrap: anywhere`.
+  **Unless it clips**: a flex item whose `overflow` is anything but `visible`
+  already has an automatic minimum size of zero, which is why the cricket card's
+  `nowrap` + `overflow: hidden` + ellipsis team names and scores shrink correctly
+  with no `min-width` at all. So the ones to check are the items that *don't*
+  clip. **And what an overflow looks like depends entirely on whether an
+  ancestor happens to clip** — the log ticket has `overflow: hidden`, so a long
+  note merely vanished; `.blog-card` has none, so an Adda email of the same
+  length pushed the whole page sideways. Fix the text, not the container.
+
+- **Verify against what is served, not what is written.** Three separate false
+  readings in one day: CSS that looked correctly ordered in source and was not
+  once concatenated; a `grep` of a live bundle that found nothing because
+  Cloudflare serves it compressed (use `curl --compressed`); and a "fix
+  verified" run that was answered by a stale process still holding the port.
+  For anything that survives a build step or crosses the network, read the
+  built file, the served bytes, or the cache the sweep actually wrote.
 - **Google's popup only opens from a real click.** `ArticleImagePicker` asked for
   sign-in from the file input's `change` event — by then the OS file dialog had spent
   the user gesture and the browser refused with `popup_failed_to_open`. Sign-in is now

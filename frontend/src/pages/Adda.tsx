@@ -250,9 +250,13 @@ function AddaComposer({
   const [invalid, setInvalid] = useState<'title' | 'details' | null>(null)
   const user = useGoogleUser()
 
+  // Whoever is signed in sees their own Google name — never a name left
+  // behind by a different account. Keyed on the email so a token refresh of
+  // the same account cannot clobber a name being typed.
   useEffect(() => {
-    if (user) setAuthor((prev) => prev || user.name.slice(0, 40))
-  }, [user])
+    setAuthor(user ? user.name.slice(0, 40) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email])
 
   // Only on open, and only over an untouched field — a starter must never
   // overwrite something already being written

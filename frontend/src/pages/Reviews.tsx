@@ -468,13 +468,7 @@ function Composer({
   }, [open, preset])
 
   const [tagSearch, setTagSearch] = useState('')
-  const [author, setAuthor] = useState(() => {
-    try {
-      return localStorage.getItem('weekadda-author') ?? ''
-    } catch {
-      return ''
-    }
-  })
+  const [author, setAuthor] = useState('')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
@@ -485,9 +479,14 @@ function Composer({
   const user = useGoogleUser()
   const needsSignIn = authEnabled && !user
 
+  // The name belongs to the account, not the browser: whoever is signed in
+  // sees their own Google name (still editable before publishing), and signed
+  // out the field is simply empty. Keyed on the email so an hourly token
+  // refresh of the same account cannot clobber a name being typed.
   useEffect(() => {
-    if (user) setAuthor((prev) => prev || user.name.slice(0, 40))
-  }, [user])
+    setAuthor(user ? user.name.slice(0, 40) : '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email])
 
   const options = useTagOptions(kind, open)
 
@@ -526,11 +525,6 @@ function Composer({
     setError('')
     setInvalid(null)
     setSending(true)
-    try {
-      localStorage.setItem('weekadda-author', author.trim())
-    } catch {
-      // remembering the name is best-effort
-    }
     const done = () => {
       onClose()
       setTag(null)

@@ -40,10 +40,60 @@ export function trackClick(payload: {
   }
 }
 
+// ------------------------------------------------- stale-while-revalidate cache
+/**
+ * The public list endpoints (/blog, /articles, and ratings/likes when signed
+ * out) are refetched on every visit, and in production each one is a Supabase
+ * round trip — so every navigation to /reviews sat on skeletons for data the
+ * browser had held seconds earlier. `swr` answers with the last-known copy
+ * immediately and revalidates behind, handing the fresh copy to `onFresh`.
+ * sessionStorage, not localStorage: public data, but it should die with the
+ * tab rather than serve a days-old feed as the opening frame.
+ *
+ * Only ever for unsigned responses — anything fetched with a token is
+ * personal and stays uncached. Mutations drop the key they touched, so a
+ * writer sees their own publish/edit/delete at once.
+ */
+const SWR_PREFIX = 'weekadda-api:'
+
+function readSwr<T>(path: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(SWR_PREFIX + path)
+    return raw ? (JSON.parse(raw) as T) : null
+  } catch {
+    return null
+  }
+}
+
+function dropSwr(path: string) {
+  try {
+    sessionStorage.removeItem(SWR_PREFIX + path)
+  } catch {
+    // nothing cached, nothing to drop
+  }
+}
+
+function swr<T>(path: string, onFresh?: (fresh: T) => void): Promise<T> {
+  const refresh = api<T>(path).then((fresh) => {
+    try {
+      sessionStorage.setItem(SWR_PREFIX + path, JSON.stringify(fresh))
+    } catch {
+      // a full or unavailable sessionStorage just means no fast path
+    }
+    return fresh
+  })
+  const cached = readSwr<T>(path)
+  if (cached === null) return refresh
+  refresh.then((fresh) => onFresh?.(fresh)).catch(() => {})
+  return Promise.resolve(cached)
+}
+
 // ---------------------------------------------------------------- blog
 
-export function fetchPosts(): Promise<{ posts: import('./types').BlogPost[] }> {
-  return api('/blog')
+export function fetchPosts(
+  onFresh?: (fresh: { posts: import('./types').BlogPost[] }) => void
+): Promise<{ posts: import('./types').BlogPost[] }> {
+  return swr('/blog', onFresh)
 }
 
 /**
@@ -62,11 +112,12 @@ export function fetchMyPosts(token: string): Promise<{ posts: import('./types').
 }
 
 export function fetchRatings(
-  token?: string
+  token?: string,
+  onFresh?: (fresh: { ratings: Record<string, import('./types').RatingSummary> }) => void
 ): Promise<{ ratings: Record<string, import('./types').RatingSummary> }> {
-  return api('/blog/ratings', {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  })
+  // With a token the answer includes "your rating" — personal, never cached
+  if (token) return api('/blog/ratings', { headers: { Authorization: `Bearer ${token}` } })
+  return swr('/blog/ratings', onFresh)
 }
 
 export function ratePost(
@@ -74,10 +125,13 @@ export function ratePost(
   rating: number,
   token: string
 ): Promise<import('./types').RatingSummary> {
-  return api('/blog/rate', {
+  return api<import('./types').RatingSummary>('/blog/rate', {
     method: 'POST',
     body: JSON.stringify({ postId, rating }),
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/blog/ratings')
+    return r
   })
 }
 
@@ -87,17 +141,24 @@ export function updatePost(
   payload: { title: string; body: string; tag: import('./types').BlogTag },
   token: string
 ): Promise<import('./types').BlogPost> {
-  return api(`/blog/${encodeURIComponent(id)}`, {
+  return api<import('./types').BlogPost>(`/blog/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/blog')
+    return r
   })
 }
 
 export function deletePost(id: string, token: string): Promise<{ deleted: string }> {
-  return api(`/blog/${encodeURIComponent(id)}`, {
+  return api<{ deleted: string }>(`/blog/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/blog')
+    dropSwr('/blog/ratings')
+    return r
   })
 }
 
@@ -110,17 +171,22 @@ export function createPost(
   },
   token?: string
 ): Promise<import('./types').BlogPost> {
-  return api('/blog', {
+  return api<import('./types').BlogPost>('/blog', {
     method: 'POST',
     body: JSON.stringify(payload),
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }).then((r) => {
+    dropSwr('/blog')
+    return r
   })
 }
 
 // ---------------------------------------------------------------- articles
 
-export function fetchArticles(): Promise<{ articles: import('./types').Article[] }> {
-  return api('/articles')
+export function fetchArticles(
+  onFresh?: (fresh: { articles: import('./types').Article[] }) => void
+): Promise<{ articles: import('./types').Article[] }> {
+  return swr('/articles', onFresh)
 }
 
 /** The signed-in writer's own articles, so they can find what they published. */
@@ -173,20 +239,24 @@ export function createArticle(
   },
   token?: string
 ): Promise<import('./types').Article> {
-  return api('/articles', {
+  return api<import('./types').Article>('/articles', {
     method: 'POST',
     body: JSON.stringify(payload),
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }).then((r) => {
+    dropSwr('/articles')
+    return r
   })
 }
 
 /** Like counts for every article; with a token, whether you liked each. */
 export function fetchArticleLikes(
-  token?: string
+  token?: string,
+  onFresh?: (fresh: { likes: Record<string, import('./types').LikeSummary> }) => void
 ): Promise<{ likes: Record<string, import('./types').LikeSummary> }> {
-  return api('/articles/likes', {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  })
+  // With a token the answer includes "you liked this" — personal, never cached
+  if (token) return api('/articles/likes', { headers: { Authorization: `Bearer ${token}` } })
+  return swr('/articles/likes', onFresh)
 }
 
 /** Which articles this account has put aside. Signed out, the list is empty. */
@@ -207,9 +277,12 @@ export function likeArticle(
   id: string,
   token: string
 ): Promise<import('./types').LikeSummary> {
-  return api(`/articles/${encodeURIComponent(id)}/like`, {
+  return api<import('./types').LikeSummary>(`/articles/${encodeURIComponent(id)}/like`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/articles/likes')
+    return r
   })
 }
 
@@ -227,17 +300,24 @@ export function updateArticle(
   },
   token: string
 ): Promise<import('./types').Article> {
-  return api(`/articles/${encodeURIComponent(id)}`, {
+  return api<import('./types').Article>(`/articles/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/articles')
+    return r
   })
 }
 
 export function deleteArticle(id: string, token: string): Promise<{ deleted: string }> {
-  return api(`/articles/${encodeURIComponent(id)}`, {
+  return api<{ deleted: string }>(`/articles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
+  }).then((r) => {
+    dropSwr('/articles')
+    dropSwr('/articles/likes')
+    return r
   })
 }
 

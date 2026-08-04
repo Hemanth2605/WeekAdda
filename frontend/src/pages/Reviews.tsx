@@ -1343,7 +1343,7 @@ export default function Reviews() {
 
   // Rating summaries — refetched on sign-in/out so "your rating" stays right
   useEffect(() => {
-    fetchRatings(user ? refreshUser()?.token : undefined)
+    fetchRatings(user ? refreshUser()?.token : undefined, (r) => setRatings(r.ratings))
       .then((r) => setRatings(r.ratings))
       .catch(() => {})
   }, [user])
@@ -1405,7 +1405,7 @@ export default function Reviews() {
   )
 
   useEffect(() => {
-    fetchPosts()
+    fetchPosts((r) => setPosts(r.posts))
       .then((r) => setPosts(r.posts))
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -1414,14 +1414,14 @@ export default function Reviews() {
   // The rail is its own fetch: articles are a separate store, and a failure
   // to load them must not take the reviews feed down with it
   useEffect(() => {
-    fetchArticles()
+    fetchArticles((r) => setArticles(r.articles))
       .then((r) => setArticles(r.articles))
       .catch(() => setArticles([]))
   }, [])
 
   // Counts are public; the token only adds whether this reader liked each
   useEffect(() => {
-    fetchArticleLikes(user ? refreshUser()?.token : undefined)
+    fetchArticleLikes(user ? refreshUser()?.token : undefined, (r) => setArticleLikes(r.likes))
       .then((r) => setArticleLikes(r.likes))
       .catch(() => {})
   }, [user])

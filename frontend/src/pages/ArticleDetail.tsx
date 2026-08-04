@@ -87,7 +87,7 @@ export default function ArticleDetail() {
   // actually reading; the count itself never needs an account
   useEffect(() => {
     if (!id) return
-    fetchArticleLikes(user ? refreshUser()?.token : undefined)
+    fetchArticleLikes(user ? refreshUser()?.token : undefined, (r) => setLikes(r.likes))
       .then((r) => setLikes(r.likes))
       .catch(() => {})
   }, [id, user])

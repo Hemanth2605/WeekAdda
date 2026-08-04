@@ -59,11 +59,10 @@ export default function MovieDetail() {
   useEffect(() => {
     if (!id) return
     let cancelled = false
-    fetchPosts()
-      .then(({ posts }) => {
-        if (!cancelled) setReviews(posts.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === id))
-      })
-      .catch(() => setReviews([]))
+    const apply = ({ posts }: { posts: import('../types').BlogPost[] }) => {
+      if (!cancelled) setReviews(posts.filter((p) => p.tag?.kind === 'movie' && p.tag?.id === id))
+    }
+    fetchPosts(apply).then(apply).catch(() => setReviews([]))
     return () => {
       cancelled = true
     }

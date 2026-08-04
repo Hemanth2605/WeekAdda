@@ -102,7 +102,7 @@ export default function AllArticles() {
   )
 
   useEffect(() => {
-    fetchArticles()
+    fetchArticles((r) => setArticles(r.articles))
       .then((r) => setArticles(r.articles))
       .catch(() => setArticles([]))
   }, [])

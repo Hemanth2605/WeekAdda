@@ -82,18 +82,20 @@ export default function ReviewDetail() {
   // The rail is its own fetch, and a separate store — failing to load the
   // articles must not take the review down with it
   useEffect(() => {
-    fetchArticles()
+    fetchArticles((r) => setArticles(r.articles))
       .then((r) => setArticles(r.articles))
       .catch(() => setArticles([]))
     // Counts for the rail; the token only adds whether this reader liked each
-    fetchArticleLikes(user ? refreshUser()?.token : undefined)
+    fetchArticleLikes(user ? refreshUser()?.token : undefined, (r) => setArticleLikes(r.likes))
       .then((r) => setArticleLikes(r.likes))
       .catch(() => {})
   }, [user])
 
   useEffect(() => {
-    fetchRatings(user ? refreshUser()?.token : undefined)
-      .then((r) => setRating(id ? r.ratings[id] : undefined))
+    const apply = (r: { ratings: Record<string, import('../types').RatingSummary> }) =>
+      setRating(id ? r.ratings[id] : undefined)
+    fetchRatings(user ? refreshUser()?.token : undefined, apply)
+      .then(apply)
       .catch(() => {})
   }, [id, user])
 

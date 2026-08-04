@@ -5480,24 +5480,6 @@ a.article-watch-title:hover {
   color: var(--text-dim);
 }
 
-/* Live preview under the composer's textarea. Inset and muted so it reads as
-   a look at the result rather than as another field to fill in. */
-.compose-preview {
-  margin: 12px 0 4px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-}
-:root[data-theme='light'] .compose-preview {
-  border-color: rgba(0, 0, 0, 0.1);
-  background: rgba(0, 0, 0, 0.02);
-}
-.compose-preview .review-article-body p {
-  font-size: 14px;
-  line-height: 1.7;
-}
-
 /* Cover image: the composer's picker, and the result on the article */
 .article-image-picker {
   margin-bottom: 14px;

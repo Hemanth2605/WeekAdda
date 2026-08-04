@@ -15,7 +15,6 @@ import {
   Globe,
   Lock,
   ExternalLink,
-  Eye,
   Pencil,
   Trash2,
 } from 'lucide-react'
@@ -61,7 +60,6 @@ import FirstCheer, {
 import FilmWatchPicker from '../components/FilmWatchPicker'
 import WatchLogForm from '../components/WatchLogForm'
 import ArticleImagePicker, { DEFAULT_POSITION } from '../components/ArticleImagePicker'
-import Prose from '../components/Prose'
 import { StarRow, TagLine, timeAgo } from '../components/ReviewBits'
 import OfficialStamp from '../components/OfficialStamp'
 
@@ -950,20 +948,6 @@ function Composer({
       />
       </>
       )}
-      {/* Links become platform buttons only when the article renders, so
-          without this the writer cannot tell whether a pasted URL was
-          recognised until after publishing — by which time fixing it means
-          editing a live page. Same component the article page uses, so what
-          is shown here is what will actually be published. */}
-      {mode === 'article' && body.trim().length > 0 && (
-        <div className="compose-preview">
-          <span className="film-picker-label">
-            <Eye size={13} /> Preview
-          </span>
-          <Prose className="review-article-body" text={body} films={films} />
-        </div>
-      )}
-
       {(mode === 'article' || reviewFields) && (
       <div className="blog-composer-foot">
         <input

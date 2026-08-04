@@ -8679,6 +8679,13 @@ span.year-cal:not(:disabled):hover {
   margin-top: 10px;
   padding: 4px 6px 4px 4px;
   font-size: 11.5px;
+  /* The card under this button is one stretched link — .my-article-title's
+     ::after covers the whole card at z-index 1 so that anywhere on it opens
+     the article. Its own comment says anything needing its own click must rise
+     above that, and this button did not: every tap on "Save" landed on the
+     invisible link and navigated, so the handler never ran at all. */
+  position: relative;
+  z-index: 2;
 }
 /* The tile itself. Sized to the button rather than the navbar's 30-odd px —
    this sits inside a pill beside a word, not alone in a bar. */

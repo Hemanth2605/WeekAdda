@@ -1391,10 +1391,13 @@ const routes = {
       // them back), so a rename here means a rename there
       const { authorEmail, imagePosition, imageFit, ...pub } = article
       const insert = await sb(env, 'articles', {
-        ...pub,
-        ...(authorEmail ? { author_email: authorEmail } : {}),
-        ...(imagePosition ? { image_position: imagePosition } : {}),
-        ...(imageFit ? { image_fit: imageFit } : {}),
+        method: 'POST',
+        body: JSON.stringify({
+          ...pub,
+          ...(authorEmail ? { author_email: authorEmail } : {}),
+          ...(imagePosition ? { image_position: imagePosition } : {}),
+          ...(imageFit ? { image_fit: imageFit } : {}),
+        }),
       })
       if (!insert.ok) return json({ error: 'Could not publish' }, 500)
       memory.delete('article-list')
